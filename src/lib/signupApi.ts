@@ -34,3 +34,14 @@ export async function submitSignup(input: SignupInput): Promise<SignupResult> {
   if (res.ok) return { ok: true, account: body }
   return { ok: false, errors: body.errors ?? { form: 'Something went wrong. Please try again.' } }
 }
+
+export async function submitLogin(username: string, password: string): Promise<SignupResult> {
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  const body = await res.json()
+  if (res.ok) return { ok: true, account: body }
+  return { ok: false, errors: body.errors ?? { form: 'Something went wrong. Please try again.' } }
+}

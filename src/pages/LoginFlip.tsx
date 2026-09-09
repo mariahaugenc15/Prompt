@@ -50,6 +50,12 @@ export function LoginFlip() {
         </div>
       </div>
       <p className="mt-6 text-center text-sm text-paper-dim/80">
+        Have a real account on another device?{' '}
+        <Link to="/login" className="font-medium text-paper underline underline-offset-2">
+          Log in
+        </Link>
+      </p>
+      <p className="mt-1.5 text-center text-sm text-paper-dim/80">
         New here?{' '}
         <Link to="/signup" className="font-medium text-paper underline underline-offset-2">
           Create an account

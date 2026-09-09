@@ -14,6 +14,7 @@ import { CreateBoard } from './pages/CreateBoard'
 import { Profile } from './pages/Profile'
 import { SendPrompt } from './pages/SendPrompt'
 import { SignUp } from './pages/SignUp'
+import { Login } from './pages/Login'
 import { OrgPage } from './pages/OrgPage'
 import { RealInbox } from './pages/RealInbox'
 import { RealSend } from './pages/RealSend'
@@ -42,6 +43,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/signup" element={<SignUp />} />
+      <Route path="/login" element={<Login />} />
       <Route
         path="/o/:username"
         element={

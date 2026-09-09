@@ -23,6 +23,11 @@ const PORT = Number(process.env.PORT ?? 8787)
 
 const findByUsername = db.prepare('SELECT 1 FROM accounts WHERE username_normalized = ?')
 const findByEmail = db.prepare('SELECT 1 FROM accounts WHERE email_normalized = ?')
+const findLoginRow = db.prepare(`
+  SELECT id, account_type, username, email, first_name, organization_name, password_hash, password_salt
+  FROM accounts WHERE username_normalized = ?
+`)
+const rotateToken = db.prepare('UPDATE accounts SET auth_token = ? WHERE id = ?')
 const insertAccount = db.prepare(`
   INSERT INTO accounts (
     id, account_type, username, username_normalized, email, email_normalized,
@@ -37,6 +42,15 @@ function hashPassword(password: string): { hash: string; salt: string } {
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.scryptSync(password, salt, 64).toString('hex')
   return { hash, salt }
+}
+
+function verifyPassword(password: string, salt: string, expectedHash: string): boolean {
+  const candidate = crypto.scryptSync(password, salt, 64)
+  const expected = Buffer.from(expectedHash, 'hex')
+  // Both sides are always a 64-byte scrypt digest, so the length check
+  // above is just for timingSafeEqual's own precondition — it never
+  // becomes a length-based side channel on the password itself.
+  return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected)
 }
 
 function usernameTaken(username: string): boolean {
@@ -134,6 +148,47 @@ app.post('/api/signup', (req, res) => {
     // sends this back as `Authorization: Bearer <token>` on every
     // account/prompt request from here on.
     token: authToken,
+  })
+})
+
+app.post('/api/login', (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username : ''
+  const password = typeof req.body?.password === 'string' ? req.body.password : ''
+
+  const row = username ? (findLoginRow.get(normalizeUsername(username)) as
+    | {
+        id: string
+        account_type: SignupInput['accountType']
+        username: string
+        email: string
+        first_name: string | null
+        organization_name: string | null
+        password_hash: string
+        password_salt: string
+      }
+    | undefined) : undefined
+
+  // Same generic error whether the username doesn't exist or the password
+  // is wrong — telling them apart would let an attacker enumerate accounts.
+  const invalid = () => res.status(401).json({ errors: { form: 'Incorrect username or password.' } })
+
+  if (!row || !password) return invalid()
+  if (!verifyPassword(password, row.password_salt, row.password_hash)) return invalid()
+
+  // Rotate the token on every login rather than reusing whatever was minted
+  // at sign-up (or a previous login) — a fresh session per login, same as
+  // any real auth system, even though there's no expiry yet (see README).
+  const token = crypto.randomBytes(32).toString('hex')
+  rotateToken.run(token, row.id)
+
+  res.json({
+    id: row.id,
+    accountType: row.account_type,
+    username: row.username,
+    email: row.email,
+    firstName: row.first_name ?? undefined,
+    organizationName: row.organization_name ?? undefined,
+    token,
   })
 })
 

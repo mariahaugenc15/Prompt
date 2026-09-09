@@ -17,6 +17,23 @@ function base(props: IconProps) {
   }
 }
 
+export function SearchIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m20 20-4.8-4.8" />
+    </svg>
+  )
+}
+
+export function ShuffleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 6h3.5L14 18h3.5M3 18h3.5L11 12M17.5 6H21M17.5 18H21M18.5 3l3 3-3 3M18.5 15l3 3-3 3" />
+    </svg>
+  )
+}
+
 export function PinIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
@@ -40,6 +57,14 @@ export function FlagIcon(props: IconProps) {
     <svg {...base(props)}>
       <path d="M5 21V4" />
       <path d="M5 4h11l-2.5 3.5L16 11H5" />
+    </svg>
+  )
+}
+
+export function StarIcon({ filled, ...props }: IconProps & { filled?: boolean }) {
+  return (
+    <svg {...base(props)} fill={filled ? 'currentColor' : 'none'}>
+      <path d="M12 3.5l2.6 5.4 5.9.7-4.3 4.1 1.1 5.8-5.3-2.9-5.3 2.9 1.1-5.8-4.3-4.1 5.9-.7Z" />
     </svg>
   )
 }

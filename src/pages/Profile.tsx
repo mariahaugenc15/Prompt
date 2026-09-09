@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import { computeCompletionScore } from '../lib/completionScore'
+import { fileToCompressedDataUrl } from '../lib/media'
 import type { PromptPermission } from '../lib/types'
-import { CalendarIcon, CheckIcon, LockIcon } from '../components/Icons'
+import { CalendarIcon, CameraIcon, CheckIcon, LockIcon } from '../components/Icons'
 import { getMe, setMyPromptPermission, type Me } from '../lib/realAccountsApi'
 
 const PERMISSIONS: { id: PromptPermission; label: string; help: string; recommended?: boolean }[] = [
@@ -30,6 +31,10 @@ export function Profile() {
   const setPromptPermission = useStore((s) => s.setPromptPermission)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
   const setHideCompletionScore = useStore((s) => s.setHideCompletionScore)
+  const avatarDataUrl = useStore((s) => s.avatarDataUrl)
+  const setAvatar = useStore((s) => s.setAvatar)
+  const bio = useStore((s) => s.bio)
+  const setBio = useStore((s) => s.setBio)
 
   const score = useMemo(() => computeCompletionScore(CURRENT_USER_ID, prompts), [prompts])
   const received = prompts.filter((p) => p.toUserId === CURRENT_USER_ID && !p.boardId)
@@ -50,19 +55,82 @@ export function Profile() {
     if (res.ok) setMe((prev) => (prev ? { ...prev, promptPermission: value } : prev))
   }
 
+  const [editingBio, setEditingBio] = useState(false)
+  const [bioDraft, setBioDraft] = useState(bio)
+  const [avatarBusy, setAvatarBusy] = useState(false)
+
+  async function handleAvatarFile(file: File | undefined) {
+    if (!file) return
+    setAvatarBusy(true)
+    try {
+      setAvatar(await fileToCompressedDataUrl(file, 240, 0.8))
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
+
+  function saveBio() {
+    setBio(bioDraft.trim())
+    setEditingBio(false)
+  }
+
   return (
     <div className="flex flex-col gap-6 p-4">
       <div className="flex items-center gap-3">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-xl">
-          {displayName.charAt(0).toUpperCase()}
-        </span>
-        <div>
+        <label className="relative flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-xl">
+          {avatarDataUrl ? (
+            <img src={avatarDataUrl} alt="" className="h-full w-full rounded-full object-cover" />
+          ) : (
+            displayName.charAt(0).toUpperCase()
+          )}
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border border-line bg-ink text-paper">
+            <CameraIcon size={12} />
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleAvatarFile(e.target.files?.[0])}
+          />
+        </label>
+        <div className="flex-1">
           <h1 className="font-serif text-xl leading-tight">{displayName}</h1>
           <p className="text-xs text-ink-faint">
             {handle} · {following.length} following · {followers.length} followers
           </p>
+          {editingBio ? (
+            <div className="mt-2 flex flex-col gap-1.5">
+              <textarea
+                value={bioDraft}
+                onChange={(e) => setBioDraft(e.target.value)}
+                placeholder="Tell people what you're about…"
+                rows={2}
+                maxLength={140}
+                className="resize-none rounded-sm border border-line bg-card p-2 text-sm outline-none focus:border-line-strong"
+              />
+              <div className="flex gap-1.5">
+                <button onClick={saveBio} className="rounded-sm bg-ink px-3 py-1 text-xs font-medium text-paper">
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setBioDraft(bio)
+                    setEditingBio(false)
+                  }}
+                  className="rounded-sm border border-line px-3 py-1 text-xs text-ink-soft"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setEditingBio(true)} className="mt-1 text-left text-sm">
+              {bio ? <span className="text-ink-soft">{bio}</span> : <span className="text-ink-faint underline underline-offset-2">Add a bio</span>}
+            </button>
+          )}
         </div>
       </div>
+      {avatarBusy && <p className="-mt-4 text-xs text-ink-faint">Updating photo…</p>}
 
       {account && me && (
         <section className="rounded-sm border border-line bg-card p-4">

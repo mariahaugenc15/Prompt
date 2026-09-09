@@ -4,7 +4,7 @@ import { CURRENT_USER_ID } from '../lib/seed'
 import type { Prompt, UserCalendar } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
 import { isPromptPublic } from '../lib/calendarVisibility'
-import { CATEGORY_ICON, CloseIcon, FlagIcon, CheckIcon, GlobeIcon, LockIcon } from './Icons'
+import { CATEGORY_ICON, CloseIcon, FlagIcon, CheckIcon, GlobeIcon, LockIcon, StarIcon } from './Icons'
 import { CompleteChallengeForm } from './CompleteChallengeForm'
 
 export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: () => void }) {
@@ -13,8 +13,10 @@ export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: (
   const boards = useStore((s) => s.boards)
   const calendars = useStore((s) => s.calendars)
   const completeChallenge = useStore((s) => s.completeChallenge)
+  const setDayCover = useStore((s) => s.setDayCover)
 
   const dayPrompts = prompts.filter((p) => p.dayKey === dayKey && (p.status === 'accepted' || p.status === 'completed'))
+  const completedCount = dayPrompts.filter((p) => p.status === 'completed').length
   const label = new Date(dayKey + 'T00:00:00').toLocaleDateString(undefined, {
     weekday: 'long',
     month: 'long',
@@ -40,6 +42,9 @@ export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: (
         </div>
 
         {dayPrompts.length === 0 && <p className="text-sm text-ink-faint">Nothing written in yet.</p>}
+        {completedCount > 1 && (
+          <p className="mb-3 text-xs text-ink-faint">Multiple prompts today — pick a star to set which photo shows on the calendar.</p>
+        )}
 
         <div className="flex flex-col gap-4">
           {dayPrompts.map((p) => (
@@ -48,6 +53,8 @@ export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: (
               prompt={p}
               calendars={calendars}
               myCalendars={myCalendars}
+              showCoverPicker={completedCount > 1}
+              onSetCover={() => setDayCover(dayKey, p.id)}
               senderName={
                 p.boardId
                   ? boards.find((b) => b.id === p.boardId)?.name
@@ -68,12 +75,16 @@ function DayPromptCard({
   prompt,
   calendars,
   myCalendars,
+  showCoverPicker,
+  onSetCover,
   senderName,
   onComplete,
 }: {
   prompt: Prompt
   calendars: UserCalendar[]
   myCalendars: UserCalendar[]
+  showCoverPicker: boolean
+  onSetCover: () => void
   senderName?: string
   onComplete: (proof: import('../lib/types').Proof, calendarIds: string[]) => void
 }) {
@@ -90,6 +101,15 @@ function DayPromptCard({
         </span>
         {prompt.status === 'completed' && (
           <span className="flex items-center gap-2">
+            {showCoverPicker && (
+              <button
+                onClick={onSetCover}
+                title={prompt.isDayCover ? 'Calendar cover for this day' : 'Set as calendar cover for this day'}
+                className="-m-2 p-2 text-ink-faint"
+              >
+                <StarIcon size={15} filled={prompt.isDayCover} className={prompt.isDayCover ? 'text-accent' : ''} />
+              </button>
+            )}
             <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-ink-faint">
               {isPublic ? <GlobeIcon size={12} /> : <LockIcon size={12} />}
               {isPublic ? 'Public' : 'Private'}

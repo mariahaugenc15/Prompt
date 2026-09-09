@@ -42,6 +42,8 @@ interface AppState {
   followers: string[]
   promptPermission: PromptPermission
   hideCompletionScore: boolean
+  avatarDataUrl: string | null
+  bio: string
 
   challengeLibrary: typeof seedChallengeLibrary
   prompts: Prompt[]
@@ -54,6 +56,7 @@ interface AppState {
   completeOnboarding: () => void
   setAccount: (account: SignupSuccess) => void
   followUser: (userId: string) => void
+  unfollowUser: (userId: string) => void
   subscribeStarterBoard: (boardId: string) => void
 
   canReceiveFrom: (fromUserId: string) => boolean
@@ -62,6 +65,7 @@ interface AppState {
   acceptPrompt: (promptId: string) => void
   declinePrompt: (promptId: string) => void
   completeChallenge: (promptId: string, proof: Proof, calendarIds?: string[]) => void
+  setDayCover: (dayKey: string, promptId: string) => void
 
   createBoard: (opts: {
     name: string
@@ -78,6 +82,8 @@ interface AppState {
 
   setPromptPermission: (p: PromptPermission) => void
   setHideCompletionScore: (v: boolean) => void
+  setAvatar: (dataUrl: string | null) => void
+  setBio: (bio: string) => void
 
   createCalendar: (name: string, visibility: CalendarVisibility) => string
   joinCalendar: (calendarId: string) => void
@@ -98,6 +104,8 @@ export const useStore = create<AppState>()(
       followers: ['u1', 'u2', 'u4'],
       promptPermission: 'mutuals',
       hideCompletionScore: false,
+      avatarDataUrl: null,
+      bio: '',
 
       challengeLibrary: seedChallengeLibrary,
       prompts: [],
@@ -114,6 +122,8 @@ export const useStore = create<AppState>()(
 
       followUser: (userId) =>
         set((s) => (s.following.includes(userId) ? s : { following: [...s.following, userId] })),
+
+      unfollowUser: (userId) => set((s) => ({ following: s.following.filter((id) => id !== userId) })),
 
       subscribeStarterBoard: (boardId) => get().joinBoard(boardId),
 
@@ -288,6 +298,8 @@ export const useStore = create<AppState>()(
 
       setPromptPermission: (p) => set({ promptPermission: p }),
       setHideCompletionScore: (v) => set({ hideCompletionScore: v }),
+      setAvatar: (dataUrl) => set({ avatarDataUrl: dataUrl }),
+      setBio: (bio) => set({ bio }),
 
       createCalendar: (name, visibility) => {
         const id = uid('cal')
@@ -323,6 +335,13 @@ export const useStore = create<AppState>()(
       tagPromptCalendars: (promptId, calendarIds) =>
         set((s) => ({
           prompts: s.prompts.map((p) => (p.id === promptId ? { ...p, calendarIds } : p)),
+        })),
+
+      setDayCover: (dayKey, promptId) =>
+        set((s) => ({
+          prompts: s.prompts.map((p) =>
+            p.dayKey === dayKey ? { ...p, isDayCover: p.id === promptId } : p,
+          ),
         })),
     }),
     {

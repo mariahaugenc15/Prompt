@@ -46,6 +46,7 @@ export interface Prompt {
   dayKey?: string // YYYY-MM-DD, set on accept — the day it's "written into"
   proof?: Proof
   calendarIds?: string[] // custom calendars this completion is filed into, beyond the default All Activity view
+  isDayCover?: boolean // when a day has multiple completions, which photo shows on the calendar cell
 }
 
 export type CalendarVisibility = 'public' | 'private'

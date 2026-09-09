@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Diary / ledger palette — content supplies the color, UI stays quiet */
+  --color-paper: #f7f4ec;
+  --color-paper-dim: #efeade;
+  --color-ink: #211f1c;
+  --color-ink-soft: #57534a;
+  --color-ink-faint: #948d80;
+  --color-line: #d8d2c2;
+  --color-line-strong: #b9b09a;
+  --color-accent: #8a6d4b; /* terracotta-leaning stone */
+  --color-accent-soft: #e6dcc9;
+  --color-card: #fffdf7;
+  --color-danger: #a4462f;
+
+  --font-serif: 'Source Serif 4', Georgia, serif;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --shadow-card: 0 1px 0 rgba(33, 31, 28, 0.06);
+  --shadow-note: 2px 4px 10px rgba(33, 31, 28, 0.18);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .hairline {
+    border: 1px solid var(--color-line);
+  }
+}
+
+/* subtle paper grain so flat fills don't feel sterile */
+.paper-grain {
+  background-image: radial-gradient(var(--color-line) 0.5px, transparent 0.5px);
+  background-size: 10px 10px;
+  background-position: 0 0;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 4px;
+}

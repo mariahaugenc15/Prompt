@@ -47,6 +47,7 @@ export interface Prompt {
   proof?: Proof
   calendarIds?: string[] // custom calendars this completion is filed into, beyond the default All Activity view
   isDayCover?: boolean // when a day has multiple completions, which photo shows on the calendar cell
+  boardChallengeId?: string // which specific board broadcast this came from, for accurate per-challenge participation counts
 }
 
 export type CalendarVisibility = 'public' | 'private'
@@ -90,6 +91,7 @@ export interface Submission {
   caption?: string
   proof?: Proof
   boardId?: string
+  boardChallengeId?: string
   assignedByUserId?: string
   anonymous: boolean
   createdAt: number

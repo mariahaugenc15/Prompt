@@ -110,7 +110,7 @@ export function BoardDetail() {
           <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Challenges &amp; participation</p>
           <div className="flex flex-col gap-1.5">
             {boardChallenges.map((c) => {
-              const participation = submissions.filter((s) => s.text === c.text).length
+              const participation = submissions.filter((s) => s.boardChallengeId === c.id).length
               return (
                 <div key={c.id} className="flex items-center justify-between rounded-sm border border-line bg-card px-3 py-2 text-sm">
                   <span className="line-clamp-1">{c.text}</span>

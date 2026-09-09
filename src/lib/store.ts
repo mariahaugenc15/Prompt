@@ -118,7 +118,17 @@ export const useStore = create<AppState>()(
       completeOnboarding: () => set({ onboarded: true }),
       // Organizations get their own real page (Section 8.3), not the mock
       // personal calendar — so only an individual's sign-up unlocks it.
-      setAccount: (account) => set({ account, loggedIn: account.accountType === 'individual' ? true : get().loggedIn }),
+      // A real sign-up/login is already a deliberate "I want an account"
+      // action, so it also clears the mock onboarding gate — otherwise a
+      // real individual would be stuck unable to reach /profile (and so
+      // their Real inbox) until they first followed a fake seed user in
+      // the unrelated demo tutorial.
+      setAccount: (account) =>
+        set({
+          account,
+          loggedIn: account.accountType === 'individual' ? true : get().loggedIn,
+          onboarded: account.accountType === 'individual' ? true : get().onboarded,
+        }),
 
       followUser: (userId) =>
         set((s) => (s.following.includes(userId) ? s : { following: [...s.following, userId] })),
@@ -203,6 +213,7 @@ export const useStore = create<AppState>()(
             caption: proof.caption,
             proof,
             boardId: prompt.boardId,
+            boardChallengeId: prompt.boardChallengeId,
             assignedByUserId: prompt.anonymous ? undefined : prompt.fromUserId,
             anonymous: prompt.anonymous,
             createdAt: Date.now(),
@@ -222,7 +233,7 @@ export const useStore = create<AppState>()(
           ownerId: CURRENT_USER_ID,
           visibility: opts.visibility,
           locationTag: opts.locationTag,
-          subscriberIds: [],
+          subscriberIds: [CURRENT_USER_ID],
         }
         set((s) => ({ boards: [...s.boards, board] }))
         return id
@@ -262,6 +273,7 @@ export const useStore = create<AppState>()(
               toUserId: id,
               anonymous: false,
               boardId,
+              boardChallengeId: challenge.id,
               status: 'pending',
               createdAt: Date.now(),
             }))
@@ -346,10 +358,6 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'prompt-app-store',
-      partialize: (s) => {
-        const { loggedIn: _loggedIn, ...rest } = s
-        return rest
-      },
     },
   ),
 )

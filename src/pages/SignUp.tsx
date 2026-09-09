@@ -266,7 +266,7 @@ export function SignUp() {
 
       <p className="text-center text-sm text-ink-faint">
         Already have an account?{' '}
-        <Link to="/" className="font-medium text-ink underline underline-offset-2">
+        <Link to="/login" className="font-medium text-ink underline underline-offset-2">
           Log in
         </Link>
       </p>

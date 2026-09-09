@@ -20,6 +20,7 @@ export function Home() {
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const [tossing, setTossing] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [simulateMessage, setSimulateMessage] = useState<string | null>(null)
 
   const now = new Date()
   const pending = useMemo(() => prompts.filter((p) => p.toUserId === CURRENT_USER_ID && p.status === 'pending'), [prompts])
@@ -34,6 +35,11 @@ export function Home() {
     if (!openNote) return
     acceptPrompt(openNote.id)
     setOpenNoteId(null)
+  }
+
+  function handleSimulate() {
+    const id = simulateIncomingPrompt()
+    setSimulateMessage(id ? null : 'Follow someone (or widen who can prompt you in Profile settings) to simulate an incoming prompt.')
   }
 
   function handleDecline() {
@@ -75,13 +81,14 @@ export function Home() {
           <PlusIcon size={15} /> Send a prompt
         </Link>
         <button
-          onClick={() => simulateIncomingPrompt()}
+          onClick={handleSimulate}
           className="flex-1 rounded-sm border border-line py-2.5 text-sm text-ink-soft transition hover:border-line-strong"
           title="Demo helper: pin a new note to your fridge from a friend"
         >
           Simulate a prompt
         </button>
       </div>
+      {simulateMessage && <p className="px-4 text-xs text-ink-faint">{simulateMessage}</p>}
 
       {openNote && (
         <FridgeNoteDetail

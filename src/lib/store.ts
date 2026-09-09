@@ -90,7 +90,9 @@ export const useStore = create<AppState>()(
 
       login: () => set({ loggedIn: true }),
       completeOnboarding: () => set({ onboarded: true }),
-      setAccount: (account) => set({ account, loggedIn: true }),
+      // Organizations get their own real page (Section 8.3), not the mock
+      // personal calendar — so only an individual's sign-up unlocks it.
+      setAccount: (account) => set({ account, loggedIn: account.accountType === 'individual' ? true : get().loggedIn }),
 
       followUser: (userId) =>
         set((s) => (s.following.includes(userId) ? s : { following: [...s.following, userId] })),

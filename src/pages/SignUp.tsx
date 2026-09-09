@@ -95,7 +95,9 @@ export function SignUp() {
         return
       }
       setAccount(result.account)
-      navigate('/')
+      // Organizations get a page, not a personal calendar (Section 8.3) —
+      // individuals continue into the existing calendar/onboarding flow.
+      navigate(result.account.accountType === 'organization' ? `/o/${result.account.username}` : '/')
     } finally {
       setSubmitting(false)
     }

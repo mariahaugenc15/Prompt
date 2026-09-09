@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useStore } from './lib/store'
 import { BottomNav } from './components/BottomNav'
 import { AppHeader } from './components/AppHeader'
+import { RealShell } from './components/RealShell'
 import { LoginFlip } from './pages/LoginFlip'
 import { Onboarding } from './pages/Onboarding'
 import { Home } from './pages/Home'
@@ -13,6 +14,9 @@ import { CreateBoard } from './pages/CreateBoard'
 import { Profile } from './pages/Profile'
 import { SendPrompt } from './pages/SendPrompt'
 import { SignUp } from './pages/SignUp'
+import { OrgPage } from './pages/OrgPage'
+import { RealInbox } from './pages/RealInbox'
+import { RealSend } from './pages/RealSend'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -38,6 +42,30 @@ export default function App() {
   return (
     <Routes>
       <Route path="/signup" element={<SignUp />} />
+      <Route
+        path="/o/:username"
+        element={
+          <RealShell>
+            <OrgPage />
+          </RealShell>
+        }
+      />
+      <Route
+        path="/real/inbox"
+        element={
+          <RealShell>
+            <RealInbox />
+          </RealShell>
+        }
+      />
+      <Route
+        path="/real/send"
+        element={
+          <RealShell>
+            <RealSend />
+          </RealShell>
+        }
+      />
       <Route
         path="/"
         element={

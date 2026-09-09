@@ -1,10 +1,12 @@
 import clsx from 'clsx'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import { computeCompletionScore } from '../lib/completionScore'
 import type { PromptPermission } from '../lib/types'
 import { CheckIcon } from '../components/Icons'
+import { getMe, setMyPromptPermission, type Me } from '../lib/realAccountsApi'
 
 const PERMISSIONS: { id: PromptPermission; label: string; help: string; recommended?: boolean }[] = [
   { id: 'everyone', label: 'Everyone', help: 'Any user on Prompt can send you a dare.' },
@@ -35,6 +37,17 @@ export function Profile() {
   const displayName = account ? (account.firstName ?? account.organizationName ?? account.username) : 'You'
   const handle = account ? `@${account.username}` : '@you'
 
+  const [me, setMe] = useState<Me | null>(null)
+  useEffect(() => {
+    if (account) getMe(account.token).then((res) => setMe(res.ok ? res.data : null))
+  }, [account])
+
+  async function handleRealPermission(value: PromptPermission) {
+    if (!account) return
+    const res = await setMyPromptPermission(value, account.token)
+    if (res.ok) setMe((prev) => (prev ? { ...prev, promptPermission: value } : prev))
+  }
+
   return (
     <div className="flex flex-col gap-6 p-4">
       <div className="flex items-center gap-3">
@@ -48,6 +61,48 @@ export function Profile() {
           </p>
         </div>
       </div>
+
+      {account && me && (
+        <section className="rounded-sm border border-line bg-card p-4">
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">
+            Real account — @{me.username} ({me.accountType})
+          </p>
+          <div className="flex gap-2">
+            <Link to="/real/inbox" className="flex-1 rounded-sm border border-ink py-2 text-center text-sm font-medium">
+              Real inbox
+            </Link>
+            {me.accountType === 'individual' && (
+              <Link to="/real/send" className="flex-1 rounded-sm border border-line py-2 text-center text-sm text-ink-soft">
+                Send a real prompt
+              </Link>
+            )}
+            {me.accountType === 'organization' && (
+              <Link to={`/o/${me.username}`} className="flex-1 rounded-sm border border-line py-2 text-center text-sm text-ink-soft">
+                My page
+              </Link>
+            )}
+          </div>
+          {me.accountType === 'individual' && (
+            <div className="mt-3 border-t border-line pt-3">
+              <p className="mb-1.5 text-xs text-ink-faint">Who can send @{me.username} a real prompt</p>
+              <div className="flex gap-1.5">
+                {(['everyone', 'followers', 'mutuals'] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => handleRealPermission(p)}
+                    className={clsx(
+                      'flex-1 rounded-sm border py-1.5 text-xs capitalize',
+                      me.promptPermission === p ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="rounded-sm border border-line bg-card p-4">
         <div className="flex items-center justify-between">

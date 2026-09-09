@@ -1,6 +1,8 @@
 import express from 'express'
 import crypto from 'node:crypto'
 import { db } from './db.js'
+import { socialRouter } from './socialRoutes.js'
+import { promptRouter } from './promptRoutes.js'
 import {
   normalizeEmail,
   normalizeUsername,
@@ -10,7 +12,12 @@ import {
 } from '../shared/signupValidation.js'
 
 const app = express()
-app.use(express.json())
+// Proof media rides along as base64 data URLs (see src/lib/media.ts, which
+// downscales before encoding) rather than multipart upload — fine for a
+// prototype, so the body limit just needs headroom past the default 100kb.
+app.use(express.json({ limit: '5mb' }))
+app.use(socialRouter)
+app.use(promptRouter)
 
 const PORT = Number(process.env.PORT ?? 8787)
 
@@ -19,10 +26,10 @@ const findByEmail = db.prepare('SELECT 1 FROM accounts WHERE email_normalized = 
 const insertAccount = db.prepare(`
   INSERT INTO accounts (
     id, account_type, username, username_normalized, email, email_normalized,
-    password_hash, password_salt, first_name, organization_name, website_url, created_at
+    password_hash, password_salt, first_name, organization_name, website_url, created_at, auth_token
   ) VALUES (
     @id, @accountType, @username, @usernameNormalized, @email, @emailNormalized,
-    @passwordHash, @passwordSalt, @firstName, @organizationName, @websiteUrl, @createdAt
+    @passwordHash, @passwordSalt, @firstName, @organizationName, @websiteUrl, @createdAt, @authToken
   )
 `)
 
@@ -78,6 +85,7 @@ app.post('/api/signup', (req, res) => {
 
   const { hash, salt } = hashPassword(input.password!)
   const id = crypto.randomUUID()
+  const authToken = crypto.randomBytes(32).toString('hex')
 
   try {
     insertAccount.run({
@@ -94,17 +102,20 @@ app.post('/api/signup', (req, res) => {
         input.accountType === 'organization' ? (input as { organizationName: string }).organizationName.trim() : null,
       websiteUrl: input.accountType === 'organization' ? (input as { websiteUrl: string }).websiteUrl.trim() : null,
       createdAt: Date.now(),
+      authToken,
     })
   } catch (err) {
     // Belt-and-suspenders: two signups for the same name/email racing past
     // the SELECT checks above both still hit this unique index, and only
     // one INSERT can win. Translate that DB-level rejection back into the
-    // same field error the pre-check would have given.
+    // same field error the pre-check would have given. SQLite's error
+    // message names the table.column(s), not the index — never the index
+    // name, even when the constraint was declared as a named index.
     const message = err instanceof Error ? err.message : String(err)
-    if (message.includes('idx_accounts_username_normalized')) {
+    if (message.includes('accounts.username_normalized')) {
       return res.status(422).json({ errors: { username: 'That username is already taken.' } })
     }
-    if (message.includes('idx_accounts_email_normalized')) {
+    if (message.includes('accounts.email_normalized')) {
       return res.status(422).json({ errors: { email: 'An account with that email already exists.' } })
     }
     console.error('signup insert failed', err)
@@ -119,7 +130,19 @@ app.post('/api/signup', (req, res) => {
     firstName: input.accountType === 'individual' ? (input as { firstName: string }).firstName.trim() : undefined,
     organizationName:
       input.accountType === 'organization' ? (input as { organizationName: string }).organizationName.trim() : undefined,
+    // v1 stand-in for a real session (see server/auth.ts) — the client
+    // sends this back as `Authorization: Bearer <token>` on every
+    // account/prompt request from here on.
+    token: authToken,
   })
+})
+
+// Last-resort handler: an unexpected error anywhere in a route should still
+// come back as the same JSON error shape the client expects, not Express's
+// default HTML stack trace page.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('unhandled error', err)
+  res.status(500).json({ errors: { form: 'Something went wrong. Please try again.' } })
 })
 
 app.listen(PORT, () => {

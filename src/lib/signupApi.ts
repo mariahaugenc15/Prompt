@@ -17,6 +17,9 @@ export interface SignupSuccess {
   email: string
   firstName?: string
   organizationName?: string
+  // v1 stand-in for a real session (see server/auth.ts) — sent back as
+  // `Authorization: Bearer <token>` on every real-account/prompt request.
+  token: string
 }
 
 export type SignupResult = { ok: true; account: SignupSuccess } | { ok: false; errors: FieldErrors }

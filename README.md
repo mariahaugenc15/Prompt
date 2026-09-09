@@ -2,21 +2,21 @@
 
 Real prompts. Real life. A social app built around real-world challenges instead of a feed to scroll.
 
-This is the v1 MVP scoped in the concept brief, built as a mobile-first React app to validate the core loop before native. The core app loop (calendar, dares, feed, boards) still runs on mock/local data (zustand + localStorage) — there's no backend for that yet, so friend interactions are simulated from a single-user point of view. Sign-up is the one real, server-backed piece so far: it has an actual API and database enforcing its rules.
+This is the v1 MVP scoped in the concept brief, built as a mobile-first React app to validate the core loop before native. The calendar/dares/feed/boards app still runs on mock/local data (zustand + localStorage) — there's no backend for that yet, so friend interactions there are simulated from a single-user point of view. Sign-up and the account/prompt system (Section 8: individual-to-individual send/complete, organization broadcast) are real, server-backed, and enforced server-side — see "Accounts & real prompts" below.
 
 ## Stack
 
 - Client: React 19 + TypeScript + Vite, Tailwind CSS v4, React Router, Framer Motion, Zustand (persisted to `localStorage`).
-- Sign-up API: Express + SQLite (`better-sqlite3`), in `server/`.
+- API: Express + SQLite (`better-sqlite3`), in `server/`.
 - Validation shared between client and server: `shared/signupValidation.ts`.
 
 ## Running it
 
-Two processes in development — the frontend and the sign-up API:
+Two processes in development — the frontend and the API:
 
 ```
 npm install
-npm run server   # sign-up API on :8787 (SQLite file at server/.data/prompt.sqlite)
+npm run server   # API on :8787 (SQLite file at server/.data/prompt.sqlite)
 npm run dev      # frontend on :5173, proxies /api to the server above
 ```
 
@@ -43,12 +43,23 @@ npm run dev      # frontend on :5173, proxies /api to the server above
 - **Password baseline**: the brief didn't specify strength rules, so this defaults to a reasonable baseline (8+ characters, at least one letter and one number) rather than assuming something stricter. Passwords are hashed with `scrypt` (Node's built-in, salted per-account) — never stored in plaintext.
 - **Website URL** (organizations): format-validated only (must parse as a URL with a real-looking domain). **Decision point, not assumed**: this does *not* verify the site is actually live with an HTTP request. That's a reasonable next step, but it adds latency to signup, can false-negative on sites that block server-side/bot requests, and raises an SSRF consideration (the server would be making outbound requests to arbitrary user-supplied hosts) that needs deliberate handling — worth an explicit decision rather than silently bolting on.
 
+## Accounts & real prompts (Section 8)
+
+Real, multi-account, server-enforced — not the mock single-user prototype above. Sign up twice (two browsers, or one incognito) to try the individual-to-individual loop; sign up once as an organization to try broadcasting.
+
+- **Session**: sign-up mints a random bearer token (`server/auth.ts`), returned once and stored client-side; every account/prompt request sends it as `Authorization: Bearer <token>`. There's no separate login-with-password form yet — this is a stand-in for real sessions, not a replacement for one.
+- **Where it lives in the UI**: organizations land on their own page (`/o/:username`) straight out of sign-up, not the mock calendar — a page, not a personal profile, per the brief. Individuals keep going into the mock app as before, and get a "Real account" section on Profile linking to a real inbox (`/real/inbox`) and a real send flow (`/real/send`).
+- **Permission matrix is centralized, not scattered**: every route that sends, receives, broadcasts, or follows calls into `server/permissions.ts` rather than re-deriving the rule inline (`canFollow`, `canSendOneToOne`, `canReceiveOneToOne`, `canBroadcast`, `canCompleteBroadcast`). Organizations are hard-blocked from sending 1:1, receiving 1:1, and following anyone; individuals send/receive 1:1 subject to their Everyone/Followers/Mutuals tier (`PATCH /api/me/prompt-permission`), checked against real rows in the `follows` table, not client state.
+- **Auto-tag captions**: completing a prompt (`POST /api/prompts/:id/complete`) has the server — never the client — generate the `"{sender} prompted: '{text}'"` lead-in and store it separately from the completer's own caption, so the UI can always reconstruct who prompted / what they said / what the completer added, even though it renders as one combined caption. Both accounts are tagged on the result (sender + completer).
+- **Broadcast data model**: one `prompts` row per broadcast (`is_broadcast = 1`, `recipient_account_id = NULL`), with each follower's completion as its own row in `prompt_completions` — never duplicated as separate prompt rows per follower. A follower can complete a given broadcast exactly once (unique index on `prompt_id, completer_account_id`); completing an already-completed one is a clean 409, including when two requests race past the same check (verified by triggering the real unique-constraint violation, not just the pre-check).
+- **Verified/Influencer accounts, the per-person allowlist, and the admin verification-review queue (Section 8.4) are deliberately not built** — the MVP doc (Section 11) explicitly defers them. `server/permissions.ts` is written so that row slots into the existing functions later without changing any of their callers.
+
 ## Deliberately out of scope (per the brief's fast-follow list)
 
 Geo-discovery, invite-only board member-adds, custom named calendars, "share my month" export, audio dares, board analytics dashboards, monetization, segmented completion scores.
 
 ## Known simplifications
 
-- Single-user simulation: there's no real multiplayer backend for the app itself yet, so friends' actions (other than pre-seeded sample feed content) are simulated via a "Simulate a dare" button on the calendar screen. Sign-up is the exception — it's a real API/DB.
-- Proof photos are downscaled and stored as data URLs in `localStorage` — fine for a prototype, not how media would be handled with a real backend/media pipeline.
-- No login (password-check) flow yet, no sessions/JWTs — sign-up creates a real account row, and on success the app just treats you as entered (matching how the rest of the prototype has no real auth). Wiring an actual login form against the stored password hash is a natural next step.
+- The mock calendar/dares/feed/boards app is still single-user simulation — friends' actions there (other than pre-seeded sample feed content) are simulated via a "Simulate a dare" button, and it doesn't talk to the real accounts backend at all. Sign-up and the Section 8 account/prompt system are the real, multi-account exception.
+- Proof photos (both the mock app's and the real one's) are downscaled and stored as data URLs — in `localStorage` for the mock app, as a column value in SQLite for the real one — fine for a prototype, not how media would be handled with a real backend/media pipeline (object storage + CDN URLs, not inline base64).
+- No login-with-password flow yet, no rotating/expiring sessions — sign-up creates a real account row and a long-lived bearer token in the same step (`server/auth.ts`), and the app just treats you as entered. Wiring an actual login form against the stored password hash, plus real session expiry, is a natural next step.

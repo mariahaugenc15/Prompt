@@ -31,3 +31,69 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_username_normalized ON accounts(username_normalized);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_email_normalized ON accounts(email_normalized);
 `)
+
+// Defensive migration for anyone with a pre-existing local accounts table
+// from before the prompt-loop feature: add the new columns if missing
+// rather than assuming a fresh CREATE TABLE ran.
+const accountColumns = new Set((db.prepare('PRAGMA table_info(accounts)').all() as { name: string }[]).map((c) => c.name))
+if (!accountColumns.has('prompt_permission')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN prompt_permission TEXT NOT NULL DEFAULT 'mutuals'`)
+}
+if (!accountColumns.has('auth_token')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN auth_token TEXT`)
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_auth_token ON accounts(auth_token)`)
+}
+
+// One row per follow relationship. Organizations never appear as the
+// follower (enforced in server/permissions.ts, not here) — they don't
+// follow anything, only broadcast.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS follows (
+    follower_account_id TEXT NOT NULL,
+    followee_account_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (follower_account_id, followee_account_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_follows_followee ON follows(followee_account_id);
+`)
+
+// A single "prompts" table covers both shapes described in the spec:
+//  - 1:1 (is_broadcast = 0): recipient_account_id is set, and the prompt's
+//    own status/completion_* columns carry the outcome directly.
+//  - broadcast (is_broadcast = 1): recipient_account_id is NULL, the row
+//    is a template ("active" until the sender closes it out, though v1
+//    doesn't expose closing it), and each follower's completion is its
+//    own row in prompt_completions — never duplicated as separate prompts
+//    per follower.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS prompts (
+    id TEXT PRIMARY KEY,
+    sender_account_id TEXT NOT NULL,
+    recipient_account_id TEXT,
+    is_broadcast INTEGER NOT NULL DEFAULT 0,
+    category TEXT NOT NULL,
+    prompt_text TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'declined', 'expired', 'active')),
+    completion_media_type TEXT,
+    completion_media_data_url TEXT,
+    completion_auto_caption TEXT,
+    completion_user_caption TEXT,
+    created_at INTEGER NOT NULL,
+    completed_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_prompts_recipient ON prompts(recipient_account_id);
+  CREATE INDEX IF NOT EXISTS idx_prompts_sender ON prompts(sender_account_id);
+
+  CREATE TABLE IF NOT EXISTS prompt_completions (
+    id TEXT PRIMARY KEY,
+    prompt_id TEXT NOT NULL,
+    completer_account_id TEXT NOT NULL,
+    media_type TEXT,
+    media_data_url TEXT,
+    auto_caption TEXT NOT NULL,
+    user_caption TEXT,
+    created_at INTEGER NOT NULL
+  );
+  -- A follower can only complete a given broadcast once.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_completions_prompt_completer ON prompt_completions(prompt_id, completer_account_id);
+`)

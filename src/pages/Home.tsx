@@ -6,7 +6,7 @@ import { computeCompletionScore } from '../lib/completionScore'
 import { CalendarGrid } from '../components/CalendarGrid'
 import { FridgeNoteStack, FridgeNoteDetail } from '../components/FridgeNote'
 import { DayDetailSheet } from '../components/DayDetailSheet'
-import type { DarePrompt } from '../lib/types'
+import type { Prompt } from '../lib/types'
 import { PlusIcon } from '../components/Icons'
 
 export function Home() {
@@ -26,7 +26,7 @@ export function Home() {
   const score = useMemo(() => computeCompletionScore(CURRENT_USER_ID, prompts), [prompts])
   const openNote = pending.find((p) => p.id === openNoteId)
 
-  function senderFor(p: DarePrompt) {
+  function senderFor(p: Prompt) {
     return users.find((u) => u.id === p.fromUserId)
   }
 
@@ -72,14 +72,14 @@ export function Home() {
           to="/send"
           className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-ink bg-ink py-2.5 text-sm font-medium text-paper"
         >
-          <PlusIcon size={15} /> Dare a friend
+          <PlusIcon size={15} /> Send a prompt
         </Link>
         <button
           onClick={() => simulateIncomingPrompt()}
           className="flex-1 rounded-sm border border-line py-2.5 text-sm text-ink-soft transition hover:border-line-strong"
           title="Demo helper: pin a new note to your fridge from a friend"
         >
-          Simulate a dare
+          Simulate a prompt
         </button>
       </div>
 

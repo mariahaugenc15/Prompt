@@ -9,8 +9,8 @@ import { CheckIcon } from '../components/Icons'
 import { getMe, setMyPromptPermission, type Me } from '../lib/realAccountsApi'
 
 const PERMISSIONS: { id: PromptPermission; label: string; help: string; recommended?: boolean }[] = [
-  { id: 'everyone', label: 'Everyone', help: 'Any user on Prompt can send you a dare.' },
-  { id: 'followers', label: 'Followers', help: 'Only people who follow you can send you a dare.' },
+  { id: 'everyone', label: 'Everyone', help: 'Any user on Prompt can send you a prompt.' },
+  { id: 'followers', label: 'Followers', help: 'Only people who follow you can send you a prompt.' },
   {
     id: 'mutuals',
     label: 'Mutuals only',
@@ -111,7 +111,7 @@ export function Profile() {
             <p className="text-xs uppercase tracking-wide text-ink-faint">Completion score</p>
           </div>
           <p className="max-w-[45%] text-right text-xs text-ink-faint">
-            {completed} of {received.length} friend dares completed
+            {completed} of {received.length} friend prompts completed
           </p>
         </div>
         <label className="mt-3 flex items-center justify-between border-t border-line pt-3 text-sm">

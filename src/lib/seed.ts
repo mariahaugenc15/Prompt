@@ -50,7 +50,7 @@ export const seedBoards: Board[] = [
   {
     id: 'b3',
     name: 'Sunrise Book Club',
-    description: 'Weekly reading dares for people who never finish the book.',
+    description: 'Weekly reading prompts for people who never finish the book.',
     category: 'interest',
     ownerId: 'u4',
     visibility: 'public',

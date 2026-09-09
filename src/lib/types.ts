@@ -31,7 +31,7 @@ export interface Proof {
   caption?: string
 }
 
-export interface DarePrompt {
+export interface Prompt {
   id: string
   category: Category
   text: string

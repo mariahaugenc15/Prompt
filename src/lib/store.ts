@@ -5,7 +5,7 @@ import type {
   BoardCategory,
   BoardChallenge,
   Category,
-  DarePrompt,
+  Prompt,
   Proof,
   PromptPermission,
   Submission,
@@ -34,7 +34,7 @@ interface AppState {
   hideCompletionScore: boolean
 
   challengeLibrary: typeof seedChallengeLibrary
-  prompts: DarePrompt[]
+  prompts: Prompt[]
   boards: Board[]
   boardChallenges: BoardChallenge[]
   submissions: Submission[]
@@ -130,7 +130,7 @@ export const useStore = create<AppState>()(
         const sender = candidates[Math.floor(Math.random() * candidates.length)]
         const template = s.challengeLibrary[Math.floor(Math.random() * s.challengeLibrary.length)]
         const anonymous = Math.random() < 0.4
-        const prompt: DarePrompt = {
+        const prompt: Prompt = {
           id: uid('p'),
           category: template.category,
           text: template.text,
@@ -222,7 +222,7 @@ export const useStore = create<AppState>()(
           const recipients = board.subscriberIds.includes(CURRENT_USER_ID)
             ? board.subscriberIds
             : [...board.subscriberIds, CURRENT_USER_ID]
-          const fanOut: DarePrompt[] = recipients
+          const fanOut: Prompt[] = recipients
             .filter((id) => id === CURRENT_USER_ID)
             .map((id) => ({
               id: uid('p'),

@@ -25,7 +25,7 @@ export function Onboarding() {
     >
       <div className="text-center">
         <h1 className="font-serif text-2xl text-ink">Your calendar is empty.</h1>
-        <p className="mt-1 text-sm text-ink-soft">That's the point — every day starts blank. Let's line up your first dare.</p>
+        <p className="mt-1 text-sm text-ink-soft">That's the point — every day starts blank. Let's line up your first prompt.</p>
       </div>
 
       <div>

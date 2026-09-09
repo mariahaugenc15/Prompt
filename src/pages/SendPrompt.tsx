@@ -38,12 +38,12 @@ export function SendPrompt() {
 
   return (
     <div className="flex flex-col gap-5 p-4">
-      <h1 className="font-serif text-2xl">Dare a friend</h1>
+      <h1 className="font-serif text-2xl">Send a prompt</h1>
 
       <section>
         <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">To</p>
         <div className="flex flex-wrap gap-2">
-          {friends.length === 0 && <p className="text-sm text-ink-faint">Follow someone first to send them a dare.</p>}
+          {friends.length === 0 && <p className="text-sm text-ink-faint">Follow someone first to send them a prompt.</p>}
           {friends.map((u) => (
             <button
               key={u.id}
@@ -102,7 +102,7 @@ export function SendPrompt() {
               setCustomText(e.target.value)
               setTemplateId(null)
             }}
-            placeholder="Or write your own dare…"
+            placeholder="Or write your own prompt…"
             rows={2}
             className="resize-none rounded-sm border border-line bg-card p-2.5 text-base outline-none focus:border-line-strong"
           />
@@ -133,7 +133,7 @@ export function SendPrompt() {
         animate={pinning ? { scale: [1, 0.9, 1] } : {}}
         className="mt-2 flex items-center justify-center gap-2 rounded-sm bg-ink py-3 text-sm font-medium text-paper disabled:bg-line disabled:text-ink-faint"
       >
-        <PinIcon size={15} /> {pinning ? 'Pinning to their fridge…' : 'Pin this dare'}
+        <PinIcon size={15} /> {pinning ? 'Pinning to their fridge…' : 'Pin this prompt'}
       </motion.button>
     </div>
   )

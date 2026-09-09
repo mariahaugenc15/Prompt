@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { AnimatePresence, motion } from 'framer-motion'
-import type { DarePrompt } from '../lib/types'
+import type { Prompt } from '../lib/types'
 import { CATEGORY_ICON } from './Icons'
 import { todayKey } from '../lib/store'
 
@@ -27,13 +27,13 @@ export function CalendarGrid({
 }: {
   year: number
   month: number
-  prompts: DarePrompt[]
+  prompts: Prompt[]
   onDayClick?: (dayKey: string) => void
   compact?: boolean
 }) {
   const cells = buildMonthCells(year, month)
   const today = todayKey()
-  const byDay = new Map<string, DarePrompt[]>()
+  const byDay = new Map<string, Prompt[]>()
   for (const p of prompts) {
     if ((p.status !== 'completed' && p.status !== 'accepted') || !p.dayKey) continue
     const list = byDay.get(p.dayKey) ?? []

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import type { DarePrompt, User } from '../lib/types'
+import type { Prompt, User } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
 import { PinIcon, CATEGORY_ICON, CloseIcon, CheckIcon } from './Icons'
 
@@ -8,9 +8,9 @@ export function FridgeNoteStack({
   sender,
   onOpen,
 }: {
-  prompts: DarePrompt[]
-  sender: (p: DarePrompt) => User | undefined
-  onOpen: (p: DarePrompt) => void
+  prompts: Prompt[]
+  sender: (p: Prompt) => User | undefined
+  onOpen: (p: Prompt) => void
 }) {
   if (prompts.length === 0) return null
   return (
@@ -30,7 +30,7 @@ export function FridgeNoteStack({
             >
               <PinIcon size={16} className="absolute -top-2 left-1/2 -translate-x-1/2 text-accent" />
               <p className="text-[10px] uppercase tracking-wide text-ink-faint">
-                {p.boardId ? 'Board dare' : from ? from.name : 'Someone dared you'}
+                {p.boardId ? 'Board prompt' : from ? from.name : 'Someone sent you a prompt'}
               </p>
               <p className="mt-1 line-clamp-3 font-serif text-sm text-ink">{p.text}</p>
             </motion.button>
@@ -49,7 +49,7 @@ export function FridgeNoteDetail({
   onDecline,
   onClose,
 }: {
-  prompt: DarePrompt
+  prompt: Prompt
   sender?: User
   tossing: boolean
   onAccept: () => void

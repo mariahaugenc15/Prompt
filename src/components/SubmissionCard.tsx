@@ -41,7 +41,7 @@ export function SubmissionCard({ submission }: { submission: Submission }) {
       <p className="mt-1 text-sm leading-snug text-ink">{submission.caption ?? submission.text}</p>
       <p className="mt-1.5 flex items-center gap-1 text-[11px] text-ink-faint">
         <FlagIcon size={11} />
-        {assigner ? `${assigner} → ${completer}` : `${completer} · anonymous dare`}
+        {assigner ? `${assigner} → ${completer}` : `${completer} · anonymous prompt`}
       </p>
 
       <div className="mt-2 flex gap-3 border-t border-line pt-2">

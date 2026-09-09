@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useStore, todayKey } from '../lib/store'
-import type { DarePrompt } from '../lib/types'
+import type { Prompt } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
 import { CATEGORY_ICON, CloseIcon, FlagIcon, CheckIcon } from './Icons'
 import { CompleteChallengeForm } from './CompleteChallengeForm'
@@ -63,7 +63,7 @@ function DayPromptCard({
   senderName,
   onComplete,
 }: {
-  prompt: DarePrompt
+  prompt: Prompt
   senderName?: string
   onComplete: (proof: import('../lib/types').Proof) => void
 }) {

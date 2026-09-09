@@ -2,7 +2,7 @@
 
 Real prompts. Real life. A social app built around real-world challenges instead of a feed to scroll.
 
-This is the v1 MVP scoped in the concept brief, built as a mobile-first React app to validate the core loop before native. The calendar/dares/feed/boards app still runs on mock/local data (zustand + localStorage) — there's no backend for that yet, so friend interactions there are simulated from a single-user point of view. Sign-up and the account/prompt system (Section 8: individual-to-individual send/complete, organization broadcast) are real, server-backed, and enforced server-side — see "Accounts & real prompts" below.
+This is the v1 MVP scoped in the concept brief, built as a mobile-first React app to validate the core loop before native. The calendar/prompts/feed/boards app still runs on mock/local data (zustand + localStorage) — there's no backend for that yet, so friend interactions there are simulated from a single-user point of view. Sign-up and the account/prompt system (Section 8: individual-to-individual send/complete, organization broadcast) are real, server-backed, and enforced server-side — see "Accounts & real prompts" below.
 
 ## Stack
 
@@ -45,12 +45,12 @@ Vercel is a good fit for the frontend, but **not** for `server/` as it stands �
 
 - **Calendar-flip login** (`src/pages/LoginFlip.tsx`) — the signature front-door interaction: a closed planner cover flips open onto today's calendar page.
 - **First-time onboarding** — empty calendar, prompts you to follow a friend or subscribe to a starter board before entering the app.
-- **Fridge-note dares** (`src/components/FridgeNote.tsx`) — incoming dares pin to the top of the calendar like a sticky note; accepting "writes" the dare into today's cell, declining tosses it with no penalty.
-- **Calendar month-grid profile** (`src/components/CalendarGrid.tsx`) — default "All Activity" view, in-progress dares shown dashed, completed dares filled in with proof.
-- **Send-a-prompt flow** — pick a friend, category, library challenge or custom text, optional anonymity, with a "pin to their fridge" send ritual.
+- **Fridge-note prompts** (`src/components/FridgeNote.tsx`) — incoming prompts pin to the top of the calendar like a sticky note; accepting "writes" the prompt into today's cell, declining tosses it with no penalty.
+- **Calendar month-grid profile** (`src/components/CalendarGrid.tsx`) — default "All Activity" view, in-progress prompts shown dashed, completed prompts filled in with proof.
+- **Send-a-prompt flow** — pick a friend, category, library prompt or custom text, optional anonymity, with a "pin to their fridge" send ritual.
 - **Following + Community feeds** (`src/pages/Feed.tsx`) — Pinterest-style grid, upvote + pin, no comments.
-- **Community boards** — create a public/invite-only board, subscribe, owner broadcasts a challenge to subscribers as a fridge-note, basic participation counts + submission gallery.
-- **Completion Score** — percentage of received friend dares actually completed, shown on profile; only counts resolved outcomes (completed/declined/expired), not dares still sitting unopened or in progress.
+- **Community boards** — create a public/invite-only board, subscribe, owner broadcasts a prompt to subscribers as a fridge-note, basic participation counts + submission gallery.
+- **Completion Score** — percentage of received friend prompts actually completed, shown on profile; only counts resolved outcomes (completed/declined/expired), not prompts still sitting unopened or in progress.
 - **Prompt Permissions** — Everyone / Followers / Mutuals-only (recommended default), enforced against the mock social graph.
 
 ## Sign-up validation
@@ -75,10 +75,10 @@ Real, multi-account, server-enforced — not the mock single-user prototype abov
 
 ## Deliberately out of scope (per the brief's fast-follow list)
 
-Geo-discovery, invite-only board member-adds, custom named calendars, "share my month" export, audio dares, board analytics dashboards, monetization, segmented completion scores.
+Geo-discovery, invite-only board member-adds, custom named calendars, "share my month" export, audio prompts, board analytics dashboards, monetization, segmented completion scores.
 
 ## Known simplifications
 
-- The mock calendar/dares/feed/boards app is still single-user simulation — friends' actions there (other than pre-seeded sample feed content) are simulated via a "Simulate a dare" button, and it doesn't talk to the real accounts backend at all. Sign-up and the Section 8 account/prompt system are the real, multi-account exception.
+- The mock calendar/prompts/feed/boards app is still single-user simulation — friends' actions there (other than pre-seeded sample feed content) are simulated via a "Simulate a prompt" button, and it doesn't talk to the real accounts backend at all. Sign-up and the Section 8 account/prompt system are the real, multi-account exception.
 - Proof photos (both the mock app's and the real one's) are downscaled and stored as data URLs — in `localStorage` for the mock app, as a column value in SQLite for the real one — fine for a prototype, not how media would be handled with a real backend/media pipeline (object storage + CDN URLs, not inline base64).
 - `/login` (`POST /api/login`) lets you get back into an existing real account from a fresh browser/device — case-insensitive username, `scrypt` password check via `crypto.timingSafeEqual`, same generic "Incorrect username or password" whether the username doesn't exist or the password is wrong (no account-enumeration side channel), and a freshly-rotated bearer token that invalidates whatever token you had before. There's still no session *expiry* — a token is valid until the next login rotates it — which is the one piece left before this is a real auth system rather than a stand-in.

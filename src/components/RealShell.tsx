@@ -7,7 +7,7 @@ import { AppHeader } from './AppHeader'
 // cohesive branding, no bottom tabs since those are mock-app-specific.
 export function RealShell({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col bg-paper">
+    <div className="mx-auto flex min-h-screen min-h-dvh w-full max-w-xl flex-col bg-paper">
       <AppHeader />
       <div className="flex-1 pb-8">{children}</div>
     </div>

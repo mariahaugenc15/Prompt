@@ -21,7 +21,7 @@ export function Onboarding() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 p-6"
+      className="mx-auto flex min-h-screen min-h-dvh max-w-sm flex-col justify-center gap-6 p-6"
     >
       <div className="text-center">
         <h1 className="font-serif text-2xl text-ink">Your calendar is empty.</h1>

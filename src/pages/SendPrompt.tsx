@@ -104,7 +104,7 @@ export function SendPrompt() {
             }}
             placeholder="Or write your own dare…"
             rows={2}
-            className="resize-none rounded-sm border border-line bg-card p-2.5 text-sm outline-none focus:border-line-strong"
+            className="resize-none rounded-sm border border-line bg-card p-2.5 text-base outline-none focus:border-line-strong"
           />
         </div>
       </section>

@@ -93,7 +93,7 @@ export function RealInbox() {
                 {item.isBroadcast ? 'Broadcast' : 'Direct'}
               </span>
               {openId === item.id && (
-                <button onClick={() => setOpenId(null)} className="text-ink-faint">
+                <button onClick={() => setOpenId(null)} className="-m-3 p-3 text-ink-faint">
                   <CloseIcon size={14} />
                 </button>
               )}

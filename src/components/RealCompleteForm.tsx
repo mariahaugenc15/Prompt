@@ -66,7 +66,7 @@ export function RealCompleteForm({
           onChange={(e) => setCaption(e.target.value)}
           rows={2}
           placeholder="Add your own words…"
-          className="mt-1 w-full resize-none rounded-sm border border-line bg-card p-2.5 text-sm text-ink outline-none focus:border-line-strong"
+          className="mt-1 w-full resize-none rounded-sm border border-line bg-card p-2.5 text-base text-ink outline-none focus:border-line-strong"
         />
       </label>
 

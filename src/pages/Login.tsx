@@ -31,7 +31,7 @@ export function Login() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 p-6">
+    <div className="mx-auto flex min-h-screen min-h-dvh w-full max-w-sm flex-col justify-center gap-6 p-6">
       <div className="text-center">
         <PromptLogo size={30} className="justify-center" />
         <p className="mt-2 text-sm text-ink-soft">Log in to your account.</p>
@@ -45,7 +45,7 @@ export function Login() {
             onChange={(e) => setUsername(e.target.value)}
             placeholder="mariah"
             autoFocus
-            className="rounded-sm border border-line bg-card p-2.5 text-sm normal-case tracking-normal outline-none focus:border-line-strong"
+            className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
           />
         </label>
 
@@ -56,7 +56,7 @@ export function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className="rounded-sm border border-line bg-card p-2.5 text-sm normal-case tracking-normal outline-none focus:border-line-strong"
+            className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
           />
         </label>
 

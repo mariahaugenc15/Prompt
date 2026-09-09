@@ -51,7 +51,7 @@ export function CompleteChallengeForm({ onSubmit }: { onSubmit: (proof: Proof) =
         onChange={(e) => setCaption(e.target.value)}
         placeholder="Add a caption (optional)"
         rows={2}
-        className="resize-none rounded-sm border border-line bg-card p-2.5 text-sm outline-none focus:border-line-strong"
+        className="resize-none rounded-sm border border-line bg-card p-2.5 text-base outline-none focus:border-line-strong"
       />
       <button
         disabled={!preview || busy}

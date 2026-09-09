@@ -67,7 +67,7 @@ export function FridgeNoteDetail({
         className="relative w-full max-w-xs rounded-sm border border-line bg-[#fff9e0] p-5 shadow-note"
       >
         <PinIcon size={20} className="absolute -top-3 left-1/2 -translate-x-1/2 text-accent" />
-        <button onClick={onClose} className="absolute right-2 top-2 text-ink-faint">
+        <button onClick={onClose} className="absolute right-0 top-0 p-3 text-ink-faint">
           <CloseIcon size={16} />
         </button>
         <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-ink-faint">

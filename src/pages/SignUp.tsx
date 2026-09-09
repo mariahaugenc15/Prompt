@@ -106,7 +106,7 @@ export function SignUp() {
   const usernameFormatError = errors.username
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col gap-6 p-6">
+    <div className="mx-auto flex min-h-screen min-h-dvh w-full max-w-sm flex-col gap-6 p-6">
       <div className="text-center">
         <PromptLogo size={30} className="justify-center" />
         <p className="mt-2 text-sm text-ink-soft">Create your account.</p>
@@ -276,7 +276,7 @@ export function SignUp() {
 
 function inputClass(hasError: boolean) {
   return clsx(
-    'w-full rounded-sm border bg-card p-2.5 text-sm outline-none transition',
+    'w-full rounded-sm border bg-card p-2.5 text-base outline-none transition',
     hasError ? 'border-danger' : 'border-line focus:border-line-strong',
   )
 }

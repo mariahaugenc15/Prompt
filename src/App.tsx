@@ -21,7 +21,7 @@ import { RealSend } from './pages/RealSend'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col bg-paper">
+    <div className="mx-auto flex min-h-screen min-h-dvh w-full max-w-xl flex-col bg-paper">
       <AppHeader />
       <div className="flex-1 pb-4">{children}</div>
       <BottomNav />

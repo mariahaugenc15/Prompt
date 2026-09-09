@@ -44,7 +44,7 @@ export function CreateBoard() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Pick It Up"
-          className="rounded-sm border border-line bg-card p-2.5 text-sm normal-case tracking-normal outline-none focus:border-line-strong"
+          className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
         />
       </label>
 
@@ -55,7 +55,7 @@ export function CreateBoard() {
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
           placeholder="What's this board about?"
-          className="resize-none rounded-sm border border-line bg-card p-2.5 text-sm normal-case tracking-normal outline-none focus:border-line-strong"
+          className="resize-none rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
         />
       </label>
 
@@ -101,7 +101,7 @@ export function CreateBoard() {
           value={locationTag}
           onChange={(e) => setLocationTag(e.target.value)}
           placeholder="e.g. Portland, OR"
-          className="rounded-sm border border-line bg-card p-2.5 text-sm normal-case tracking-normal outline-none focus:border-line-strong"
+          className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
         />
       </label>
 

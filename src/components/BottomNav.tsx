@@ -11,7 +11,7 @@ const tabs = [
 
 export function BottomNav() {
   return (
-    <nav className="sticky bottom-0 z-30 border-t border-line bg-paper/95 backdrop-blur">
+    <nav className="sticky bottom-0 z-30 border-t border-line bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
       <ul className="mx-auto flex max-w-xl items-stretch justify-around">
         {tabs.map(({ to, label, icon: Icon, end }) => (
           <li key={to} className="flex-1">

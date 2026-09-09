@@ -133,7 +133,7 @@ export function OrgPage() {
             onChange={(e) => setText(e.target.value)}
             rows={2}
             placeholder="What should followers do?"
-            className="mb-2 w-full resize-none rounded-sm border border-line bg-paper p-2 text-sm outline-none focus:border-line-strong"
+            className="mb-2 w-full resize-none rounded-sm border border-line bg-paper p-2 text-base outline-none focus:border-line-strong"
           />
           {postError && <p className="mb-2 text-xs text-danger">{postError}</p>}
           <button

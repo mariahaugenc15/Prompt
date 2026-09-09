@@ -61,7 +61,7 @@ export function RealSend() {
           }}
           placeholder="bob"
           className={clsx(
-            'rounded-sm border bg-card p-2.5 text-sm normal-case tracking-normal outline-none',
+            'rounded-sm border bg-card p-2.5 text-base normal-case tracking-normal outline-none',
             errors.recipientUsername ? 'border-danger' : 'border-line focus:border-line-strong',
           )}
         />
@@ -98,7 +98,7 @@ export function RealSend() {
           rows={2}
           placeholder="take a picture of a flower and post it"
           className={clsx(
-            'resize-none rounded-sm border bg-card p-2.5 text-sm normal-case tracking-normal outline-none',
+            'resize-none rounded-sm border bg-card p-2.5 text-base normal-case tracking-normal outline-none',
             errors.text ? 'border-danger' : 'border-line focus:border-line-strong',
           )}
         />

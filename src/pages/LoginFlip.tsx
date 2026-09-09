@@ -12,7 +12,7 @@ export function LoginFlip() {
   const now = new Date()
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#3d3730] p-6">
+    <div className="flex min-h-screen min-h-dvh flex-col items-center justify-center bg-[#3d3730] p-6">
       <div className="w-full max-w-sm" style={{ perspective: 1600 }}>
         <div className="relative aspect-[3/4] w-full">
           {/* the page underneath — today's calendar, already open */}

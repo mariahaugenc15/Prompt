@@ -26,11 +26,11 @@ export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: (
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 28, stiffness: 260 }}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-t-lg border-t border-line bg-paper p-5"
+        className="max-h-[85vh] max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-t-lg border-t border-line bg-paper p-5 pb-[calc(1.25rem_+_env(safe-area-inset-bottom))]"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-xl">{label}</h2>
-          <button onClick={onClose} className="text-ink-faint">
+          <button onClick={onClose} className="-m-3 p-3 text-ink-faint">
             <CloseIcon size={18} />
           </button>
         </div>

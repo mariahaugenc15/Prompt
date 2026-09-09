@@ -125,6 +125,15 @@ export function LockIcon(props: IconProps) {
   )
 }
 
+export function GlobeIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17M12 3.5c2.5 2.3 3.8 5.3 3.8 8.5s-1.3 6.2-3.8 8.5c-2.5-2.3-3.8-5.3-3.8-8.5S9.5 5.8 12 3.5Z" />
+    </svg>
+  )
+}
+
 export function CalendarIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

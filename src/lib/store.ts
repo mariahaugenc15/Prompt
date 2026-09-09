@@ -4,14 +4,24 @@ import type {
   Board,
   BoardCategory,
   BoardChallenge,
+  CalendarVisibility,
   Category,
   Prompt,
   Proof,
   PromptPermission,
   Submission,
   User,
+  UserCalendar,
 } from './types'
-import { CURRENT_USER_ID, currentUser, seedBoards, seedChallengeLibrary, seedSubmissions, seedUsers } from './seed'
+import {
+  CURRENT_USER_ID,
+  currentUser,
+  seedBoards,
+  seedCalendars,
+  seedChallengeLibrary,
+  seedSubmissions,
+  seedUsers,
+} from './seed'
 import type { SignupSuccess } from './signupApi'
 
 export function todayKey(): string {
@@ -38,6 +48,7 @@ interface AppState {
   boards: Board[]
   boardChallenges: BoardChallenge[]
   submissions: Submission[]
+  calendars: UserCalendar[]
 
   login: () => void
   completeOnboarding: () => void
@@ -50,7 +61,7 @@ interface AppState {
   simulateIncomingPrompt: () => string | null
   acceptPrompt: (promptId: string) => void
   declinePrompt: (promptId: string) => void
-  completeChallenge: (promptId: string, proof: Proof) => void
+  completeChallenge: (promptId: string, proof: Proof, calendarIds?: string[]) => void
 
   createBoard: (opts: {
     name: string
@@ -67,6 +78,12 @@ interface AppState {
 
   setPromptPermission: (p: PromptPermission) => void
   setHideCompletionScore: (v: boolean) => void
+
+  createCalendar: (name: string, visibility: CalendarVisibility) => string
+  joinCalendar: (calendarId: string) => void
+  leaveCalendar: (calendarId: string) => void
+  setCalendarVisibility: (calendarId: string, visibility: CalendarVisibility) => void
+  tagPromptCalendars: (promptId: string, calendarIds: string[]) => void
 }
 
 export const useStore = create<AppState>()(
@@ -87,6 +104,7 @@ export const useStore = create<AppState>()(
       boards: seedBoards,
       boardChallenges: [],
       submissions: seedSubmissions,
+      calendars: seedCalendars,
 
       login: () => set({ loggedIn: true }),
       completeOnboarding: () => set({ onboarded: true }),
@@ -156,13 +174,15 @@ export const useStore = create<AppState>()(
           prompts: s.prompts.map((p) => (p.id === promptId ? { ...p, status: 'declined' } : p)),
         })),
 
-      completeChallenge: (promptId, proof) =>
+      completeChallenge: (promptId, proof, calendarIds) =>
         set((s) => {
           const prompt = s.prompts.find((p) => p.id === promptId)
           if (!prompt) return s
           const dayKey = prompt.dayKey ?? todayKey()
           const updatedPrompts = s.prompts.map((p) =>
-            p.id === promptId ? { ...p, status: 'completed' as const, completedAt: Date.now(), dayKey, proof } : p,
+            p.id === promptId
+              ? { ...p, status: 'completed' as const, completedAt: Date.now(), dayKey, proof, calendarIds }
+              : p,
           )
           const submission: Submission = {
             id: uid('sub'),
@@ -268,6 +288,42 @@ export const useStore = create<AppState>()(
 
       setPromptPermission: (p) => set({ promptPermission: p }),
       setHideCompletionScore: (v) => set({ hideCompletionScore: v }),
+
+      createCalendar: (name, visibility) => {
+        const id = uid('cal')
+        const calendar: UserCalendar = { id, name, ownerId: CURRENT_USER_ID, visibility, memberIds: [CURRENT_USER_ID] }
+        set((s) => ({ calendars: [...s.calendars, calendar] }))
+        return id
+      },
+
+      joinCalendar: (calendarId) =>
+        set((s) => ({
+          calendars: s.calendars.map((c) =>
+            c.id === calendarId && c.visibility === 'public' && !c.memberIds.includes(CURRENT_USER_ID)
+              ? { ...c, memberIds: [...c.memberIds, CURRENT_USER_ID] }
+              : c,
+          ),
+        })),
+
+      leaveCalendar: (calendarId) =>
+        set((s) => ({
+          calendars: s.calendars.map((c) =>
+            // The owner can't leave their own calendar — delete it instead (not exposed in v1).
+            c.id === calendarId && c.ownerId !== CURRENT_USER_ID
+              ? { ...c, memberIds: c.memberIds.filter((id) => id !== CURRENT_USER_ID) }
+              : c,
+          ),
+        })),
+
+      setCalendarVisibility: (calendarId, visibility) =>
+        set((s) => ({
+          calendars: s.calendars.map((c) => (c.id === calendarId && c.ownerId === CURRENT_USER_ID ? { ...c, visibility } : c)),
+        })),
+
+      tagPromptCalendars: (promptId, calendarIds) =>
+        set((s) => ({
+          prompts: s.prompts.map((p) => (p.id === promptId ? { ...p, calendarIds } : p)),
+        })),
     }),
     {
       name: 'prompt-app-store',

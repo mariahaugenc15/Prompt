@@ -45,6 +45,17 @@ export interface Prompt {
   completedAt?: number
   dayKey?: string // YYYY-MM-DD, set on accept — the day it's "written into"
   proof?: Proof
+  calendarIds?: string[] // custom calendars this completion is filed into, beyond the default All Activity view
+}
+
+export type CalendarVisibility = 'public' | 'private'
+
+export interface UserCalendar {
+  id: string
+  name: string
+  ownerId: string
+  visibility: CalendarVisibility
+  memberIds: string[] // includes the owner; others who have joined a public calendar
 }
 
 export type BoardCategory = 'brand' | 'nonprofit' | 'creator' | 'local' | 'interest'

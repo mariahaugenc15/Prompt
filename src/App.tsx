@@ -12,6 +12,9 @@ import { Boards } from './pages/Boards'
 import { BoardDetail } from './pages/BoardDetail'
 import { CreateBoard } from './pages/CreateBoard'
 import { Profile } from './pages/Profile'
+import { Calendars } from './pages/Calendars'
+import { CreateCalendar } from './pages/CreateCalendar'
+import { CalendarDetail } from './pages/CalendarDetail'
 import { SendPrompt } from './pages/SendPrompt'
 import { SignUp } from './pages/SignUp'
 import { Login } from './pages/Login'
@@ -121,6 +124,30 @@ export default function App() {
         element={
           <Protected>
             <Profile />
+          </Protected>
+        }
+      />
+      <Route
+        path="/calendars"
+        element={
+          <Protected>
+            <Calendars />
+          </Protected>
+        }
+      />
+      <Route
+        path="/calendars/new"
+        element={
+          <Protected>
+            <CreateCalendar />
+          </Protected>
+        }
+      />
+      <Route
+        path="/calendars/:calendarId"
+        element={
+          <Protected>
+            <CalendarDetail />
           </Protected>
         }
       />

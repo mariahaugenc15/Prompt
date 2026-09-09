@@ -5,7 +5,7 @@ import { useStore } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import { computeCompletionScore } from '../lib/completionScore'
 import type { PromptPermission } from '../lib/types'
-import { CheckIcon } from '../components/Icons'
+import { CalendarIcon, CheckIcon, LockIcon } from '../components/Icons'
 import { getMe, setMyPromptPermission, type Me } from '../lib/realAccountsApi'
 
 const PERMISSIONS: { id: PromptPermission; label: string; help: string; recommended?: boolean }[] = [
@@ -24,6 +24,7 @@ export function Profile() {
   const following = useStore((s) => s.following)
   const followers = useStore((s) => s.followers)
   const users = useStore((s) => s.users)
+  const calendars = useStore((s) => s.calendars)
   const account = useStore((s) => s.account)
   const promptPermission = useStore((s) => s.promptPermission)
   const setPromptPermission = useStore((s) => s.setPromptPermission)
@@ -36,6 +37,7 @@ export function Profile() {
 
   const displayName = account ? (account.firstName ?? account.organizationName ?? account.username) : 'You'
   const handle = account ? `@${account.username}` : '@you'
+  const myCalendars = calendars.filter((c) => c.memberIds.includes(CURRENT_USER_ID))
 
   const [me, setMe] = useState<Me | null>(null)
   useEffect(() => {
@@ -123,6 +125,39 @@ export function Profile() {
             className="h-4 w-4 accent-[var(--color-accent)]"
           />
         </label>
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs uppercase tracking-wider text-ink-faint">Your calendars</p>
+          <Link to="/calendars" className="text-xs font-medium text-ink underline underline-offset-2">
+            Manage
+          </Link>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Link to="/" className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2">
+            <CalendarIcon size={15} className="text-ink-soft" />
+            <span className="text-sm">All Activity</span>
+            <span className="ml-auto text-xs text-ink-faint">Default</span>
+          </Link>
+          {myCalendars.map((c) => (
+            <Link key={c.id} to={`/calendars/${c.id}`} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2">
+              {c.visibility === 'private' ? (
+                <LockIcon size={14} className="text-ink-soft" />
+              ) : (
+                <CalendarIcon size={15} className="text-ink-soft" />
+              )}
+              <span className="text-sm">{c.name}</span>
+              <span className="ml-auto text-xs text-ink-faint">{c.ownerId === CURRENT_USER_ID ? 'Owner' : 'Joined'}</span>
+            </Link>
+          ))}
+          <Link
+            to="/calendars/new"
+            className="rounded-sm border border-dashed border-line-strong px-3 py-2 text-center text-sm text-ink-faint"
+          >
+            + New calendar
+          </Link>
+        </div>
       </section>
 
       <section>

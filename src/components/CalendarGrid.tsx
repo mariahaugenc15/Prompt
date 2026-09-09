@@ -24,18 +24,25 @@ export function CalendarGrid({
   prompts,
   onDayClick,
   compact = false,
+  calendarId,
 }: {
   year: number
   month: number
   prompts: Prompt[]
   onDayClick?: (dayKey: string) => void
   compact?: boolean
+  // Omit for the default "All Activity" view. When set, only completions
+  // actually tagged into this calendar show — an in-progress (accepted but
+  // not yet completed) prompt has no calendarIds yet, so it's correctly
+  // absent from a custom calendar's view until it's tagged at completion.
+  calendarId?: string
 }) {
   const cells = buildMonthCells(year, month)
   const today = todayKey()
   const byDay = new Map<string, Prompt[]>()
   for (const p of prompts) {
     if ((p.status !== 'completed' && p.status !== 'accepted') || !p.dayKey) continue
+    if (calendarId && !p.calendarIds?.includes(calendarId)) continue
     const list = byDay.get(p.dayKey) ?? []
     list.push(p)
     byDay.set(p.dayKey, list)

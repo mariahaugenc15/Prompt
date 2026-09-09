@@ -1,4 +1,4 @@
-import type { Board, ChallengeTemplate, Submission, User } from './types'
+import type { Board, ChallengeTemplate, Submission, User, UserCalendar } from './types'
 
 export const CURRENT_USER_ID = 'me'
 
@@ -56,6 +56,15 @@ export const seedBoards: Board[] = [
     visibility: 'public',
     subscriberIds: [],
   },
+]
+
+// Demo calendars owned by seed friends, so joining someone else's public
+// calendar is something you can actually try in the single-user mock app,
+// not just something you create for yourself.
+export const seedCalendars: UserCalendar[] = [
+  { id: 'cal_seed_1', name: 'Morning Runs', ownerId: 'u1', visibility: 'public', memberIds: ['u1'] },
+  { id: 'cal_seed_2', name: 'Sarah & Me', ownerId: 'u2', visibility: 'private', memberIds: ['u2'] },
+  { id: 'cal_seed_3', name: 'Nonprofit Wins', ownerId: 'u5', visibility: 'public', memberIds: ['u5', 'u1'] },
 ]
 
 const HOUR = 1000 * 60 * 60

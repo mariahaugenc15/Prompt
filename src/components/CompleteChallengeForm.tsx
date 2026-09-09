@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fileToCompressedDataUrl } from '../lib/media'
+import { fileToProofDataUrl } from '../lib/media'
 import type { Proof } from '../lib/types'
 import { CameraIcon, VideoIcon } from './Icons'
 
@@ -22,15 +22,19 @@ export function CompleteChallengeForm({
   const [kind, setKind] = useState<'photo' | 'video'>('photo')
   const [caption, setCaption] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([])
 
   async function handleFile(file: File | undefined) {
     if (!file) return
     setBusy(true)
-    setKind(file.type.startsWith('video') ? 'video' : 'photo')
+    setError(null)
     try {
-      const dataUrl = await fileToCompressedDataUrl(file)
+      const { dataUrl, kind: resolvedKind } = await fileToProofDataUrl(file)
+      setKind(resolvedKind)
       setPreview(dataUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not process that file — try another one.')
     } finally {
       setBusy(false)
     }
@@ -65,6 +69,7 @@ export function CompleteChallengeForm({
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
       </label>
+      {error && <p className="text-xs text-red-600">{error}</p>}
       <textarea
         value={caption}
         onChange={(e) => setCaption(e.target.value)}

@@ -129,6 +129,9 @@ function DayPromptCard({
           {prompt.proof.type === 'photo' && prompt.proof.dataUrl && (
             <img src={prompt.proof.dataUrl} className="max-h-56 w-full rounded-sm object-cover" alt="proof" />
           )}
+          {prompt.proof.type === 'video' && prompt.proof.dataUrl && (
+            <video src={prompt.proof.dataUrl} controls playsInline className="max-h-56 w-full rounded-sm bg-ink" />
+          )}
           {prompt.proof.caption && <p className="mt-2 text-sm italic text-ink-soft">"{prompt.proof.caption}"</p>}
           {prompt.calendarIds && prompt.calendarIds.length > 0 && (
             <p className="mt-2 text-xs text-ink-faint">

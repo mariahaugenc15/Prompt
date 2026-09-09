@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fileToCompressedDataUrl } from '../lib/media'
+import { fileToProofDataUrl } from '../lib/media'
 import { CameraIcon, VideoIcon } from './Icons'
 
 export function RealCompleteForm({
@@ -17,13 +17,18 @@ export function RealCompleteForm({
   const [kind, setKind] = useState<'photo' | 'video'>('photo')
   const [caption, setCaption] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleFile(file: File | undefined) {
     if (!file) return
     setBusy(true)
-    setKind(file.type.startsWith('video') ? 'video' : 'photo')
+    setError(null)
     try {
-      setPreview(await fileToCompressedDataUrl(file))
+      const { dataUrl, kind: resolvedKind } = await fileToProofDataUrl(file)
+      setKind(resolvedKind)
+      setPreview(dataUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not process that file — try another one.')
     } finally {
       setBusy(false)
     }
@@ -58,6 +63,7 @@ export function RealCompleteForm({
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
       </label>
+      {error && <p className="text-xs text-red-600">{error}</p>}
 
       <label className="text-xs text-ink-faint">
         Your caption (added after the line above)

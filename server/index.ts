@@ -28,10 +28,13 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? '')
   .filter(Boolean)
 app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : true }))
 
-// Proof media rides along as base64 data URLs (see src/lib/media.ts, which
-// downscales before encoding) rather than multipart upload — fine for a
-// prototype, so the body limit just needs headroom past the default 100kb.
-app.use(express.json({ limit: '5mb' }))
+// Proof media rides along as base64 data URLs (see src/lib/media.ts) rather
+// than multipart upload — fine for a prototype. Photos are downscaled
+// before encoding so stay small, but video can't be re-encoded in the
+// browser, so it rides at up to media.ts's MAX_VIDEO_BYTES (8MB) — base64
+// inflates that by ~1/3, so the limit needs headroom past that, not just
+// past the default 100kb.
+app.use(express.json({ limit: '12mb' }))
 app.use(socialRouter)
 app.use(promptRouter)
 

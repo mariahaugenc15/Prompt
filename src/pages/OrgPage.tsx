@@ -161,7 +161,11 @@ export function OrgPage() {
                 <div className="mt-2 columns-2 gap-2">
                   {b.completions.map((c) => (
                     <div key={c.id} className="mb-2 break-inside-avoid rounded-sm border border-line bg-paper p-2">
-                      {c.mediaDataUrl && <img src={c.mediaDataUrl} alt="" className="mb-1.5 w-full rounded-sm object-cover" />}
+                      {c.mediaDataUrl && c.mediaType === 'video' ? (
+                        <video src={c.mediaDataUrl} controls playsInline className="mb-1.5 w-full rounded-sm bg-ink" />
+                      ) : c.mediaDataUrl ? (
+                        <img src={c.mediaDataUrl} alt="" className="mb-1.5 w-full rounded-sm object-cover" />
+                      ) : null}
                       <p className="text-xs italic text-ink-faint">{c.autoCaption}</p>
                       {c.userCaption && <p className="text-xs text-ink">{c.userCaption}</p>}
                       <p className="mt-1 text-[10px] text-ink-faint">@{c.completerUsername}</p>

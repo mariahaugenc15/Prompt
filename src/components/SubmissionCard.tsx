@@ -29,6 +29,9 @@ export function SubmissionCard({ submission }: { submission: Submission }) {
       {submission.proof?.dataUrl && submission.proof.type === 'photo' && (
         <img src={submission.proof.dataUrl} alt="" className="mb-2 w-full rounded-sm object-cover" />
       )}
+      {submission.proof?.dataUrl && submission.proof.type === 'video' && (
+        <video src={submission.proof.dataUrl} controls playsInline className="mb-2 w-full rounded-sm bg-ink" />
+      )}
       {!submission.proof?.dataUrl && (
         <div className="mb-2 flex aspect-[4/3] items-center justify-center rounded-sm bg-paper-dim text-ink-faint">
           <CATEGORY_ICON category={submission.category} size={28} />

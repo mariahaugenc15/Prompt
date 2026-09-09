@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useStore } from '../lib/store'
 import { CalendarGrid } from '../components/CalendarGrid'
-import { StampIcon } from '../components/Icons'
+import { PromptLogo } from '../components/PromptLogo'
 
 export function LoginFlip() {
   const [flipping, setFlipping] = useState(false)
@@ -11,7 +12,7 @@ export function LoginFlip() {
   const now = new Date()
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#3d3730] p-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#3d3730] p-6">
       <div className="w-full max-w-sm" style={{ perspective: 1600 }}>
         <div className="relative aspect-[3/4] w-full">
           {/* the page underneath — today's calendar, already open */}
@@ -35,9 +36,8 @@ export function LoginFlip() {
               if (flipping) login()
             }}
           >
-            <StampIcon size={30} className="text-accent" />
             <div>
-              <h1 className="font-serif text-4xl text-ink">Prompt</h1>
+              <PromptLogo size={44} className="justify-center" />
               <p className="mt-2 text-sm italic text-ink-soft">Real prompts. Real life.</p>
             </div>
             <button
@@ -49,6 +49,12 @@ export function LoginFlip() {
           </motion.div>
         </div>
       </div>
+      <p className="mt-6 text-center text-sm text-paper-dim/80">
+        New here?{' '}
+        <Link to="/signup" className="font-medium text-paper underline underline-offset-2">
+          Create an account
+        </Link>
+      </p>
     </div>
   )
 }

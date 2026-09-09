@@ -9,12 +9,14 @@
   --color-ink-faint: #948d80;
   --color-line: #d8d2c2;
   --color-line-strong: #b9b09a;
-  --color-accent: #8a6d4b; /* terracotta-leaning stone */
-  --color-accent-soft: #e6dcc9;
+  --color-accent: #bd5c3a; /* terracotta — matched to the wordmark's stamp dot */
+  --color-accent-soft: #f1ddd0;
   --color-card: #fffdf7;
   --color-danger: #a4462f;
+  --color-success: #5c7a52; /* distinct from accent/danger — both read as "warm red" at a glance */
 
   --font-serif: 'Source Serif 4', Georgia, serif;
+  --font-slab: 'Roboto Slab', 'Source Serif 4', Georgia, serif;
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --shadow-card: 0 1px 0 rgba(33, 31, 28, 0.06);

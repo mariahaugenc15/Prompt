@@ -5,12 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
+    "express": "^5.2.1",
     "framer-motion": "^13.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -19,6 +23,8 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -27,6 +33,7 @@
     "oxlint": "^1.79.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   }

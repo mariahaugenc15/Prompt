@@ -22,6 +22,7 @@ export function Profile() {
   const following = useStore((s) => s.following)
   const followers = useStore((s) => s.followers)
   const users = useStore((s) => s.users)
+  const account = useStore((s) => s.account)
   const promptPermission = useStore((s) => s.promptPermission)
   const setPromptPermission = useStore((s) => s.setPromptPermission)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
@@ -31,16 +32,19 @@ export function Profile() {
   const received = prompts.filter((p) => p.toUserId === CURRENT_USER_ID && !p.boardId)
   const completed = received.filter((p) => p.status === 'completed').length
 
+  const displayName = account ? (account.firstName ?? account.organizationName ?? account.username) : 'You'
+  const handle = account ? `@${account.username}` : '@you'
+
   return (
     <div className="flex flex-col gap-6 p-4">
       <div className="flex items-center gap-3">
         <span className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-xl">
-          Y
+          {displayName.charAt(0).toUpperCase()}
         </span>
         <div>
-          <h1 className="font-serif text-xl leading-tight">You</h1>
+          <h1 className="font-serif text-xl leading-tight">{displayName}</h1>
           <p className="text-xs text-ink-faint">
-            {following.length} following · {followers.length} followers
+            {handle} · {following.length} following · {followers.length} followers
           </p>
         </div>
       </div>

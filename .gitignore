@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# local sqlite data for the dev signup API
+server/.data
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

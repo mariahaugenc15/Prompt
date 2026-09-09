@@ -12,6 +12,7 @@ import type {
   User,
 } from './types'
 import { CURRENT_USER_ID, currentUser, seedBoards, seedChallengeLibrary, seedSubmissions, seedUsers } from './seed'
+import type { SignupSuccess } from './signupApi'
 
 export function todayKey(): string {
   return new Date().toISOString().slice(0, 10)
@@ -24,6 +25,7 @@ function uid(prefix: string): string {
 interface AppState {
   loggedIn: boolean
   onboarded: boolean
+  account: SignupSuccess | null
 
   users: User[]
   following: string[]
@@ -39,6 +41,7 @@ interface AppState {
 
   login: () => void
   completeOnboarding: () => void
+  setAccount: (account: SignupSuccess) => void
   followUser: (userId: string) => void
   subscribeStarterBoard: (boardId: string) => void
 
@@ -71,6 +74,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       loggedIn: false,
       onboarded: false,
+      account: null,
 
       users: seedUsers,
       following: [],
@@ -86,6 +90,7 @@ export const useStore = create<AppState>()(
 
       login: () => set({ loggedIn: true }),
       completeOnboarding: () => set({ onboarded: true }),
+      setAccount: (account) => set({ account, loggedIn: true }),
 
       followUser: (userId) =>
         set((s) => (s.following.includes(userId) ? s : { following: [...s.following, userId] })),

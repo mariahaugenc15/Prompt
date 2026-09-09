@@ -22,6 +22,25 @@ npm run dev      # frontend on :5173, proxies /api to the server above
 
 `npm run build` / `npm run preview` also proxy `/api` to `:8787` (see `vite.config.ts`), so run `npm run server` alongside `npm run preview` too if you build for production locally.
 
+## Deploying (e.g. to test on a phone)
+
+Vercel is a good fit for the frontend, but **not** for `server/` as it stands — it's Express + SQLite (`better-sqlite3`), and Vercel's serverless functions have an ephemeral filesystem, so every cold start could mean a fresh, empty database. The split that actually works: **frontend on Vercel, backend on a host with a real persistent disk** (Render, Railway, and Fly.io all have a free/cheap tier that fits this).
+
+1. **Deploy the backend first** (example: [Render](https://render.com), free web service):
+   - New Web Service → point at this repo.
+   - Build command: `npm install`. Start command: `npm run server`.
+   - It reads `PORT` from the environment automatically (`server/index.ts`); Render sets that for you.
+   - Set an environment variable `CORS_ORIGIN` once you know your Vercel URL (step 2) — e.g. `https://your-app.vercel.app`. Multiple origins can be comma-separated. Until you set it, CORS is wide open (fine for a first test, not for leaving running indefinitely — see `server/index.ts`).
+   - Note its public URL (e.g. `https://prompt-api.onrender.com`) — you need it in step 2.
+   - Render's free tier disk is not guaranteed durable across redeploys/restarts — fine for clicking around, not for data you care about keeping. For that, swap SQLite for a hosted Postgres (Render/Neon/Supabase all have a free tier) — a real change to `server/db.ts`, not a config flag.
+
+2. **Deploy the frontend to Vercel**:
+   - Import this repo at [vercel.com/new](https://vercel.com/new). It should auto-detect Vite; `vercel.json` in this repo pins the build command/output dir and adds the SPA fallback rewrite React Router needs (without it, refreshing on `/profile` or opening `/o/:username` directly 404s on static hosting).
+   - Add an environment variable **`VITE_API_BASE_URL`** = the backend URL from step 1 (no trailing slash, e.g. `https://prompt-api.onrender.com`). Every API call is built from this at build time (`src/lib/apiBase.ts`) — without it, the deployed frontend tries to call itself for `/api/...` and gets nothing back.
+   - Deploy. If you set `CORS_ORIGIN` on the backend before this, your Vercel URL needs to already match it (or come back and update it after Vercel gives you the final URL, then redeploy the backend).
+
+3. **Open it on your phone**: just visit the Vercel URL in a mobile browser — it's a responsive web app, not a native build, so there's nothing to install. "Add to Home Screen" gives it an icon and full-screen launch, but there's no web app manifest or service worker yet, so it won't behave like an installable PWA (offline support, etc.) — a small addition if you want that next.
+
 ## What's implemented (v1 scope from the brief)
 
 - **Calendar-flip login** (`src/pages/LoginFlip.tsx`) — the signature front-door interaction: a closed planner cover flips open onto today's calendar page.

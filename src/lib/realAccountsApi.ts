@@ -4,6 +4,8 @@
 // prototype — this one talks to server/*.ts and requires the bearer token
 // minted at sign-up (src/lib/signupApi.ts).
 
+import { apiUrl } from './apiBase'
+
 export type Category = 'snap' | 'sound' | 'show' | 'share' | 'unplug'
 
 export interface PublicProfile {
@@ -62,7 +64,7 @@ export interface BroadcastSummary {
 type ApiResult<T> = { ok: true; data: T } | { ok: false; errors: Record<string, string> }
 
 async function call<T>(path: string, token: string | undefined, init?: RequestInit): Promise<ApiResult<T>> {
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     ...init,
     headers: {
       'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import express from 'express'
+import cors from 'cors'
 import crypto from 'node:crypto'
 import { db } from './db.js'
 import { socialRouter } from './socialRoutes.js'
@@ -12,6 +13,21 @@ import {
 } from '../shared/signupValidation.js'
 
 const app = express()
+
+// The frontend and this API are meant to live on different hosts in
+// production (e.g. the frontend on Vercel, this on Render/Railway/Fly —
+// see README "Deploying"), so requests are cross-origin, not same-origin
+// via the dev-only Vite proxy. Auth here is a bearer token in a header,
+// never a cookie, so a permissive default doesn't expose anything a
+// caller couldn't already do by holding that token directly — but set
+// CORS_ORIGIN (comma-separated) to your real frontend URL(s) once you
+// have one, rather than leaving this wide open indefinitely.
+const allowedOrigins = (process.env.CORS_ORIGIN ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : true }))
+
 // Proof media rides along as base64 data URLs (see src/lib/media.ts, which
 // downscales before encoding) rather than multipart upload — fine for a
 // prototype, so the body limit just needs headroom past the default 100kb.

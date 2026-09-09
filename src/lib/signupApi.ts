@@ -1,4 +1,5 @@
 import type { FieldErrors, SignupInput } from '../../shared/signupValidation'
+import { apiUrl } from './apiBase'
 
 export interface UsernameCheckResult {
   available: boolean
@@ -6,7 +7,7 @@ export interface UsernameCheckResult {
 }
 
 export async function checkUsernameAvailable(username: string, signal?: AbortSignal): Promise<UsernameCheckResult> {
-  const res = await fetch(`/api/signup/check-username?username=${encodeURIComponent(username)}`, { signal })
+  const res = await fetch(apiUrl(`/api/signup/check-username?username=${encodeURIComponent(username)}`), { signal })
   return res.json()
 }
 
@@ -25,7 +26,7 @@ export interface SignupSuccess {
 export type SignupResult = { ok: true; account: SignupSuccess } | { ok: false; errors: FieldErrors }
 
 export async function submitSignup(input: SignupInput): Promise<SignupResult> {
-  const res = await fetch('/api/signup', {
+  const res = await fetch(apiUrl('/api/signup'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -36,7 +37,7 @@ export async function submitSignup(input: SignupInput): Promise<SignupResult> {
 }
 
 export async function submitLogin(username: string, password: string): Promise<SignupResult> {
-  const res = await fetch('/api/login', {
+  const res = await fetch(apiUrl('/api/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),

@@ -6,7 +6,7 @@ import { CURRENT_USER_ID } from '../lib/seed'
 import { computeCompletionScore } from '../lib/completionScore'
 import { fileToCompressedDataUrl } from '../lib/media'
 import type { PromptPermission } from '../lib/types'
-import { CalendarIcon, CameraIcon, CheckIcon, LockIcon, BoardsIcon } from '../components/Icons'
+import { CalendarIcon, CameraIcon, CheckIcon, LockIcon, BoardsIcon, ShareIcon } from '../components/Icons'
 import { getMe, setMyPromptPermission, type Me } from '../lib/realAccountsApi'
 
 const PERMISSIONS: { id: PromptPermission; label: string; help: string; recommended?: boolean }[] = [
@@ -78,6 +78,23 @@ export function Profile() {
     setEditingBio(false)
   }
 
+  const [inviteCopied, setInviteCopied] = useState(false)
+  const inviteUrl = `${window.location.origin}/invite`
+
+  async function handleInvite() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Prompt', text: 'prompt your life', url: inviteUrl })
+        return
+      } catch {
+        // user cancelled the share sheet — fall through to copy instead
+      }
+    }
+    await navigator.clipboard.writeText(inviteUrl)
+    setInviteCopied(true)
+    setTimeout(() => setInviteCopied(false), 2000)
+  }
+
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
 
   function handleSignOut() {
@@ -145,6 +162,20 @@ export function Profile() {
       <Link to={`/u/${CURRENT_USER_ID}`} className="-mt-4 text-xs text-ink-faint underline underline-offset-2">
         Preview how others see your profile
       </Link>
+
+      <button
+        onClick={handleInvite}
+        className="flex items-center gap-3 rounded-sm border border-dashed border-accent/50 bg-accent-soft/40 p-3 text-left"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent/50 bg-card text-accent">
+          <ShareIcon size={15} />
+        </span>
+        <span className="flex-1">
+          <span className="block text-sm font-medium">Invite friends to Prompt</span>
+          <span className="block text-xs text-ink-faint">prompt your life — share the link</span>
+        </span>
+        <span className="shrink-0 text-xs font-medium text-accent">{inviteCopied ? 'Copied!' : 'Share'}</span>
+      </button>
 
       {account && me && (
         <section className="rounded-sm border border-line bg-card p-4">

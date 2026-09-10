@@ -5,6 +5,7 @@ import { BottomNav } from './components/BottomNav'
 import { AppHeader } from './components/AppHeader'
 import { RealShell } from './components/RealShell'
 import { LoginFlip } from './pages/LoginFlip'
+import { InviteLanding } from './pages/InviteLanding'
 import { Home } from './pages/Home'
 import { Feed } from './pages/Feed'
 import { Boards } from './pages/Boards'
@@ -44,6 +45,7 @@ function Protected({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <Routes>
+      <Route path="/invite" element={<InviteLanding />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/login" element={<Login />} />
       <Route

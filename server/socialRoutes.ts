@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { db } from './db.js'
 import { requireAuth } from './auth.js'
 import { canFollow, type PromptPermission } from './permissions.js'
-import { getAccountByUsername, publicProfile } from './accountsRepo.js'
+import { getAccountByUsername, publicProfile, searchAccounts } from './accountsRepo.js'
 
 export const socialRouter = Router()
 
@@ -40,6 +40,21 @@ const insertFollow = db.prepare(
   'INSERT OR IGNORE INTO follows (follower_account_id, followee_account_id, created_at) VALUES (?, ?, ?)',
 )
 const deleteFollow = db.prepare('DELETE FROM follows WHERE follower_account_id = ? AND followee_account_id = ?')
+
+// GET /api/search/accounts?q=foo — backs "find people" in the client search
+// bar. A separate path (not /api/accounts/:username) so a literal username
+// of "search" could never collide with this route.
+socialRouter.get('/api/search/accounts', (req, res) => {
+  const q = String(req.query.q ?? '').trim()
+  if (q.length < 2) return res.json([])
+
+  const header = req.header('authorization') ?? ''
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+  const viewer = token ? (db.prepare('SELECT id FROM accounts WHERE auth_token = ?').get(token) as { id: string } | undefined) : undefined
+
+  const results = searchAccounts(q, viewer?.id, 12).map((a) => publicProfile(a, viewer?.id))
+  res.json(results)
+})
 
 socialRouter.get('/api/accounts/:username', (req, res) => {
   const target = getAccountByUsername(req.params.username)

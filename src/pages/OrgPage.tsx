@@ -29,6 +29,7 @@ export function OrgPage() {
   const [postError, setPostError] = useState<string | null>(null)
 
   const isOwner = account?.accountType === 'organization' && account.username === username
+  const isSelf = account?.username === username
 
   function refresh() {
     getProfile(username, account?.token).then((res) => setProfile(res.ok ? res.data : 'not-found'))
@@ -38,7 +39,7 @@ export function OrgPage() {
   useEffect(refresh, [username, account?.token])
 
   if (profile === 'not-found') {
-    return <p className="p-6 text-center text-sm text-ink-faint">No organization found at @{username}.</p>
+    return <p className="p-6 text-center text-sm text-ink-faint">No account found at @{username}.</p>
   }
 
   async function handleFollowToggle() {
@@ -89,17 +90,27 @@ export function OrgPage() {
         </div>
       </div>
 
-      {!isOwner && account?.accountType === 'individual' && profile && (
-        <button
-          onClick={handleFollowToggle}
-          disabled={busy}
-          className={clsx(
-            'rounded-sm border px-4 py-2 text-sm font-medium',
-            profile.isFollowing ? 'border-line text-ink-soft' : 'border-ink bg-ink text-paper',
+      {!isSelf && account?.accountType === 'individual' && profile && (
+        <div className="flex gap-2">
+          <button
+            onClick={handleFollowToggle}
+            disabled={busy}
+            className={clsx(
+              'rounded-sm border px-4 py-2 text-sm font-medium',
+              profile.isFollowing ? 'border-line text-ink-soft' : 'border-ink bg-ink text-paper',
+            )}
+          >
+            {profile.isFollowing ? 'Following' : 'Follow'}
+          </button>
+          {profile.accountType === 'individual' && (
+            <Link
+              to={`/real/send?to=${encodeURIComponent(username)}`}
+              className="rounded-sm border border-line px-4 py-2 text-sm text-ink-soft"
+            >
+              Send a prompt
+            </Link>
           )}
-        >
-          {profile.isFollowing ? 'Following' : 'Follow'}
-        </button>
+        </div>
       )}
       {!account && (
         <p className="text-xs text-ink-faint">
@@ -146,6 +157,7 @@ export function OrgPage() {
         </section>
       )}
 
+      {profile && profile.accountType === 'organization' && (
       <section>
         <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Broadcasts &amp; submissions</p>
         {broadcasts.length === 0 && <p className="text-sm text-ink-faint">Nothing broadcast yet.</p>}
@@ -177,6 +189,7 @@ export function OrgPage() {
           ))}
         </div>
       </section>
+      )}
 
       {!isOwner && (
         <button onClick={() => navigate('/')} className="text-center text-xs text-ink-faint underline">

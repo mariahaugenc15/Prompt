@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
@@ -6,6 +6,7 @@ import { CURRENT_USER_ID } from '../lib/seed'
 import { SubmissionCard } from '../components/SubmissionCard'
 import { ExploreChallengesList } from '../components/ExploreChallengesList'
 import { SearchIcon, ShuffleIcon, CloseIcon } from '../components/Icons'
+import { searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
 
 function shuffled<T>(arr: T[]): T[] {
   const copy = [...arr]
@@ -23,6 +24,7 @@ export function Feed() {
   const following = useStore((s) => s.following)
   const boards = useStore((s) => s.boards)
   const users = useStore((s) => s.users)
+  const account = useStore((s) => s.account)
 
   const followingIds = new Set([...following, CURRENT_USER_ID])
   const subscribedBoardIds = new Set(boards.filter((b) => b.subscriberIds.includes(CURRENT_USER_ID)).map((b) => b.id))
@@ -41,6 +43,27 @@ export function Feed() {
   const matchingUsers = q ? users.filter((u) => u.id !== CURRENT_USER_ID && (u.name.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q))) : []
   const matchingBoards = q ? boards.filter((b) => b.name.toLowerCase().includes(q)) : []
   const searching = q.length > 0
+
+  // Real, signed-up accounts (server-backed) — a separate directory from the
+  // fixed mock roster above, so anyone who's actually signed up shows up in
+  // search too, not just the five seed profiles this demo ships with.
+  const [realMatches, setRealMatches] = useState<PublicProfile[]>([])
+  useEffect(() => {
+    if (q.length < 2) {
+      setRealMatches([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      searchAccounts(q, account?.token).then((res) => {
+        if (!cancelled) setRealMatches(res.ok ? res.data : [])
+      })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [q, account?.token])
 
   return (
     <div className="flex flex-col gap-3">
@@ -65,7 +88,7 @@ export function Feed() {
         <div className="flex flex-col gap-4 px-4">
           <section>
             <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">People</p>
-            {matchingUsers.length === 0 ? (
+            {matchingUsers.length === 0 && realMatches.length === 0 ? (
               <p className="text-sm text-ink-faint">No people found.</p>
             ) : (
               <div className="flex flex-col gap-1.5">
@@ -77,6 +100,21 @@ export function Feed() {
                     <div>
                       <p className="text-sm font-medium leading-tight">{u.name}</p>
                       <p className="text-xs text-ink-faint">{u.handle}</p>
+                    </div>
+                  </Link>
+                ))}
+                {realMatches.map((p) => (
+                  <Link
+                    key={p.id}
+                    to={`/o/${p.username}`}
+                    className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-sm">
+                      {p.displayName.charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium leading-tight">{p.displayName}</p>
+                      <p className="text-xs text-ink-faint">@{p.username}</p>
                     </div>
                   </Link>
                 ))}

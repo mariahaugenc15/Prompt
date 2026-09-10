@@ -18,6 +18,16 @@ const byId = db.prepare(
 const byUsername = db.prepare(
   'SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, website_url FROM accounts WHERE username_normalized = ?',
 )
+const searchStmt = db.prepare(`
+  SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, website_url
+  FROM accounts
+  WHERE (username_normalized LIKE ? ESCAPE '\\'
+      OR LOWER(first_name) LIKE ? ESCAPE '\\'
+      OR LOWER(organization_name) LIKE ? ESCAPE '\\')
+    AND id != ?
+  ORDER BY username_normalized ASC
+  LIMIT ?
+`)
 const followRow = db.prepare('SELECT 1 FROM follows WHERE follower_account_id = ? AND followee_account_id = ?')
 const followerCountStmt = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE followee_account_id = ?')
 const followingCountStmt = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE follower_account_id = ?')
@@ -28,6 +38,17 @@ export function getAccountById(id: string): AccountRow | undefined {
 
 export function getAccountByUsername(username: string): AccountRow | undefined {
   return byUsername.get(username.trim().toLowerCase()) as AccountRow | undefined
+}
+
+// % and _ are SQL LIKE wildcards — escape them so a search for e.g. "j_doe"
+// only matches that literal string, not "j" + any-character + "doe".
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => '\\' + c)
+}
+
+export function searchAccounts(query: string, excludeAccountId: string | undefined, limit: number): AccountRow[] {
+  const like = `%${escapeLike(query.trim().toLowerCase())}%`
+  return searchStmt.all(like, like, like, excludeAccountId ?? '', limit) as AccountRow[]
 }
 
 export function isFollowing(followerId: string, followeeId: string): boolean {

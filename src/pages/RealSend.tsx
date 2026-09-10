@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
@@ -9,8 +9,9 @@ import { sendOneToOnePrompt } from '../lib/realAccountsApi'
 export function RealSend() {
   const account = useStore((s) => s.account)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const [recipientUsername, setRecipientUsername] = useState('')
+  const [recipientUsername, setRecipientUsername] = useState(() => searchParams.get('to') ?? '')
   const [category, setCategory] = useState<Category>('snap')
   const [text, setText] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})

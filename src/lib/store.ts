@@ -60,9 +60,7 @@ interface AppState {
   unfollowUser: (userId: string) => void
   subscribeStarterBoard: (boardId: string) => void
 
-  canReceiveFrom: (fromUserId: string) => boolean
   sendPrompt: (toUserId: string, opts: { text: string; category: Category; anonymous: boolean }) => void
-  simulateIncomingPrompt: () => string | null
   acceptPrompt: (promptId: string) => void
   declinePrompt: (promptId: string) => void
   completeChallenge: (promptId: string, proof: Proof, calendarIds?: string[]) => void
@@ -77,6 +75,7 @@ interface AppState {
   }) => string
   joinBoard: (boardId: string) => void
   postBoardChallenge: (boardId: string, opts: { text: string; category: Category; cadence: BoardChallenge['cadence'] }) => void
+  adoptBoardChallenge: (challengeId: string) => string | null
 
   upvoteSubmission: (submissionId: string) => void
   pinSubmission: (submissionId: string) => void
@@ -152,13 +151,6 @@ export const useStore = create<AppState>()(
 
       subscribeStarterBoard: (boardId) => get().joinBoard(boardId),
 
-      canReceiveFrom: (fromUserId) => {
-        const s = get()
-        if (s.promptPermission === 'everyone') return true
-        if (s.promptPermission === 'followers') return s.followers.includes(fromUserId)
-        return s.followers.includes(fromUserId) && s.following.includes(fromUserId)
-      },
-
       sendPrompt: (toUserId, opts) =>
         set((s) => ({
           prompts: [
@@ -175,27 +167,6 @@ export const useStore = create<AppState>()(
             },
           ],
         })),
-
-      simulateIncomingPrompt: () => {
-        const s = get()
-        const candidates = s.users.filter((u) => s.canReceiveFrom(u.id))
-        if (candidates.length === 0) return null
-        const sender = candidates[Math.floor(Math.random() * candidates.length)]
-        const template = s.challengeLibrary[Math.floor(Math.random() * s.challengeLibrary.length)]
-        const anonymous = Math.random() < 0.4
-        const prompt: Prompt = {
-          id: uid('p'),
-          category: template.category,
-          text: template.text,
-          fromUserId: sender.id,
-          toUserId: CURRENT_USER_ID,
-          anonymous,
-          status: 'pending',
-          createdAt: Date.now(),
-        }
-        set({ prompts: [...s.prompts, prompt] })
-        return prompt.id
-      },
 
       acceptPrompt: (promptId) =>
         set((s) => ({
@@ -294,6 +265,34 @@ export const useStore = create<AppState>()(
             }))
           return { boardChallenges: [...s.boardChallenges, challenge], prompts: [...s.prompts, ...fanOut] }
         }),
+
+      // Explore → "Try it" adopts a public board's challenge directly into
+      // today's calendar as already-accepted — the user opted in by picking
+      // it themselves, so there's no accept/decline fridge-note ritual to
+      // go through first, unlike a challenge someone else sent them.
+      adoptBoardChallenge: (challengeId) => {
+        const s = get()
+        const challenge = s.boardChallenges.find((c) => c.id === challengeId)
+        const board = challenge && s.boards.find((b) => b.id === challenge.boardId)
+        if (!challenge || !board) return null
+        const id = uid('p')
+        const prompt: Prompt = {
+          id,
+          category: challenge.category,
+          text: challenge.text,
+          fromUserId: board.ownerId,
+          toUserId: CURRENT_USER_ID,
+          anonymous: false,
+          boardId: board.id,
+          boardChallengeId: challenge.id,
+          status: 'accepted',
+          createdAt: Date.now(),
+          acceptedAt: Date.now(),
+          dayKey: todayKey(),
+        }
+        set({ prompts: [...s.prompts, prompt] })
+        return id
+      },
 
       upvoteSubmission: (submissionId) =>
         set((s) => ({

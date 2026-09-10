@@ -140,6 +140,9 @@ export function Profile() {
         </div>
       </div>
       {avatarBusy && <p className="-mt-4 text-xs text-ink-faint">Updating photo…</p>}
+      <Link to={`/u/${CURRENT_USER_ID}`} className="-mt-4 text-xs text-ink-faint underline underline-offset-2">
+        Preview how others see your profile
+      </Link>
 
       {account && me && (
         <section className="rounded-sm border border-line bg-card p-4">

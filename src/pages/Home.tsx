@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useStore } from '../lib/store'
+import { Link, useNavigate } from 'react-router-dom'
+import { useStore, todayKey } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import { computeCompletionScore } from '../lib/completionScore'
 import { CalendarGrid } from '../components/CalendarGrid'
@@ -10,17 +10,16 @@ import type { Prompt } from '../lib/types'
 import { PlusIcon } from '../components/Icons'
 
 export function Home() {
+  const navigate = useNavigate()
   const prompts = useStore((s) => s.prompts)
   const users = useStore((s) => s.users)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
   const acceptPrompt = useStore((s) => s.acceptPrompt)
   const declinePrompt = useStore((s) => s.declinePrompt)
-  const simulateIncomingPrompt = useStore((s) => s.simulateIncomingPrompt)
 
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const [tossing, setTossing] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
-  const [simulateMessage, setSimulateMessage] = useState<string | null>(null)
 
   const now = new Date()
   const pending = useMemo(() => prompts.filter((p) => p.toUserId === CURRENT_USER_ID && p.status === 'pending'), [prompts])
@@ -37,9 +36,20 @@ export function Home() {
     setOpenNoteId(null)
   }
 
-  function handleSimulate() {
-    const id = simulateIncomingPrompt()
-    setSimulateMessage(id ? null : 'Follow someone (or widen who can prompt you in Profile settings) to simulate an incoming prompt.')
+  // Your own backlog first — a pending fridge note, then anything already
+  // accepted for today — and only once there's genuinely nothing waiting
+  // does this send you off to find something new.
+  function handleCompletePrompt() {
+    if (pending.length > 0) {
+      setOpenNoteId(pending[0].id)
+      return
+    }
+    const acceptedToday = prompts.find((p) => p.toUserId === CURRENT_USER_ID && p.status === 'accepted' && p.dayKey === todayKey())
+    if (acceptedToday) {
+      setSelectedDay(todayKey())
+      return
+    }
+    navigate('/explore')
   }
 
   function handleDecline() {
@@ -87,14 +97,12 @@ export function Home() {
           <PlusIcon size={15} /> Send a prompt
         </Link>
         <button
-          onClick={handleSimulate}
+          onClick={handleCompletePrompt}
           className="flex-1 rounded-sm border border-line py-2.5 text-sm text-ink-soft transition hover:border-line-strong"
-          title="Demo helper: pin a new note to your fridge from a friend"
         >
-          Simulate a prompt
+          Complete a prompt
         </button>
       </div>
-      {simulateMessage && <p className="px-4 text-xs text-ink-faint">{simulateMessage}</p>}
 
       {openNote && (
         <FridgeNoteDetail

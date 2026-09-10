@@ -16,6 +16,7 @@ import { Calendars } from './pages/Calendars'
 import { CreateCalendar } from './pages/CreateCalendar'
 import { CalendarDetail } from './pages/CalendarDetail'
 import { PublicProfile } from './pages/PublicProfile'
+import { ExplorePrompts } from './pages/ExplorePrompts'
 import { SendPrompt } from './pages/SendPrompt'
 import { SignUp } from './pages/SignUp'
 import { Login } from './pages/Login'
@@ -157,6 +158,14 @@ export default function App() {
         element={
           <Protected>
             <PublicProfile />
+          </Protected>
+        }
+      />
+      <Route
+        path="/explore"
+        element={
+          <Protected>
+            <ExplorePrompts />
           </Protected>
         }
       />

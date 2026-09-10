@@ -15,10 +15,8 @@ export function Home() {
   const users = useStore((s) => s.users)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
   const acceptPrompt = useStore((s) => s.acceptPrompt)
-  const declinePrompt = useStore((s) => s.declinePrompt)
 
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
-  const [tossing, setTossing] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
   const now = new Date()
@@ -34,6 +32,7 @@ export function Home() {
     if (!openNote) return
     acceptPrompt(openNote.id)
     setOpenNoteId(null)
+    setSelectedDay(todayKey())
   }
 
   // Your own backlog first — a pending fridge note, then anything already
@@ -50,16 +49,6 @@ export function Home() {
       return
     }
     navigate('/explore')
-  }
-
-  function handleDecline() {
-    if (!openNote) return
-    setTossing(true)
-    setTimeout(() => {
-      declinePrompt(openNote.id)
-      setOpenNoteId(null)
-      setTossing(false)
-    }, 420)
   }
 
   return (
@@ -108,9 +97,7 @@ export function Home() {
         <FridgeNoteDetail
           prompt={openNote}
           sender={senderFor(openNote)}
-          tossing={tossing}
           onAccept={handleAccept}
-          onDecline={handleDecline}
           onClose={() => setOpenNoteId(null)}
         />
       )}

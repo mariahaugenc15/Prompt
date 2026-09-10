@@ -20,7 +20,7 @@ export function RealSend() {
   if (!account) {
     return (
       <div className="p-6 text-center text-sm text-ink-soft">
-        <p>You need a real account to send a real prompt.</p>
+        <p>You need an account to send a prompt this way.</p>
         <Link to="/signup" className="mt-2 inline-block underline">
           Create one
         </Link>
@@ -51,8 +51,8 @@ export function RealSend() {
       </Link>
 
       <div>
-        <h1 className="font-serif text-2xl">Send a real prompt</h1>
-        <p className="text-xs text-ink-faint">Goes straight to their real inbox — enforced the same way on the server.</p>
+        <h1 className="font-serif text-2xl">Send to a username</h1>
+        <p className="text-xs text-ink-faint">Goes straight to their inbox — enforced the same way on the server.</p>
       </div>
 
       <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">

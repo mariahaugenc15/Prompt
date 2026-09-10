@@ -53,7 +53,7 @@ export function LoginFlip() {
         </div>
       </div>
       <p className="mt-6 text-center text-sm text-paper-dim/80">
-        Have a real account on another device?{' '}
+        Already have an account? Using another device?{' '}
         <Link to="/login" className="font-medium text-paper underline underline-offset-2">
           Log in
         </Link>

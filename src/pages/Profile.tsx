@@ -149,15 +149,15 @@ export function Profile() {
       {account && me && (
         <section className="rounded-sm border border-line bg-card p-4">
           <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">
-            Real account — @{me.username} ({me.accountType})
+            Account — @{me.username} ({me.accountType})
           </p>
           <div className="flex gap-2">
             <Link to="/real/inbox" className="flex-1 rounded-sm border border-ink py-2 text-center text-sm font-medium">
-              Real inbox
+              Inbox
             </Link>
             {me.accountType === 'individual' && (
               <Link to="/real/send" className="flex-1 rounded-sm border border-line py-2 text-center text-sm text-ink-soft">
-                Send a real prompt
+                Send to a username
               </Link>
             )}
             {me.accountType === 'organization' && (
@@ -168,7 +168,7 @@ export function Profile() {
           </div>
           {me.accountType === 'individual' && (
             <div className="mt-3 border-t border-line pt-3">
-              <p className="mb-1.5 text-xs text-ink-faint">Who can send @{me.username} a real prompt</p>
+              <p className="mb-1.5 text-xs text-ink-faint">Who can send @{me.username} a prompt</p>
               <div className="flex gap-1.5">
                 {(['everyone', 'followers', 'mutuals'] as const).map((p) => (
                   <button
@@ -337,7 +337,7 @@ export function Profile() {
             <p className="text-sm text-ink">
               Sign out and reset this device? This clears everything in the calendar/feed/boards demo above — it's
               local to this device, not saved to an account.
-              {account && ' Your real account itself is unaffected; you can log back into it from any device.'}
+              {account && ' Your account itself is unaffected; you can log back into it from any device.'}
             </p>
             <div className="mt-3 flex gap-2">
               <button onClick={handleSignOut} className="flex-1 rounded-sm bg-danger py-2 text-sm font-medium text-paper">

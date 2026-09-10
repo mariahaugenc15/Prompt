@@ -58,16 +58,12 @@ export function FridgeNoteStack({
 export function FridgeNoteDetail({
   prompt,
   sender,
-  tossing,
   onAccept,
-  onDecline,
   onClose,
 }: {
   prompt: Prompt
   sender?: User
-  tossing: boolean
   onAccept: () => void
-  onDecline: () => void
   onClose: () => void
 }) {
   const meta = CATEGORY_META[prompt.category]
@@ -77,8 +73,6 @@ export function FridgeNoteDetail({
       <motion.div
         layoutId={`note-${prompt.id}`}
         onClick={(e) => e.stopPropagation()}
-        animate={tossing ? { x: 260, rotate: 35, opacity: 0 } : { x: 0, rotate: 0, opacity: 1 }}
-        transition={{ duration: 0.45, ease: 'easeIn' }}
         className="relative w-full max-w-xs rounded-sm border border-line bg-[#fff9e0] p-5 shadow-note"
       >
         <PinIcon
@@ -105,16 +99,16 @@ export function FridgeNoteDetail({
 
         <div className="mt-5 flex gap-2">
           <button
-            onClick={onDecline}
+            onClick={onClose}
             className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-soft transition hover:border-line-strong"
           >
-            Toss it
+            Close
           </button>
           <button
             onClick={onAccept}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-sm bg-ink py-2 text-sm font-medium text-paper"
           >
-            <CheckIcon size={14} /> Write it in
+            <CheckIcon size={14} /> {meta.label}
           </button>
         </div>
       </motion.div>

@@ -30,7 +30,7 @@ export function RealInbox() {
   if (!account) {
     return (
       <div className="p-6 text-center text-sm text-ink-soft">
-        <p>You need a real account to view this.</p>
+        <p>You need an account to view this.</p>
         <Link to="/signup" className="mt-2 inline-block underline">
           Create one
         </Link>
@@ -66,7 +66,7 @@ export function RealInbox() {
       </Link>
 
       <div>
-        <h1 className="font-serif text-2xl">Real inbox</h1>
+        <h1 className="font-serif text-2xl">Inbox</h1>
         <p className="text-xs text-ink-faint">
           Prompts sent to <span className="font-medium">@{account.username}</span> and broadcasts from accounts you follow.
         </p>

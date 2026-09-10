@@ -58,7 +58,6 @@ interface AppState {
 
   sendPrompt: (toUserId: string, opts: { text: string; category: Category; anonymous: boolean }) => void
   acceptPrompt: (promptId: string) => void
-  declinePrompt: (promptId: string) => void
   completeChallenge: (promptId: string, proof: Proof, calendarIds?: string[]) => void
   setDayCover: (dayKey: string, promptId: string) => void
 
@@ -159,11 +158,6 @@ export const useStore = create<AppState>()(
           prompts: s.prompts.map((p) =>
             p.id === promptId ? { ...p, status: 'accepted', acceptedAt: Date.now(), dayKey: todayKey() } : p,
           ),
-        })),
-
-      declinePrompt: (promptId) =>
-        set((s) => ({
-          prompts: s.prompts.map((p) => (p.id === promptId ? { ...p, status: 'declined' } : p)),
         })),
 
       completeChallenge: (promptId, proof, calendarIds) =>

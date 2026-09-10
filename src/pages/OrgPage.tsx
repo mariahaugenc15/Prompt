@@ -218,7 +218,7 @@ export function OrgPage() {
 
       {!isOwner && (
         <button onClick={() => navigate('/')} className="text-center text-xs text-ink-faint underline">
-          Back to the app
+          Back to home
         </button>
       )}
 

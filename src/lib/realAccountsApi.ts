@@ -98,6 +98,10 @@ export function searchAccounts(query: string, token?: string) {
   return call<PublicProfile[]>(`/api/search/accounts?q=${encodeURIComponent(query)}`, token)
 }
 
+export function listAccounts(token?: string) {
+  return call<PublicProfile[]>('/api/accounts', token)
+}
+
 export function follow(username: string, token: string) {
   return call<PublicProfile>('/api/follow', token, { method: 'POST', body: JSON.stringify({ username }) })
 }

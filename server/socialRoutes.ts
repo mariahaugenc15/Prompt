@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { db } from './db.js'
 import { requireAuth } from './auth.js'
 import { canFollow, type PromptPermission } from './permissions.js'
-import { getAccountByUsername, publicProfile, searchAccounts } from './accountsRepo.js'
+import { getAccountByUsername, listAccounts, publicProfile, searchAccounts } from './accountsRepo.js'
 
 export const socialRouter = Router()
 
@@ -40,6 +40,19 @@ const insertFollow = db.prepare(
   'INSERT OR IGNORE INTO follows (follower_account_id, followee_account_id, created_at) VALUES (?, ?, ?)',
 )
 const deleteFollow = db.prepare('DELETE FROM follows WHERE follower_account_id = ? AND followee_account_id = ?')
+
+// GET /api/accounts — every real account, most recent first. Backs
+// Explore's profile grid, distinct from /api/search/accounts below which
+// requires a query string.
+socialRouter.get('/api/accounts', (req, res) => {
+  const header = req.header('authorization') ?? ''
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+  const viewer = token ? (db.prepare('SELECT id FROM accounts WHERE auth_token = ?').get(token) as { id: string } | undefined) : undefined
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100)
+  const results = listAccounts(viewer?.id, limit).map((a) => publicProfile(a, viewer?.id))
+  res.json(results)
+})
 
 // GET /api/search/accounts?q=foo — backs "find people" in the client search
 // bar. A separate path (not /api/accounts/:username) so a literal username

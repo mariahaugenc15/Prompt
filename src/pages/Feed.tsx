@@ -6,7 +6,7 @@ import { CURRENT_USER_ID } from '../lib/seed'
 import { SubmissionCard } from '../components/SubmissionCard'
 import { ExploreChallengesList } from '../components/ExploreChallengesList'
 import { SearchIcon, ShuffleIcon, CloseIcon } from '../components/Icons'
-import { searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
+import { listAccounts, searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
 
 function shuffled<T>(arr: T[]): T[] {
   const copy = [...arr]
@@ -36,8 +36,24 @@ export function Feed() {
     return []
   }, [submissions, tab, following, boards])
 
-  const [explorePool, setExplorePool] = useState(() => shuffled(users))
+  // Explore's profile grid: real, signed-up accounts always come first —
+  // they're actual people — with the fixed mock roster (Sam Rivera and
+  // friends, this demo's stand-in "bots") pushed to the bottom rather than
+  // interleaved, so a real profile is never buried under filler.
+  const [realPool, setRealPool] = useState<PublicProfile[]>([])
+  const [mockPool, setMockPool] = useState(() => shuffled(users))
   const [exploreMode, setExploreMode] = useState<'profiles' | 'prompts'>('profiles')
+
+  useEffect(() => {
+    listAccounts(account?.token).then((res) => {
+      if (res.ok) setRealPool(shuffled(res.data))
+    })
+  }, [account?.token])
+
+  function reshuffleProfiles() {
+    setRealPool((prev) => shuffled(prev))
+    setMockPool(shuffled(users))
+  }
 
   const q = query.trim().toLowerCase()
   const matchingUsers = q ? users.filter((u) => u.id !== CURRENT_USER_ID && (u.name.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q))) : []
@@ -174,16 +190,31 @@ export function Feed() {
                 {exploreMode === 'profiles' ? (
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-wider text-ink-faint">Random profiles</p>
+                      <p className="text-xs uppercase tracking-wider text-ink-faint">Profiles</p>
                       <button
-                        onClick={() => setExplorePool(shuffled(users))}
+                        onClick={reshuffleProfiles}
                         className="flex items-center gap-1 text-xs font-medium text-ink"
                       >
                         <ShuffleIcon size={13} /> Shuffle
                       </button>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      {explorePool
+                      {realPool.map((p) => (
+                        <Link
+                          key={p.id}
+                          to={`/o/${p.username}`}
+                          className="flex flex-col items-center gap-2 rounded-sm border border-line bg-card p-4 text-center"
+                        >
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-lg">
+                            {p.displayName.charAt(0).toUpperCase()}
+                          </span>
+                          <div>
+                            <p className="text-sm font-medium leading-tight">{p.displayName}</p>
+                            <p className="text-xs text-ink-faint">@{p.username}</p>
+                          </div>
+                        </Link>
+                      ))}
+                      {mockPool
                         .filter((u) => u.id !== CURRENT_USER_ID)
                         .map((u) => (
                           <Link

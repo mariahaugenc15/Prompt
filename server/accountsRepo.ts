@@ -28,6 +28,13 @@ const searchStmt = db.prepare(`
   ORDER BY username_normalized ASC
   LIMIT ?
 `)
+const listStmt = db.prepare(`
+  SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, website_url
+  FROM accounts
+  WHERE id != ?
+  ORDER BY created_at DESC
+  LIMIT ?
+`)
 const followRow = db.prepare('SELECT 1 FROM follows WHERE follower_account_id = ? AND followee_account_id = ?')
 const followerCountStmt = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE followee_account_id = ?')
 const followingCountStmt = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE follower_account_id = ?')
@@ -49,6 +56,13 @@ function escapeLike(value: string): string {
 export function searchAccounts(query: string, excludeAccountId: string | undefined, limit: number): AccountRow[] {
   const like = `%${escapeLike(query.trim().toLowerCase())}%`
   return searchStmt.all(like, like, like, excludeAccountId ?? '', limit) as AccountRow[]
+}
+
+// Every real account, most recently signed-up first — backs Explore's
+// profile grid so a real person is discoverable there too, not only via a
+// direct-name search.
+export function listAccounts(excludeAccountId: string | undefined, limit: number): AccountRow[] {
+  return listStmt.all(excludeAccountId ?? '', limit) as AccountRow[]
 }
 
 export function isFollowing(followerId: string, followeeId: string): boolean {

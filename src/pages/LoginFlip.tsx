@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useStore } from '../lib/store'
 import { CalendarGrid } from '../components/CalendarGrid'
@@ -7,7 +7,7 @@ import { PromptLogo } from '../components/PromptLogo'
 
 export function LoginFlip() {
   const [flipping, setFlipping] = useState(false)
-  const login = useStore((s) => s.login)
+  const navigate = useNavigate()
   const prompts = useStore((s) => s.prompts)
   const now = new Date()
 
@@ -33,7 +33,10 @@ export function LoginFlip() {
             animate={{ rotateY: flipping ? -172 : 0 }}
             transition={{ duration: 1.0, ease: [0.65, 0, 0.35, 1] }}
             onAnimationComplete={() => {
-              if (flipping) login()
+              // The flip is the ritual, not the access grant — it always
+              // leads into real Sign Up, never a free credential-less
+              // profile. Already have an account? Use "Log in" below instead.
+              if (flipping) navigate('/signup')
             }}
           >
             <div>

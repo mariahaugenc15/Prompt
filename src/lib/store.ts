@@ -34,7 +34,6 @@ function uid(prefix: string): string {
 
 interface AppState {
   loggedIn: boolean
-  onboarded: boolean
   account: SignupSuccess | null
 
   users: User[]
@@ -52,13 +51,10 @@ interface AppState {
   submissions: Submission[]
   calendars: UserCalendar[]
 
-  login: () => void
-  completeOnboarding: () => void
   setAccount: (account: SignupSuccess) => void
   signOut: () => void
   followUser: (userId: string) => void
   unfollowUser: (userId: string) => void
-  subscribeStarterBoard: (boardId: string) => void
 
   sendPrompt: (toUserId: string, opts: { text: string; category: Category; anonymous: boolean }) => void
   acceptPrompt: (promptId: string) => void
@@ -97,7 +93,6 @@ interface AppState {
 // content no action ever mutates, so they're not part of this.
 const freshDeviceState = {
   loggedIn: false,
-  onboarded: false,
   account: null,
   following: [],
   followers: ['u1', 'u2', 'u4'],
@@ -119,21 +114,13 @@ export const useStore = create<AppState>()(
       users: seedUsers,
       challengeLibrary: seedChallengeLibrary,
 
-      login: () => set({ loggedIn: true }),
-      completeOnboarding: () => set({ onboarded: true }),
       // Organizations get their own real page (Section 8.3), not the mock
-      // personal calendar — so only an individual's sign-up unlocks it.
-      // A real sign-up/login is already a deliberate "I want an account"
-      // action, so it also clears the mock onboarding gate — otherwise a
-      // real individual would be stuck unable to reach /profile (and so
-      // their Real inbox) until they first followed a fake seed user in
-      // the unrelated demo tutorial.
+      // personal calendar — so only an individual's sign-up/login grants
+      // entry to it. This is the *only* way in: the flip screen's "Open
+      // today's page" leads here rather than granting access itself, so
+      // there's never a free, credential-less profile.
       setAccount: (account) =>
-        set({
-          account,
-          loggedIn: account.accountType === 'individual' ? true : get().loggedIn,
-          onboarded: account.accountType === 'individual' ? true : get().onboarded,
-        }),
+        set({ account, loggedIn: account.accountType === 'individual' ? true : get().loggedIn }),
 
       // Resets this device back to a brand-new visitor's state: the mock
       // calendar/feed/boards layer is local-only with no per-account
@@ -148,8 +135,6 @@ export const useStore = create<AppState>()(
         set((s) => (s.following.includes(userId) ? s : { following: [...s.following, userId] })),
 
       unfollowUser: (userId) => set((s) => ({ following: s.following.filter((id) => id !== userId) })),
-
-      subscribeStarterBoard: (boardId) => get().joinBoard(boardId),
 
       sendPrompt: (toUserId, opts) =>
         set((s) => ({

@@ -5,7 +5,6 @@ import { BottomNav } from './components/BottomNav'
 import { AppHeader } from './components/AppHeader'
 import { RealShell } from './components/RealShell'
 import { LoginFlip } from './pages/LoginFlip'
-import { Onboarding } from './pages/Onboarding'
 import { Home } from './pages/Home'
 import { Feed } from './pages/Feed'
 import { Boards } from './pages/Boards'
@@ -36,11 +35,9 @@ function Shell({ children }: { children: ReactNode }) {
 
 function Protected({ children }: { children: ReactNode }) {
   const loggedIn = useStore((s) => s.loggedIn)
-  const onboarded = useStore((s) => s.onboarded)
   const location = useLocation()
 
   if (!loggedIn) return <LoginFlip />
-  if (!onboarded) return <Onboarding />
   return <Shell key={location.pathname.split('/')[1] || 'home'}>{children}</Shell>
 }
 

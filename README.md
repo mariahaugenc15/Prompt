@@ -39,7 +39,15 @@ Vercel is a good fit for the frontend, but **not** for `server/` as it stands �
    - Add an environment variable **`VITE_API_BASE_URL`** = the backend URL from step 1 (no trailing slash, e.g. `https://prompt-api.onrender.com`). Every API call is built from this at build time (`src/lib/apiBase.ts`) — without it, the deployed frontend tries to call itself for `/api/...` and gets nothing back.
    - Deploy. If you set `CORS_ORIGIN` on the backend before this, your Vercel URL needs to already match it (or come back and update it after Vercel gives you the final URL, then redeploy the backend).
 
-3. **Open it on your phone**: just visit the Vercel URL in a mobile browser — it's a responsive web app, not a native build, so there's nothing to install. "Add to Home Screen" gives it an icon and full-screen launch, but there's no web app manifest or service worker yet, so it won't behave like an installable PWA (offline support, etc.) — a small addition if you want that next.
+3. **Open it on your phone**: just visit the Vercel URL in a mobile browser. It's a real installable PWA (see below) — "Add to Home Screen" (iOS Safari) or the browser's own install prompt (Android Chrome) gives it an icon, a full-screen launch with no browser chrome, and an offline-capable app shell.
+
+### Progressive Web App
+
+- `vite-plugin-pwa` generates `manifest.webmanifest` and a Workbox service worker at build time (`vite.config.ts`) — nothing to configure per-deploy, it's baked into `npm run build`.
+- The app shell (HTML/JS/CSS/fonts/icons) is precached, so the app still opens — flip screen and all — with zero network connection. API calls (`/api/*`) are deliberately excluded from precaching and go network-first instead: real data is never silently served stale when a connection actually exists, and the cache only kicks in as a fallback if a request would otherwise fail outright offline.
+- `registerType: 'autoUpdate'` means a new deploy's service worker takes over silently on next load — no "update available" prompt to build or wire up.
+- Icons live in `public/icons/` (`icon-192.png`, `icon-512.png`, a dedicated `icon-maskable-512.png` sized to Android's adaptive-icon safe zone, and `apple-touch-icon.png`) plus the iOS-specific meta tags in `index.html` — iOS ignores the web manifest for home-screen behavior and needs those separately.
+- This is genuinely installable today (verified: service worker registers and activates, and a fully offline reload still renders the app) — but it is not, and can't become, an App Store / Play Store listing. That requires either a native wrapper (Capacitor) with a Mac in the loop for the iOS build, or a native rewrite — a separate, much larger project than a PWA manifest.
 
 **What "live" does and doesn't mean here.** The real, server-backed account system (sign-up, login, 1:1 prompts, org broadcasts — "Accounts & real prompts" below) is genuinely multi-user once deployed this way: two different phones, two different accounts, real interaction, durable data. The calendar/feed/boards mock layer is still local-only per device (see "Known simplifications") — deploying it doesn't change that; it's a separate, deliberate scope decision, not a limitation of the hosting.
 

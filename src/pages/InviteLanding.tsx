@@ -25,7 +25,7 @@ export function InviteLanding() {
         <div>
           <PromptLogo size={52} className="justify-center" />
           <div className="mx-auto mt-3 h-[3px] w-16 rounded-full bg-accent" />
-          <p className="mt-4 font-serif text-2xl italic text-ink-soft">prompt your life</p>
+          <p className="mt-4 font-serif text-2xl italic text-ink-soft">prompt real life</p>
         </div>
 
         <p className="text-sm leading-relaxed text-ink-soft">

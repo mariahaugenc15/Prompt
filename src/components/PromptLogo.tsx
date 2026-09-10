@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 
 /**
- * Text-based recreation of the wordmark (bold slab serif "Prompt" with a
- * stamped accent dot over the "o") rather than a raster image, so it stays
+ * Text-based recreation of the wordmark (bold slab serif "Prompt" with the
+ * "o" in the app's accent color) rather than a raster image, so it stays
  * crisp at any size and reuses the app's own accent color token.
  */
 export function PromptLogo({ size = 28, className }: { size?: number; className?: string }) {
@@ -11,22 +11,7 @@ export function PromptLogo({ size = 28, className }: { size?: number; className?
       className={clsx('inline-flex items-baseline leading-none font-bold text-ink', className)}
       style={{ fontFamily: 'var(--font-slab)', fontSize: size, letterSpacing: '-0.01em' }}
     >
-      Pr
-      <span className="relative inline-block">
-        o
-        <span
-          aria-hidden
-          className="absolute rounded-full bg-accent"
-          style={{
-            width: '0.52em',
-            height: '0.52em',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        />
-      </span>
-      mpt
+      Pr<span className="text-accent">o</span>mpt
     </span>
   )
 }

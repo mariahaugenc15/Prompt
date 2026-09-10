@@ -84,7 +84,7 @@ export function Profile() {
   async function handleInvite() {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Prompt', text: 'prompt your life', url: inviteUrl })
+        await navigator.share({ title: 'Prompt', text: 'prompt real life', url: inviteUrl })
         return
       } catch {
         // user cancelled the share sheet — fall through to copy instead
@@ -172,7 +172,7 @@ export function Profile() {
         </span>
         <span className="flex-1">
           <span className="block text-sm font-medium">Invite friends to Prompt</span>
-          <span className="block text-xs text-ink-faint">prompt your life — share the link</span>
+          <span className="block text-xs text-ink-faint">prompt real life — share the link</span>
         </span>
         <span className="shrink-0 text-xs font-medium text-accent">{inviteCopied ? 'Copied!' : 'Share'}</span>
       </button>

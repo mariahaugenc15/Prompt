@@ -5,8 +5,11 @@ import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
 import { CATEGORY_ICON, BoardsIcon } from '../components/Icons'
 import { PromptLogo } from '../components/PromptLogo'
+import { FollowListModal } from '../components/FollowListModal'
 import {
   follow,
+  getFollowers,
+  getFollowing,
   getOrganizationBroadcasts,
   getProfile,
   sendBroadcast,
@@ -28,6 +31,10 @@ export function OrgPage() {
   const [text, setText] = useState('')
   const [postError, setPostError] = useState<string | null>(null)
 
+  const [listOpen, setListOpen] = useState<'followers' | 'following' | null>(null)
+  const [listLoading, setListLoading] = useState(false)
+  const [listProfiles, setListProfiles] = useState<PublicProfile[]>([])
+
   const isOwner = account?.accountType === 'organization' && account.username === username
   const isSelf = account?.username === username
 
@@ -37,6 +44,17 @@ export function OrgPage() {
   }
 
   useEffect(refresh, [username, account?.token])
+  useEffect(() => setListOpen(null), [username])
+
+  function openList(which: 'followers' | 'following') {
+    setListOpen(which)
+    setListLoading(true)
+    const fetcher = which === 'followers' ? getFollowers : getFollowing
+    fetcher(username, account?.token).then((res) => {
+      setListProfiles(res.ok ? res.data : [])
+      setListLoading(false)
+    })
+  }
 
   if (profile === 'not-found') {
     return <p className="p-6 text-center text-sm text-ink-faint">No account found at @{username}.</p>
@@ -73,10 +91,17 @@ export function OrgPage() {
         </span>
         <div className="flex-1">
           <h1 className="font-serif text-xl leading-tight">{profile === null ? '…' : profile.displayName}</h1>
-          <p className="text-xs text-ink-faint">
-            @{username}
-            {profile && ` · ${profile.followerCount} followers`}
-          </p>
+          <p className="text-xs text-ink-faint">@{username}</p>
+          {profile && (
+            <div className="mt-0.5 flex gap-3 text-xs">
+              <button onClick={() => openList('followers')} className="text-ink-soft underline underline-offset-2">
+                {profile.followerCount} followers
+              </button>
+              <button onClick={() => openList('following')} className="text-ink-soft underline underline-offset-2">
+                {profile.followingCount} following
+              </button>
+            </div>
+          )}
           {profile && profile.websiteUrl && (
             <a
               href={profile.websiteUrl.startsWith('http') ? profile.websiteUrl : `https://${profile.websiteUrl}`}
@@ -200,6 +225,15 @@ export function OrgPage() {
       <div className="mt-4 flex justify-center opacity-60">
         <PromptLogo size={16} />
       </div>
+
+      {listOpen && (
+        <FollowListModal
+          title={listOpen === 'followers' ? `Followers of @${username}` : `@${username} follows`}
+          profiles={listProfiles}
+          loading={listLoading}
+          onClose={() => setListOpen(null)}
+        />
+      )}
     </div>
   )
 }

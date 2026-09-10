@@ -102,6 +102,14 @@ export function listAccounts(token?: string) {
   return call<PublicProfile[]>('/api/accounts', token)
 }
 
+export function getFollowers(username: string, token?: string) {
+  return call<PublicProfile[]>(`/api/accounts/${encodeURIComponent(username)}/followers`, token)
+}
+
+export function getFollowing(username: string, token?: string) {
+  return call<PublicProfile[]>(`/api/accounts/${encodeURIComponent(username)}/following`, token)
+}
+
 export function follow(username: string, token: string) {
   return call<PublicProfile>('/api/follow', token, { method: 'POST', body: JSON.stringify({ username }) })
 }

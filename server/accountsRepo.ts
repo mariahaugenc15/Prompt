@@ -38,6 +38,20 @@ const listStmt = db.prepare(`
 const followRow = db.prepare('SELECT 1 FROM follows WHERE follower_account_id = ? AND followee_account_id = ?')
 const followerCountStmt = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE followee_account_id = ?')
 const followingCountStmt = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE follower_account_id = ?')
+const followersListStmt = db.prepare(`
+  SELECT a.id, a.account_type, a.username, a.email, a.prompt_permission, a.first_name, a.organization_name, a.website_url
+  FROM accounts a JOIN follows f ON f.follower_account_id = a.id
+  WHERE f.followee_account_id = ?
+  ORDER BY f.created_at DESC
+  LIMIT ?
+`)
+const followingListStmt = db.prepare(`
+  SELECT a.id, a.account_type, a.username, a.email, a.prompt_permission, a.first_name, a.organization_name, a.website_url
+  FROM accounts a JOIN follows f ON f.followee_account_id = a.id
+  WHERE f.follower_account_id = ?
+  ORDER BY f.created_at DESC
+  LIMIT ?
+`)
 
 export function getAccountById(id: string): AccountRow | undefined {
   return byId.get(id) as AccountRow | undefined
@@ -67,6 +81,17 @@ export function listAccounts(excludeAccountId: string | undefined, limit: number
 
 export function isFollowing(followerId: string, followeeId: string): boolean {
   return Boolean(followRow.get(followerId, followeeId))
+}
+
+// The people who follow this account, and the people this account follows —
+// the follow graph is otherwise a dead end (a count with nothing to click
+// into), so there was no way to browse from one profile to the next.
+export function getFollowers(accountId: string, limit: number): AccountRow[] {
+  return followersListStmt.all(accountId, limit) as AccountRow[]
+}
+
+export function getFollowing(accountId: string, limit: number): AccountRow[] {
+  return followingListStmt.all(accountId, limit) as AccountRow[]
 }
 
 export function followerCount(accountId: string): number {

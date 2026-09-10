@@ -159,9 +159,15 @@ export function Profile() {
         </div>
       </div>
       {avatarBusy && <p className="-mt-4 text-xs text-ink-faint">Updating photo…</p>}
-      <Link to={`/u/${CURRENT_USER_ID}`} className="-mt-4 text-xs text-ink-faint underline underline-offset-2">
-        Preview how others see your profile
-      </Link>
+      {account ? (
+        <Link to={`/o/${account.username}`} className="-mt-4 text-xs text-ink-faint underline underline-offset-2">
+          View your public profile — what other users see when they find you
+        </Link>
+      ) : (
+        <Link to={`/u/${CURRENT_USER_ID}`} className="-mt-4 text-xs text-ink-faint underline underline-offset-2">
+          Preview how others see your profile
+        </Link>
+      )}
 
       <button
         onClick={handleInvite}
@@ -186,17 +192,18 @@ export function Profile() {
             <Link to="/real/inbox" className="flex-1 rounded-sm border border-ink py-2 text-center text-sm font-medium">
               Inbox
             </Link>
-            {me.accountType === 'individual' && (
-              <Link to="/real/send" className="flex-1 rounded-sm border border-line py-2 text-center text-sm text-ink-soft">
-                Send to a username
-              </Link>
-            )}
-            {me.accountType === 'organization' && (
-              <Link to={`/o/${me.username}`} className="flex-1 rounded-sm border border-line py-2 text-center text-sm text-ink-soft">
-                My page
-              </Link>
-            )}
+            <Link to={`/o/${me.username}`} className="flex-1 rounded-sm border border-line py-2 text-center text-sm text-ink-soft">
+              My page
+            </Link>
           </div>
+          {me.accountType === 'individual' && (
+            <Link
+              to="/real/send"
+              className="mt-2 block rounded-sm border border-line py-2 text-center text-sm text-ink-soft"
+            >
+              Send to a username
+            </Link>
+          )}
           {me.accountType === 'individual' && (
             <div className="mt-3 border-t border-line pt-3">
               <p className="mb-1.5 text-xs text-ink-faint">Who can send @{me.username} a prompt</p>

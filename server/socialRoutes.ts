@@ -2,12 +2,23 @@ import { Router } from 'express'
 import { db } from './db.js'
 import { requireAuth } from './auth.js'
 import { canFollow, type PromptPermission } from './permissions.js'
-import { getAccountByUsername, listAccounts, publicProfile, searchAccounts } from './accountsRepo.js'
+import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicProfile, searchAccounts } from './accountsRepo.js'
 
 export const socialRouter = Router()
 
 const PROMPT_PERMISSIONS: PromptPermission[] = ['everyone', 'followers', 'mutuals']
 const setPromptPermission = db.prepare('UPDATE accounts SET prompt_permission = ? WHERE id = ?')
+const accountIdByToken = db.prepare('SELECT id FROM accounts WHERE auth_token = ?')
+
+// Every account-lookup route below accepts an optional bearer token so an
+// unauthenticated viewer still sees public data, just without an
+// isFollowing flag — this resolves that token to a viewer id, or undefined.
+function resolveViewerId(req: { header(name: string): string | undefined }): string | undefined {
+  const header = req.header('authorization') ?? ''
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+  if (!token) return undefined
+  return (accountIdByToken.get(token) as { id: string } | undefined)?.id
+}
 
 socialRouter.get('/api/me', requireAuth, (req, res) => {
   const actor = req.account!
@@ -45,12 +56,9 @@ const deleteFollow = db.prepare('DELETE FROM follows WHERE follower_account_id =
 // Explore's profile grid, distinct from /api/search/accounts below which
 // requires a query string.
 socialRouter.get('/api/accounts', (req, res) => {
-  const header = req.header('authorization') ?? ''
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
-  const viewer = token ? (db.prepare('SELECT id FROM accounts WHERE auth_token = ?').get(token) as { id: string } | undefined) : undefined
-
+  const viewerId = resolveViewerId(req)
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100)
-  const results = listAccounts(viewer?.id, limit).map((a) => publicProfile(a, viewer?.id))
+  const results = listAccounts(viewerId, limit).map((a) => publicProfile(a, viewerId))
   res.json(results)
 })
 
@@ -61,25 +69,33 @@ socialRouter.get('/api/search/accounts', (req, res) => {
   const q = String(req.query.q ?? '').trim()
   if (q.length < 2) return res.json([])
 
-  const header = req.header('authorization') ?? ''
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
-  const viewer = token ? (db.prepare('SELECT id FROM accounts WHERE auth_token = ?').get(token) as { id: string } | undefined) : undefined
-
-  const results = searchAccounts(q, viewer?.id, 12).map((a) => publicProfile(a, viewer?.id))
+  const viewerId = resolveViewerId(req)
+  const results = searchAccounts(q, viewerId, 12).map((a) => publicProfile(a, viewerId))
   res.json(results)
 })
 
 socialRouter.get('/api/accounts/:username', (req, res) => {
   const target = getAccountByUsername(req.params.username)
   if (!target) return res.status(404).json({ errors: { form: 'No account with that username.' } })
+  res.json(publicProfile(target, resolveViewerId(req)))
+})
 
-  // Optional auth: an unauthenticated viewer still sees the public profile,
-  // just without an isFollowing flag.
-  const header = req.header('authorization') ?? ''
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
-  const viewer = token ? (db.prepare('SELECT id FROM accounts WHERE auth_token = ?').get(token) as { id: string } | undefined) : undefined
+// The follow graph is otherwise a dead end (a count with nothing to click
+// into) — these back a browsable list on the profile page, so someone can
+// find a person by walking from an account they already know to the
+// people that account follows or is followed by.
+socialRouter.get('/api/accounts/:username/followers', (req, res) => {
+  const target = getAccountByUsername(req.params.username)
+  if (!target) return res.status(404).json({ errors: { form: 'No account with that username.' } })
+  const viewerId = resolveViewerId(req)
+  res.json(getFollowers(target.id, 50).map((a) => publicProfile(a, viewerId)))
+})
 
-  res.json(publicProfile(target, viewer?.id))
+socialRouter.get('/api/accounts/:username/following', (req, res) => {
+  const target = getAccountByUsername(req.params.username)
+  if (!target) return res.status(404).json({ errors: { form: 'No account with that username.' } })
+  const viewerId = resolveViewerId(req)
+  res.json(getFollowing(target.id, 50).map((a) => publicProfile(a, viewerId)))
 })
 
 socialRouter.post('/api/follow', requireAuth, (req, res) => {

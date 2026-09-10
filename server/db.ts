@@ -2,7 +2,11 @@ import Database from 'better-sqlite3'
 import path from 'node:path'
 import fs from 'node:fs'
 
-const dataDir = path.join(process.cwd(), 'server', '.data')
+// Local dev: a folder next to this file. In production this must point at
+// a mounted persistent disk (e.g. Render disk, Fly volume, Railway volume)
+// via the DATA_DIR env var — without it, a host with an ephemeral
+// filesystem silently loses every account on the next deploy or restart.
+const dataDir = process.env.DATA_DIR ?? path.join(process.cwd(), 'server', '.data')
 fs.mkdirSync(dataDir, { recursive: true })
 
 export const db = new Database(path.join(dataDir, 'prompt.sqlite'))

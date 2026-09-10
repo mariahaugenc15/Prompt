@@ -87,7 +87,11 @@ export function Calendars() {
               onJoin={() => joinCalendar(c.id)}
             />
           ))}
-          {discover.length === 0 && <p className="text-sm text-ink-faint">No public calendars left to join right now.</p>}
+          {discover.length === 0 && (
+            <p className="text-sm text-ink-faint">
+              {calendars.length === 0 ? 'No public calendars yet — be the first to create one.' : 'No public calendars left to join right now.'}
+            </p>
+          )}
         </div>
       </section>
     </div>

@@ -27,111 +27,15 @@ export const seedChallengeLibrary: ChallengeTemplate[] = [
   { id: 'c12', category: 'snap', text: 'Find something in nature you’ve never noticed before.' },
 ]
 
-export const seedBoards: Board[] = [
-  {
-    id: 'b1',
-    name: 'Pick It Up',
-    description: 'A neighborhood cleanup challenge. Pick up one piece of trash and record it.',
-    category: 'nonprofit',
-    ownerId: 'u5',
-    visibility: 'public',
-    locationTag: 'Near you',
-    subscriberIds: ['u1', 'u2'],
-  },
-  {
-    id: 'b2',
-    name: 'Field Notes Coffee',
-    description: 'Today, find something pink. New drop every Friday.',
-    category: 'brand',
-    ownerId: 'u3',
-    visibility: 'public',
-    subscriberIds: ['u2', 'u4'],
-  },
-  {
-    id: 'b3',
-    name: 'Sunrise Book Club',
-    description: 'Weekly reading prompts for people who never finish the book.',
-    category: 'interest',
-    ownerId: 'u4',
-    visibility: 'public',
-    subscriberIds: [],
-  },
-]
-
-// Demo calendars owned by seed friends, so joining someone else's public
-// calendar is something you can actually try in the single-user mock app,
-// not just something you create for yourself.
-export const seedCalendars: UserCalendar[] = [
-  { id: 'cal_seed_1', name: 'Morning Runs', ownerId: 'u1', visibility: 'public', memberIds: ['u1'] },
-  { id: 'cal_seed_2', name: 'Sarah & Me', ownerId: 'u2', visibility: 'private', memberIds: ['u2'] },
-  { id: 'cal_seed_3', name: 'Nonprofit Wins', ownerId: 'u5', visibility: 'public', memberIds: ['u5', 'u1'] },
-]
-
-const HOUR = 1000 * 60 * 60
-
-export const seedSubmissions: Submission[] = [
-  {
-    id: 'sub_seed_1',
-    promptId: 'seed_p1',
-    userId: 'u1',
-    category: 'snap',
-    text: 'Find something pink and photograph it.',
-    caption: 'The only pink thing in my kitchen, apparently.',
-    assignedByUserId: 'u2',
-    anonymous: false,
-    createdAt: Date.now() - 3 * HOUR,
-    upvotes: ['u2'],
-    pins: [],
-  },
-  {
-    id: 'sub_seed_2',
-    promptId: 'seed_p2',
-    userId: 'u3',
-    category: 'show',
-    text: 'Do your best dance move on camera.',
-    caption: 'No regrets.',
-    anonymous: true,
-    createdAt: Date.now() - 8 * HOUR,
-    upvotes: ['u1', 'u2', 'u4'],
-    pins: ['u2'],
-  },
-  {
-    id: 'sub_seed_3',
-    promptId: 'seed_p3',
-    userId: 'u2',
-    category: 'unplug',
-    text: 'Eat one meal today with no screens.',
-    caption: 'Harder than it sounds.',
-    assignedByUserId: 'u1',
-    anonymous: false,
-    createdAt: Date.now() - 26 * HOUR,
-    upvotes: [],
-    pins: [],
-  },
-  {
-    id: 'sub_seed_4',
-    promptId: 'seed_p4',
-    userId: 'u2',
-    category: 'snap',
-    text: 'Pick up one piece of trash and record it.',
-    caption: 'Cleared the whole block.',
-    boardId: 'b1',
-    anonymous: false,
-    createdAt: Date.now() - 5 * HOUR,
-    upvotes: ['u5'],
-    pins: [],
-  },
-  {
-    id: 'sub_seed_5',
-    promptId: 'seed_p5',
-    userId: 'u4',
-    category: 'snap',
-    text: 'Today, find something pink.',
-    caption: 'Sunset counts, right?',
-    boardId: 'b2',
-    anonymous: false,
-    createdAt: Date.now() - 30 * HOUR,
-    upvotes: ['u2', 'u3'],
-    pins: ['u2'],
-  },
-]
+// No pre-existing boards, calendars, or submissions — a real signup starts
+// with a genuinely empty feed, board list, and calendar list rather than a
+// fabricated history of posts/communities that never actually happened.
+// seedUsers above stays: it's the roster of people the local single-device
+// simulation (fridge notes, Simulate a prompt, Send a prompt) interacts
+// with, not fabricated activity — there's no real backend for this mock
+// layer (see README), so without *some* other party to follow/receive
+// from/send to, onboarding and the whole accept/decline/complete loop would
+// have no way to ever start.
+export const seedBoards: Board[] = []
+export const seedCalendars: UserCalendar[] = []
+export const seedSubmissions: Submission[] = []

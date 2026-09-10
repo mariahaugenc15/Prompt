@@ -57,7 +57,11 @@ export function Boards() {
               onJoin={() => joinBoard(b.id)}
             />
           ))}
-          {discover.length === 0 && <p className="text-sm text-ink-faint">You’re subscribed to everything for now.</p>}
+          {discover.length === 0 && (
+            <p className="text-sm text-ink-faint">
+              {boards.length === 0 ? 'No boards yet — be the first to create one.' : 'You’re subscribed to everything for now.'}
+            </p>
+          )}
         </div>
       </section>
     </div>

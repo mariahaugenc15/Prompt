@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: prompt-api
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm run server
+    # A persistent disk is what makes this "live" rather than a demo: without
+    # it, every redeploy or restart wipes every account. Disks require a paid
+    # plan (Starter or above) — Render's free web services can't attach one.
+    disk:
+      name: prompt-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: CORS_ORIGIN
+        sync: false

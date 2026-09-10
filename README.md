@@ -22,17 +22,17 @@ npm run dev      # frontend on :5173, proxies /api to the server above
 
 `npm run build` / `npm run preview` also proxy `/api` to `:8787` (see `vite.config.ts`), so run `npm run server` alongside `npm run preview` too if you build for production locally.
 
-## Deploying (e.g. to test on a phone)
+## Deploying for real (not just a phone test)
 
-Vercel is a good fit for the frontend, but **not** for `server/` as it stands — it's Express + SQLite (`better-sqlite3`), and Vercel's serverless functions have an ephemeral filesystem, so every cold start could mean a fresh, empty database. The split that actually works: **frontend on Vercel, backend on a host with a real persistent disk** (Render, Railway, and Fly.io all have a free/cheap tier that fits this).
+Vercel is a good fit for the frontend, but **not** for `server/` as it stands — it's Express + SQLite (`better-sqlite3`), and Vercel's serverless functions have an ephemeral filesystem, so every cold start could mean a fresh, empty database. The split that actually works: **frontend on Vercel, backend on a host with a real, persistent disk mounted.**
 
-1. **Deploy the backend first** (example: [Render](https://render.com), free web service):
-   - New Web Service → point at this repo.
-   - Build command: `npm install`. Start command: `npm run server`.
-   - It reads `PORT` from the environment automatically (`server/index.ts`); Render sets that for you.
-   - Set an environment variable `CORS_ORIGIN` once you know your Vercel URL (step 2) — e.g. `https://your-app.vercel.app`. Multiple origins can be comma-separated. Until you set it, CORS is wide open (fine for a first test, not for leaving running indefinitely — see `server/index.ts`).
-   - Note its public URL (e.g. `https://prompt-api.onrender.com`) — you need it in step 2.
-   - Render's free tier disk is not guaranteed durable across redeploys/restarts — fine for clicking around, not for data you care about keeping. For that, swap SQLite for a hosted Postgres (Render/Neon/Supabase all have a free tier) — a real change to `server/db.ts`, not a config flag.
+1. **Deploy the backend to [Render](https://render.com)** using the included blueprint:
+   - New → Blueprint → point at this repo. Render reads `render.yaml` and provisions a web service **with a 1GB persistent disk already attached** at `/var/data` — this is the part that makes accounts durable across deploys/restarts, not optional config.
+   - This requires Render's **Starter plan** (~$7/mo) — a free web service cannot attach a disk at all, so don't deploy this on the free tier expecting data to survive a redeploy.
+   - `server/db.ts` reads the disk path from the `DATA_DIR` env var, which `render.yaml` sets to `/var/data` for you.
+   - After creating it, set the **`CORS_ORIGIN`** env var (the blueprint declares it but leaves the value to you) to your Vercel URL once you have it from step 2 — e.g. `https://your-app.vercel.app`. Multiple origins can be comma-separated. Until it's set, CORS is wide open (fine for a first test, not for leaving running indefinitely — see `server/index.ts`).
+   - Note the service's public URL (e.g. `https://prompt-api.onrender.com`) — you need it in step 2.
+   - Prefer Railway or Fly.io instead? Same two things matter wherever you deploy: run `npm install` / `npm run server`, and set `DATA_DIR` to a path on a volume that actually persists — both platforms support mounting one similarly to Render's disk above.
 
 2. **Deploy the frontend to Vercel**:
    - Import this repo at [vercel.com/new](https://vercel.com/new). It should auto-detect Vite; `vercel.json` in this repo pins the build command/output dir and adds the SPA fallback rewrite React Router needs (without it, refreshing on `/profile` or opening `/o/:username` directly 404s on static hosting).
@@ -40,6 +40,8 @@ Vercel is a good fit for the frontend, but **not** for `server/` as it stands �
    - Deploy. If you set `CORS_ORIGIN` on the backend before this, your Vercel URL needs to already match it (or come back and update it after Vercel gives you the final URL, then redeploy the backend).
 
 3. **Open it on your phone**: just visit the Vercel URL in a mobile browser — it's a responsive web app, not a native build, so there's nothing to install. "Add to Home Screen" gives it an icon and full-screen launch, but there's no web app manifest or service worker yet, so it won't behave like an installable PWA (offline support, etc.) — a small addition if you want that next.
+
+**What "live" does and doesn't mean here.** The real, server-backed account system (sign-up, login, 1:1 prompts, org broadcasts — "Accounts & real prompts" below) is genuinely multi-user once deployed this way: two different phones, two different accounts, real interaction, durable data. The calendar/feed/boards mock layer is still local-only per device (see "Known simplifications") — deploying it doesn't change that; it's a separate, deliberate scope decision, not a limitation of the hosting.
 
 ## What's implemented (v1 scope from the brief)
 
@@ -79,6 +81,6 @@ Geo-discovery, invite-only board member-adds, custom named calendars, "share my 
 
 ## Known simplifications
 
-- The mock calendar/prompts/feed/boards app is still single-user simulation — friends' actions there (other than pre-seeded sample feed content) are simulated via a "Simulate a prompt" button, and it doesn't talk to the real accounts backend at all. Sign-up and the Section 8 account/prompt system are the real, multi-account exception.
+- The mock calendar/prompts/feed/boards app is still single-user simulation, and it doesn't talk to the real accounts backend at all. A real sign-up starts with a genuinely empty feed, board list, and calendar list — no fabricated pre-existing posts, boards, or calendars. The one thing that's still fixed rather than real is the small roster of "people" (`src/lib/seed.ts`) the simulation follows/receives from/sends to via the "Simulate a prompt" button — there's no backend for this layer, so without *some* other party the onboarding/accept/decline/complete loop would have no way to ever start. Sign-up and the Section 8 account/prompt system are the real, multi-account exception.
 - Proof photos (both the mock app's and the real one's) are downscaled and stored as data URLs — in `localStorage` for the mock app, as a column value in SQLite for the real one — fine for a prototype, not how media would be handled with a real backend/media pipeline (object storage + CDN URLs, not inline base64).
 - `/login` (`POST /api/login`) lets you get back into an existing real account from a fresh browser/device — case-insensitive username, `scrypt` password check via `crypto.timingSafeEqual`, same generic "Incorrect username or password" whether the username doesn't exist or the password is wrong (no account-enumeration side channel), and a freshly-rotated bearer token that invalidates whatever token you had before. There's still no session *expiry* — a token is valid until the next login rotates it — which is the one piece left before this is a real auth system rather than a stand-in.

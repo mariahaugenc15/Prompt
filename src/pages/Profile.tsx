@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import { computeCompletionScore } from '../lib/completionScore'
@@ -21,6 +21,8 @@ const PERMISSIONS: { id: PromptPermission; label: string; help: string; recommen
 ]
 
 export function Profile() {
+  const navigate = useNavigate()
+  const signOut = useStore((s) => s.signOut)
   const prompts = useStore((s) => s.prompts)
   const following = useStore((s) => s.following)
   const followers = useStore((s) => s.followers)
@@ -72,6 +74,13 @@ export function Profile() {
   function saveBio() {
     setBio(bioDraft.trim())
     setEditingBio(false)
+  }
+
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false)
+
+  function handleSignOut() {
+    signOut()
+    navigate('/')
   }
 
   return (
@@ -176,13 +185,19 @@ export function Profile() {
 
       <section className="rounded-sm border border-line bg-card p-4">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="font-serif text-3xl text-accent">{score}%</p>
-            <p className="text-xs uppercase tracking-wide text-ink-faint">Completion score</p>
-          </div>
-          <p className="max-w-[45%] text-right text-xs text-ink-faint">
-            {completed} of {received.length} friend prompts completed
-          </p>
+          {score === null ? (
+            <p className="text-sm italic text-ink-faint">Not available: complete your first prompt!</p>
+          ) : (
+            <>
+              <div>
+                <p className="font-serif text-3xl text-accent">{score}%</p>
+                <p className="text-xs uppercase tracking-wide text-ink-faint">Completion score</p>
+              </div>
+              <p className="max-w-[45%] text-right text-xs text-ink-faint">
+                {completed} of {received.length} friend prompts completed
+              </p>
+            </>
+          )}
         </div>
         <label className="mt-3 flex items-center justify-between border-t border-line pt-3 text-sm">
           Hide my score from others
@@ -281,6 +296,33 @@ export function Profile() {
               </div>
             ))}
         </div>
+      </section>
+
+      <section className="border-t border-line pt-4">
+        {confirmingSignOut ? (
+          <div className="rounded-sm border border-danger/40 bg-danger/5 p-3">
+            <p className="text-sm text-ink">
+              Sign out and reset this device? This clears everything in the calendar/feed/boards demo above — it's
+              local to this device, not saved to an account.
+              {account && ' Your real account itself is unaffected; you can log back into it from any device.'}
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button onClick={handleSignOut} className="flex-1 rounded-sm bg-danger py-2 text-sm font-medium text-paper">
+                Yes, sign out
+              </button>
+              <button
+                onClick={() => setConfirmingSignOut(false)}
+                className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-soft"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmingSignOut(true)} className="text-sm text-ink-faint underline underline-offset-2">
+            Sign out
+          </button>
+        )}
       </section>
     </div>
   )

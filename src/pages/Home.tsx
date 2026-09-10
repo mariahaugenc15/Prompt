@@ -62,9 +62,15 @@ export function Home() {
           <p className="text-xs text-ink-faint">{now.getFullYear()} · All Activity</p>
         </div>
         {!hideCompletionScore && (
-          <div className="text-right">
-            <p className="font-serif text-2xl leading-none text-accent">{score}%</p>
-            <p className="text-[10px] uppercase tracking-wide text-ink-faint">Completion score</p>
+          <div className="max-w-[45%] text-right">
+            {score === null ? (
+              <p className="text-xs italic leading-snug text-ink-faint">Not available: complete your first prompt!</p>
+            ) : (
+              <>
+                <p className="font-serif text-2xl leading-none text-accent">{score}%</p>
+                <p className="text-[10px] uppercase tracking-wide text-ink-faint">Completion score</p>
+              </>
+            )}
           </div>
         )}
       </div>

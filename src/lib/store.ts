@@ -55,6 +55,7 @@ interface AppState {
   login: () => void
   completeOnboarding: () => void
   setAccount: (account: SignupSuccess) => void
+  signOut: () => void
   followUser: (userId: string) => void
   unfollowUser: (userId: string) => void
   subscribeStarterBoard: (boardId: string) => void
@@ -92,27 +93,32 @@ interface AppState {
   tagPromptCalendars: (promptId: string, calendarIds: string[]) => void
 }
 
+// Everything sign-out resets back to — the same shape a brand-new visitor
+// on a brand-new device gets. `users` and `challengeLibrary` are static app
+// content no action ever mutates, so they're not part of this.
+const freshDeviceState = {
+  loggedIn: false,
+  onboarded: false,
+  account: null,
+  following: [],
+  followers: ['u1', 'u2', 'u4'],
+  promptPermission: 'mutuals' as PromptPermission,
+  hideCompletionScore: false,
+  avatarDataUrl: null,
+  bio: '',
+  prompts: [],
+  boards: seedBoards,
+  boardChallenges: [],
+  submissions: seedSubmissions,
+  calendars: seedCalendars,
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      loggedIn: false,
-      onboarded: false,
-      account: null,
-
+      ...freshDeviceState,
       users: seedUsers,
-      following: [],
-      followers: ['u1', 'u2', 'u4'],
-      promptPermission: 'mutuals',
-      hideCompletionScore: false,
-      avatarDataUrl: null,
-      bio: '',
-
       challengeLibrary: seedChallengeLibrary,
-      prompts: [],
-      boards: seedBoards,
-      boardChallenges: [],
-      submissions: seedSubmissions,
-      calendars: seedCalendars,
 
       login: () => set({ loggedIn: true }),
       completeOnboarding: () => set({ onboarded: true }),
@@ -129,6 +135,15 @@ export const useStore = create<AppState>()(
           loggedIn: account.accountType === 'individual' ? true : get().loggedIn,
           onboarded: account.accountType === 'individual' ? true : get().onboarded,
         }),
+
+      // Resets this device back to a brand-new visitor's state: the mock
+      // calendar/feed/boards layer is local-only with no per-account
+      // identity of its own (see README), so there's no meaningful "your
+      // data, waiting for you" to preserve across a sign-out here — it's
+      // this device's demo state, not an account's. A real account's data
+      // lives on the server regardless and is unaffected; logging back in
+      // via /login with that username/password restores access to it.
+      signOut: () => set({ ...freshDeviceState }),
 
       followUser: (userId) =>
         set((s) => (s.following.includes(userId) ? s : { following: [...s.following, userId] })),

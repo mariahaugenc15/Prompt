@@ -94,6 +94,14 @@ export function CloseIcon(props: IconProps) {
   )
 }
 
+export function BackIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M15 19 8 12l7-7" />
+    </svg>
+  )
+}
+
 export function CameraIcon(props: IconProps) {
   return (
     <svg {...base(props)}>

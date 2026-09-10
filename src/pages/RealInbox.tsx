@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import { CATEGORY_ICON, CloseIcon } from '../components/Icons'
+import { CATEGORY_ICON, CloseIcon, BackIcon } from '../components/Icons'
 import { RealCompleteForm } from '../components/RealCompleteForm'
 import {
   completePrompt,
@@ -61,6 +61,10 @@ export function RealInbox() {
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      <Link to="/profile" className="-mb-2 flex items-center gap-1 text-xs text-ink-faint">
+        <BackIcon size={13} /> Back to profile
+      </Link>
+
       <div>
         <h1 className="font-serif text-2xl">Real inbox</h1>
         <p className="text-xs text-ink-faint">

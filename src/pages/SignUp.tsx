@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { PromptLogo } from '../components/PromptLogo'
-import { CheckIcon, CloseIcon } from '../components/Icons'
+import { CheckIcon, CloseIcon, BackIcon } from '../components/Icons'
 import { checkUsernameAvailable, submitSignup } from '../lib/signupApi'
 import {
   validateEmailFormat,
@@ -107,6 +107,10 @@ export function SignUp() {
 
   return (
     <div className="mx-auto flex min-h-screen min-h-dvh w-full max-w-sm flex-col gap-6 p-6">
+      <Link to="/" className="-mb-2 flex items-center gap-1 text-xs text-ink-faint">
+        <BackIcon size={13} /> Back
+      </Link>
+
       <div className="text-center">
         <PromptLogo size={30} className="justify-center" />
         <p className="mt-2 text-sm text-ink-soft">Create your account.</p>

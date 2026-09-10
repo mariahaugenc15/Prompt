@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
-import { CATEGORY_ICON } from '../components/Icons'
+import { CATEGORY_ICON, BackIcon } from '../components/Icons'
 import { sendOneToOnePrompt } from '../lib/realAccountsApi'
 
 export function RealSend() {
@@ -46,6 +46,10 @@ export function RealSend() {
 
   return (
     <div className="flex flex-col gap-5 p-4">
+      <Link to="/profile" className="-mb-2 flex items-center gap-1 text-xs text-ink-faint">
+        <BackIcon size={13} /> Back to profile
+      </Link>
+
       <div>
         <h1 className="font-serif text-2xl">Send a real prompt</h1>
         <p className="text-xs text-ink-faint">Goes straight to their real inbox — enforced the same way on the server.</p>

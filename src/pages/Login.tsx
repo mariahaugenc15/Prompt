@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { PromptLogo } from '../components/PromptLogo'
+import { BackIcon } from '../components/Icons'
 import { submitLogin } from '../lib/signupApi'
 
 export function Login() {
@@ -32,6 +33,10 @@ export function Login() {
 
   return (
     <div className="mx-auto flex min-h-screen min-h-dvh w-full max-w-sm flex-col justify-center gap-6 p-6">
+      <Link to="/" className="-mb-2 flex items-center gap-1 text-xs text-ink-faint">
+        <BackIcon size={13} /> Back
+      </Link>
+
       <div className="text-center">
         <PromptLogo size={30} className="justify-center" />
         <p className="mt-2 text-sm text-ink-soft">Log in to your account.</p>

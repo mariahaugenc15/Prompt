@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import { IndexCard } from '../components/IndexCard'
-import { BoardsIcon, PlusIcon } from '../components/Icons'
+import { BoardsIcon, PlusIcon, LockIcon } from '../components/Icons'
 
 const CATEGORY_LABEL: Record<string, string> = {
   brand: 'Brand',
@@ -17,7 +17,9 @@ export function Boards() {
   const joinBoard = useStore((s) => s.joinBoard)
 
   const subscribed = boards.filter((b) => b.subscriberIds.includes(CURRENT_USER_ID))
-  const discover = boards.filter((b) => !b.subscriberIds.includes(CURRENT_USER_ID))
+  // Private groups are invite-only by definition — they never show up here
+  // to browse or self-join, only in "Your boards" once someone invites you.
+  const discover = boards.filter((b) => !b.subscriberIds.includes(CURRENT_USER_ID) && b.visibility === 'public')
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -36,7 +38,16 @@ export function Boards() {
           <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Your boards</p>
           <div className="flex flex-col gap-2">
             {subscribed.map((b) => (
-              <BoardRow key={b.id} boardId={b.id} name={b.name} description={b.description} category={b.category} count={b.subscriberIds.length} joined />
+              <BoardRow
+                key={b.id}
+                boardId={b.id}
+                name={b.name}
+                description={b.description}
+                category={b.category}
+                count={b.subscriberIds.length}
+                isPrivate={b.visibility === 'invite'}
+                joined
+              />
             ))}
           </div>
         </section>
@@ -75,6 +86,7 @@ function BoardRow({
   category,
   count,
   locationTag,
+  isPrivate,
   joined,
   onJoin,
 }: {
@@ -84,6 +96,7 @@ function BoardRow({
   category: string
   count: number
   locationTag?: string
+  isPrivate?: boolean
   joined?: boolean
   onJoin?: () => void
 }) {
@@ -91,7 +104,7 @@ function BoardRow({
     <IndexCard className="p-3">
       <Link to={`/boards/${boardId}`} className="flex items-start gap-3">
         <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-line bg-paper-dim text-ink-soft">
-          <BoardsIcon size={16} />
+          {isPrivate ? <LockIcon size={15} /> : <BoardsIcon size={16} />}
         </span>
         <div className="flex-1">
           <div className="flex items-center justify-between gap-2">

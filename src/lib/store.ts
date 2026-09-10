@@ -70,6 +70,7 @@ interface AppState {
     locationTag?: string
   }) => string
   joinBoard: (boardId: string) => void
+  inviteToBoard: (boardId: string, userId: string) => void
   postBoardChallenge: (boardId: string, opts: { text: string; category: Category; cadence: BoardChallenge['cadence'] }) => void
   adoptBoardChallenge: (challengeId: string) => string | null
 
@@ -216,6 +217,19 @@ export const useStore = create<AppState>()(
             b.subscriberIds.includes(CURRENT_USER_ID) || b.id !== boardId
               ? b
               : { ...b, subscriberIds: [...b.subscriberIds, CURRENT_USER_ID] },
+          ),
+        })),
+
+      // A private group has no public "Subscribe" button (see Boards.tsx's
+      // Discover filter) — membership only ever comes from the owner adding
+      // someone here. There's no second device to send a real invite to in
+      // this single-device mock, so accepting is implicit: the person is
+      // simply added, the same way postBoardChallenge already treats a
+      // board's own subscriber list as ground truth.
+      inviteToBoard: (boardId, userId) =>
+        set((s) => ({
+          boards: s.boards.map((b) =>
+            b.id === boardId && !b.subscriberIds.includes(userId) ? { ...b, subscriberIds: [...b.subscriberIds, userId] } : b,
           ),
         })),
 

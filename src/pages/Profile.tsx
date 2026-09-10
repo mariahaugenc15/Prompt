@@ -6,7 +6,7 @@ import { CURRENT_USER_ID } from '../lib/seed'
 import { computeCompletionScore } from '../lib/completionScore'
 import { fileToCompressedDataUrl } from '../lib/media'
 import type { PromptPermission } from '../lib/types'
-import { CalendarIcon, CameraIcon, CheckIcon, LockIcon } from '../components/Icons'
+import { CalendarIcon, CameraIcon, CheckIcon, LockIcon, BoardsIcon } from '../components/Icons'
 import { getMe, setMyPromptPermission, type Me } from '../lib/realAccountsApi'
 
 const PERMISSIONS: { id: PromptPermission; label: string; help: string; recommended?: boolean }[] = [
@@ -29,6 +29,7 @@ export function Profile() {
   const users = useStore((s) => s.users)
   const calendars = useStore((s) => s.calendars)
   const account = useStore((s) => s.account)
+  const boards = useStore((s) => s.boards)
   const promptPermission = useStore((s) => s.promptPermission)
   const setPromptPermission = useStore((s) => s.setPromptPermission)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
@@ -45,6 +46,7 @@ export function Profile() {
   const displayName = account ? (account.firstName ?? account.organizationName ?? account.username) : 'You'
   const handle = account ? `@${account.username}` : '@you'
   const myCalendars = calendars.filter((c) => c.memberIds.includes(CURRENT_USER_ID))
+  const myBoards = boards.filter((b) => b.subscriberIds.includes(CURRENT_USER_ID))
 
   const [me, setMe] = useState<Me | null>(null)
   useEffect(() => {
@@ -242,6 +244,34 @@ export function Profile() {
             className="rounded-sm border border-dashed border-line-strong px-3 py-2 text-center text-sm text-ink-faint"
           >
             + New calendar
+          </Link>
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs uppercase tracking-wider text-ink-faint">Your boards</p>
+          <Link to="/boards" className="text-xs font-medium text-ink underline underline-offset-2">
+            Manage
+          </Link>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {myBoards.map((b) => (
+            <Link key={b.id} to={`/boards/${b.id}`} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2">
+              {b.visibility === 'invite' ? (
+                <LockIcon size={14} className="text-ink-soft" />
+              ) : (
+                <BoardsIcon size={15} className="text-ink-soft" />
+              )}
+              <span className="text-sm">{b.name}</span>
+              <span className="ml-auto text-xs text-ink-faint">{b.ownerId === CURRENT_USER_ID ? 'Owner' : 'Joined'}</span>
+            </Link>
+          ))}
+          <Link
+            to="/boards/new"
+            className="rounded-sm border border-dashed border-line-strong px-3 py-2 text-center text-sm text-ink-faint"
+          >
+            + New board
           </Link>
         </div>
       </section>

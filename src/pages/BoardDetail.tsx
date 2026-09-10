@@ -5,7 +5,7 @@ import { useStore } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import type { BoardChallenge, Category } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
-import { CATEGORY_ICON } from '../components/Icons'
+import { CATEGORY_ICON, LockIcon } from '../components/Icons'
 import { SubmissionCard } from '../components/SubmissionCard'
 
 const CADENCES: BoardChallenge['cadence'][] = ['one-off', 'daily', 'weekly']
@@ -16,7 +16,9 @@ export function BoardDetail() {
   const board = useStore((s) => s.boards.find((b) => b.id === boardId))
   const allBoardChallenges = useStore((s) => s.boardChallenges)
   const allSubmissions = useStore((s) => s.submissions)
+  const users = useStore((s) => s.users)
   const joinBoard = useStore((s) => s.joinBoard)
+  const inviteToBoard = useStore((s) => s.inviteToBoard)
   const postBoardChallenge = useStore((s) => s.postBoardChallenge)
 
   const boardChallenges = useMemo(() => allBoardChallenges.filter((c) => c.boardId === boardId), [allBoardChallenges, boardId])
@@ -34,6 +36,8 @@ export function BoardDetail() {
 
   const isOwner = board.ownerId === CURRENT_USER_ID
   const isSubscribed = board.subscriberIds.includes(CURRENT_USER_ID)
+  const isPrivate = board.visibility === 'invite'
+  const invitableUsers = users.filter((u) => !board.subscriberIds.includes(u.id))
 
   function handlePost() {
     if (!text.trim() || !board) return
@@ -44,17 +48,54 @@ export function BoardDetail() {
   return (
     <div className="flex flex-col gap-5 p-4">
       <div>
-        <h1 className="font-serif text-2xl">{board.name}</h1>
+        <div className="flex items-center gap-1.5">
+          {isPrivate && <LockIcon size={14} className="text-ink-soft" />}
+          <h1 className="font-serif text-2xl">{board.name}</h1>
+        </div>
         <p className="mt-1 text-sm text-ink-soft">{board.description}</p>
         <p className="mt-2 text-xs uppercase tracking-wide text-ink-faint">
-          {board.subscriberIds.length} subscribers{board.locationTag ? ` · ${board.locationTag}` : ''}
+          {isPrivate ? 'Private group' : 'Public board'} · {board.subscriberIds.length}{' '}
+          {board.subscriberIds.length === 1 ? 'member' : 'members'}
+          {board.locationTag ? ` · ${board.locationTag}` : ''}
         </p>
-        {!isSubscribed && (
+        {!isSubscribed && !isPrivate && (
           <button onClick={() => joinBoard(board.id)} className="mt-3 rounded-sm border border-ink px-4 py-2 text-sm font-medium">
             Subscribe
           </button>
         )}
+        {!isSubscribed && isPrivate && (
+          <p className="mt-3 text-xs text-ink-faint">This is a private group — ask the owner to invite you.</p>
+        )}
       </div>
+
+      {isOwner && isPrivate && (
+        <section className="rounded-sm border border-line bg-card p-3">
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Invite people</p>
+          {invitableUsers.length === 0 ? (
+            <p className="text-sm text-ink-faint">Everyone's already in.</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {invitableUsers.map((u) => (
+                <div key={u.id} className="flex items-center gap-2.5 rounded-sm border border-line bg-paper px-3 py-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-sm">
+                    {u.initial}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium leading-tight">{u.name}</p>
+                    <p className="text-xs text-ink-faint">{u.handle}</p>
+                  </div>
+                  <button
+                    onClick={() => inviteToBoard(board.id, u.id)}
+                    className="shrink-0 rounded-sm border border-ink px-2.5 py-1 text-xs font-medium"
+                  >
+                    Invite
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {isOwner && (
         <section className="rounded-sm border border-line bg-card p-3">

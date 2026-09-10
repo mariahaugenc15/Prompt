@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CURRENT_USER_ID } from '../lib/seed'
 import { SubmissionCard } from '../components/SubmissionCard'
+import { ExploreChallengesList } from '../components/ExploreChallengesList'
 import { SearchIcon, ShuffleIcon, CloseIcon } from '../components/Icons'
 
 function shuffled<T>(arr: T[]): T[] {
@@ -34,6 +35,7 @@ export function Feed() {
   }, [submissions, tab, following, boards])
 
   const [explorePool, setExplorePool] = useState(() => shuffled(users))
+  const [exploreMode, setExploreMode] = useState<'profiles' | 'prompts'>('profiles')
 
   const q = query.trim().toLowerCase()
   const matchingUsers = q ? users.filter((u) => u.id !== CURRENT_USER_ID && (u.name.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q))) : []
@@ -117,34 +119,54 @@ export function Feed() {
           <div className="px-4">
             {tab === 'explore' ? (
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-wider text-ink-faint">Random profiles</p>
-                  <button
-                    onClick={() => setExplorePool(shuffled(users))}
-                    className="flex items-center gap-1 text-xs font-medium text-ink"
-                  >
-                    <ShuffleIcon size={13} /> Shuffle
-                  </button>
+                <div className="mb-3 flex gap-2">
+                  {(['profiles', 'prompts'] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setExploreMode(m)}
+                      className={clsx(
+                        'flex-1 rounded-full border py-1.5 text-xs capitalize transition',
+                        exploreMode === m ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
+                      )}
+                    >
+                      {m}
+                    </button>
+                  ))}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {explorePool
-                    .filter((u) => u.id !== CURRENT_USER_ID)
-                    .map((u) => (
-                      <Link
-                        key={u.id}
-                        to={`/u/${u.id}`}
-                        className="flex flex-col items-center gap-2 rounded-sm border border-line bg-card p-4 text-center"
+                {exploreMode === 'profiles' ? (
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-wider text-ink-faint">Random profiles</p>
+                      <button
+                        onClick={() => setExplorePool(shuffled(users))}
+                        className="flex items-center gap-1 text-xs font-medium text-ink"
                       >
-                        <span className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-lg">
-                          {u.initial}
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium leading-tight">{u.name}</p>
-                          <p className="text-xs text-ink-faint">{u.handle}</p>
-                        </div>
-                      </Link>
-                    ))}
-                </div>
+                        <ShuffleIcon size={13} /> Shuffle
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {explorePool
+                        .filter((u) => u.id !== CURRENT_USER_ID)
+                        .map((u) => (
+                          <Link
+                            key={u.id}
+                            to={`/u/${u.id}`}
+                            className="flex flex-col items-center gap-2 rounded-sm border border-line bg-card p-4 text-center"
+                          >
+                            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-lg">
+                              {u.initial}
+                            </span>
+                            <div>
+                              <p className="text-sm font-medium leading-tight">{u.name}</p>
+                              <p className="text-xs text-ink-faint">{u.handle}</p>
+                            </div>
+                          </Link>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <ExploreChallengesList />
+                )}
               </div>
             ) : items.length === 0 ? (
               <p className="mt-8 text-center text-sm text-ink-faint">

@@ -89,10 +89,15 @@ export function CreateBoard() {
                 visibility === v ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
               )}
             >
-              {v === 'invite' ? 'Invite-only' : 'Public'}
+              {v === 'invite' ? 'Private group' : 'Public'}
             </button>
           ))}
         </div>
+        <p className="mt-2 text-xs text-ink-faint">
+          {visibility === 'invite'
+            ? 'Only people you invite can see or join it — good for something like a book club. It never shows up under Discover.'
+            : 'Anyone can find it under Discover and subscribe.'}
+        </p>
       </div>
 
       <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">

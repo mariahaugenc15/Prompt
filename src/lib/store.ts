@@ -7,14 +7,10 @@ interface AppState {
   account: SignupSuccess | null
 
   hideCompletionScore: boolean
-  avatarDataUrl: string | null
-  bio: string
 
   setAccount: (account: SignupSuccess) => void
   signOut: () => void
   setHideCompletionScore: (v: boolean) => void
-  setAvatar: (dataUrl: string | null) => void
-  setBio: (bio: string) => void
 }
 
 // Everything sign-out resets back to — the same shape a brand-new visitor
@@ -23,8 +19,6 @@ const freshDeviceState = {
   loggedIn: false,
   account: null,
   hideCompletionScore: false,
-  avatarDataUrl: null,
-  bio: '',
 }
 
 export const useStore = create<AppState>()(
@@ -40,15 +34,12 @@ export const useStore = create<AppState>()(
       setAccount: (account) =>
         set({ account, loggedIn: account.accountType === 'individual' ? true : get().loggedIn }),
 
-      // Resets this device's local-only preferences (avatar, bio, hide-score
-      // toggle). The real account's data lives on the server regardless and
-      // is unaffected; logging back in via /login with that username/
-      // password restores access to it.
+      // Resets this device's local-only preference (hide-score toggle). The
+      // real account's data (including avatar/bio, now server-side) is
+      // unaffected; logging back in via /login restores access to it.
       signOut: () => set({ ...freshDeviceState }),
 
       setHideCompletionScore: (v) => set({ hideCompletionScore: v }),
-      setAvatar: (dataUrl) => set({ avatarDataUrl: dataUrl }),
-      setBio: (bio) => set({ bio }),
     }),
     {
       name: 'prompt-app-store',

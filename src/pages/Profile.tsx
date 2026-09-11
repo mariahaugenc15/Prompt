@@ -3,9 +3,24 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { fileToCompressedDataUrl } from '../lib/media'
+import { enablePushNotifications, pushSupported } from '../lib/push'
 import type { PromptPermission } from '../lib/types'
-import { CalendarIcon, CameraIcon, LockIcon, BoardsIcon, ShareIcon } from '../components/Icons'
-import { getMe, getProfile, getFollowing, setMyPromptPermission, getCompletionScore, type Me, type PublicProfile } from '../lib/realAccountsApi'
+import { CalendarIcon, CameraIcon, LockIcon, BoardsIcon, ShareIcon, BellIcon } from '../components/Icons'
+import {
+  getMe,
+  getProfile,
+  getFollowing,
+  setMyPromptPermission,
+  getCompletionScore,
+  getBlockedAccounts,
+  unblockAccount,
+  updateMyAvatar,
+  updateMyBio,
+  logout,
+  deleteMyAccount,
+  type Me,
+  type PublicProfile,
+} from '../lib/realAccountsApi'
 import { getMyCalendars, type RealCalendar } from '../lib/calendarsApi'
 import { getMyBoards, type RealBoard } from '../lib/boardsApi'
 
@@ -15,10 +30,6 @@ export function Profile() {
   const account = useStore((s) => s.account)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
   const setHideCompletionScore = useStore((s) => s.setHideCompletionScore)
-  const avatarDataUrl = useStore((s) => s.avatarDataUrl)
-  const setAvatar = useStore((s) => s.setAvatar)
-  const bio = useStore((s) => s.bio)
-  const setBio = useStore((s) => s.setBio)
 
   const displayName = account ? (account.firstName ?? account.organizationName ?? account.username) : 'You'
   const handle = account ? `@${account.username}` : '@you'
@@ -26,15 +37,22 @@ export function Profile() {
   const [me, setMe] = useState<Me | null>(null)
   const [profile, setProfile] = useState<PublicProfile | null>(null)
   const [followingList, setFollowingList] = useState<PublicProfile[]>([])
+  const [blockedList, setBlockedList] = useState<PublicProfile[]>([])
   const [myCalendars, setMyCalendars] = useState<RealCalendar[]>([])
   const [myBoards, setMyBoards] = useState<RealBoard[]>([])
   const [score, setScore] = useState<{ score: number | null; completed: number; total: number } | null>(null)
 
+  function refreshProfile() {
+    if (!account) return
+    getProfile(account.username, account.token).then((res) => setProfile(res.ok ? res.data : null))
+  }
+
   useEffect(() => {
     if (!account) return
     getMe(account.token).then((res) => setMe(res.ok ? res.data : null))
-    getProfile(account.username, account.token).then((res) => setProfile(res.ok ? res.data : null))
+    refreshProfile()
     getFollowing(account.username, account.token).then((res) => setFollowingList(res.ok ? res.data : []))
+    getBlockedAccounts(account.token).then((res) => setBlockedList(res.ok ? res.data : []))
     getMyCalendars(account.token).then((res) => setMyCalendars(res.ok ? res.data : []))
     getMyBoards(account.token).then((res) => setMyBoards(res.ok ? res.data : []))
     getCompletionScore(account.token).then((res) => setScore(res.ok ? res.data : null))
@@ -46,23 +64,43 @@ export function Profile() {
     if (res.ok) setMe((prev) => (prev ? { ...prev, promptPermission: value } : prev))
   }
 
+  async function handleUnblock(username: string) {
+    if (!account) return
+    const res = await unblockAccount(username, account.token)
+    if (res.ok) setBlockedList((prev) => prev.filter((p) => p.username !== username))
+  }
+
   const [editingBio, setEditingBio] = useState(false)
-  const [bioDraft, setBioDraft] = useState(bio)
+  const [bioDraft, setBioDraft] = useState('')
   const [avatarBusy, setAvatarBusy] = useState(false)
+  const [bioSaving, setBioSaving] = useState(false)
+
+  useEffect(() => {
+    setBioDraft(profile?.bio ?? '')
+  }, [profile?.bio])
 
   async function handleAvatarFile(file: File | undefined) {
-    if (!file) return
+    if (!file || !account) return
     setAvatarBusy(true)
     try {
-      setAvatar(await fileToCompressedDataUrl(file, 240, 0.8))
+      const dataUrl = await fileToCompressedDataUrl(file, 240, 0.8)
+      const res = await updateMyAvatar(dataUrl, account.token)
+      if (res.ok) setProfile((prev) => (prev ? { ...prev, avatarUrl: res.data.avatarUrl } : prev))
     } finally {
       setAvatarBusy(false)
     }
   }
 
-  function saveBio() {
-    setBio(bioDraft.trim())
-    setEditingBio(false)
+  async function saveBio() {
+    if (!account) return
+    setBioSaving(true)
+    try {
+      const res = await updateMyBio(bioDraft.trim(), account.token)
+      if (res.ok) setProfile((prev) => (prev ? { ...prev, bio: res.data.bio } : prev))
+      setEditingBio(false)
+    } finally {
+      setBioSaving(false)
+    }
   }
 
   const [inviteCopied, setInviteCopied] = useState(false)
@@ -82,19 +120,45 @@ export function Profile() {
     setTimeout(() => setInviteCopied(false), 2000)
   }
 
-  const [confirmingSignOut, setConfirmingSignOut] = useState(false)
+  const [notifStatus, setNotifStatus] = useState<'idle' | 'busy' | 'on' | 'denied' | 'unsupported'>(() =>
+    pushSupported() ? (Notification.permission === 'granted' ? 'on' : 'idle') : 'unsupported',
+  )
 
-  function handleSignOut() {
+  async function handleEnableNotifications() {
+    if (!account) return
+    setNotifStatus('busy')
+    const result = await enablePushNotifications(account.token)
+    setNotifStatus(result === 'subscribed' ? 'on' : result === 'denied' ? 'denied' : result === 'unsupported' ? 'unsupported' : 'idle')
+  }
+
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleSignOut() {
+    if (account) await logout(account.token)
     signOut()
     navigate('/')
+  }
+
+  async function handleDeleteAccount() {
+    if (!account) return
+    setDeleting(true)
+    try {
+      await deleteMyAccount(account.token)
+      signOut()
+      navigate('/')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
     <div className="flex flex-col gap-6 p-4">
       <div className="flex items-center gap-3">
-        <label className="relative flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-xl">
-          {avatarDataUrl ? (
-            <img src={avatarDataUrl} alt="" className="h-full w-full rounded-full object-cover" />
+        <label className="relative flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-line bg-paper-dim font-serif text-xl">
+          {profile?.avatarUrl ? (
+            <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             displayName.charAt(0).toUpperCase()
           )}
@@ -120,16 +184,16 @@ export function Profile() {
                 onChange={(e) => setBioDraft(e.target.value)}
                 placeholder="Tell people what you're about…"
                 rows={2}
-                maxLength={140}
+                maxLength={280}
                 className="resize-none rounded-sm border border-line bg-card p-2 text-sm outline-none focus:border-line-strong"
               />
               <div className="flex gap-1.5">
-                <button onClick={saveBio} className="rounded-sm bg-ink px-3 py-1 text-xs font-medium text-paper">
-                  Save
+                <button onClick={saveBio} disabled={bioSaving} className="rounded-sm bg-ink px-3 py-1 text-xs font-medium text-paper disabled:opacity-50">
+                  {bioSaving ? 'Saving…' : 'Save'}
                 </button>
                 <button
                   onClick={() => {
-                    setBioDraft(bio)
+                    setBioDraft(profile?.bio ?? '')
                     setEditingBio(false)
                   }}
                   className="rounded-sm border border-line px-3 py-1 text-xs text-ink-soft"
@@ -140,7 +204,11 @@ export function Profile() {
             </div>
           ) : (
             <button onClick={() => setEditingBio(true)} className="mt-1 text-left text-sm">
-              {bio ? <span className="text-ink-soft">{bio}</span> : <span className="text-ink-faint underline underline-offset-2">Add a bio</span>}
+              {profile?.bio ? (
+                <span className="text-ink-soft">{profile.bio}</span>
+              ) : (
+                <span className="text-ink-faint underline underline-offset-2">Add a bio</span>
+              )}
             </button>
           )}
         </div>
@@ -165,6 +233,28 @@ export function Profile() {
         </span>
         <span className="shrink-0 text-xs font-medium text-accent">{inviteCopied ? 'Copied!' : 'Share'}</span>
       </button>
+
+      {notifStatus !== 'unsupported' && (
+        <button
+          onClick={handleEnableNotifications}
+          disabled={notifStatus === 'busy' || notifStatus === 'on'}
+          className="flex items-center gap-3 rounded-sm border border-line bg-card p-3 text-left disabled:opacity-70"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-paper-dim text-ink-soft">
+            <BellIcon size={15} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-sm font-medium">
+              {notifStatus === 'on' ? 'Notifications enabled' : 'Enable notifications'}
+            </span>
+            <span className="block text-xs text-ink-faint">
+              {notifStatus === 'denied'
+                ? 'Blocked in your browser settings — enable them there to turn this on.'
+                : "Get notified when someone prompts you, even when the app's closed."}
+            </span>
+          </span>
+        </button>
+      )}
 
       {account && me && (
         <section className="rounded-sm border border-line bg-card p-4">
@@ -302,8 +392,8 @@ export function Profile() {
           <div className="flex flex-col gap-1.5">
             {followingList.map((p) => (
               <Link key={p.id} to={`/o/${p.username}`} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-sm">
-                  {p.displayName.charAt(0).toUpperCase()}
+                <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-line bg-paper-dim font-serif text-sm">
+                  {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" /> : p.displayName.charAt(0).toUpperCase()}
                 </span>
                 <div>
                   <p className="text-sm font-medium leading-tight">{p.displayName}</p>
@@ -315,7 +405,38 @@ export function Profile() {
         )}
       </section>
 
+      {blockedList.length > 0 && (
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Blocked accounts</p>
+          <div className="flex flex-col gap-1.5">
+            {blockedList.map((p) => (
+              <div key={p.id} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-sm">
+                  {p.displayName.charAt(0).toUpperCase()}
+                </span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium leading-tight">{p.displayName}</p>
+                  <p className="text-xs text-ink-faint">@{p.username}</p>
+                </div>
+                <button onClick={() => handleUnblock(p.username)} className="shrink-0 text-xs text-ink-faint underline underline-offset-2">
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="border-t border-line pt-4">
+        <Link to="/terms" className="mr-3 text-xs text-ink-faint underline underline-offset-2">
+          Terms
+        </Link>
+        <Link to="/privacy" className="text-xs text-ink-faint underline underline-offset-2">
+          Privacy
+        </Link>
+      </section>
+
+      <section>
         {confirmingSignOut ? (
           <div className="rounded-sm border border-danger/40 bg-danger/5 p-3">
             <p className="text-sm text-ink">
@@ -337,6 +458,37 @@ export function Profile() {
         ) : (
           <button onClick={() => setConfirmingSignOut(true)} className="text-sm text-ink-faint underline underline-offset-2">
             Sign out
+          </button>
+        )}
+      </section>
+
+      <section>
+        {confirmingDelete ? (
+          <div className="rounded-sm border border-danger/40 bg-danger/5 p-3">
+            <p className="text-sm text-ink">
+              Delete your account permanently? Your username, email, avatar, and bio are removed and you won't be
+              able to log back in. Prompts and completions you were part of stay visible to the people they
+              involved, attributed to a deleted account, rather than disappearing from their history.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="flex-1 rounded-sm bg-danger py-2 text-sm font-medium text-paper disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Yes, delete my account'}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-soft"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmingDelete(true)} className="text-sm text-danger/80 underline underline-offset-2">
+            Delete account
           </button>
         )}
       </section>

@@ -14,9 +14,12 @@ export interface PublicProfile {
   accountType: 'individual' | 'organization'
   displayName: string
   websiteUrl?: string
+  avatarUrl?: string
+  bio?: string
   followerCount: number
   followingCount: number
   isFollowing?: boolean
+  blockedByMe?: boolean
 }
 
 export type PromptStatus = 'pending' | 'completed' | 'declined' | 'expired'
@@ -143,6 +146,42 @@ export function follow(username: string, token: string) {
 
 export function unfollow(username: string, token: string) {
   return call<PublicProfile>(`/api/follow/${encodeURIComponent(username)}`, token, { method: 'DELETE' })
+}
+
+export function blockAccount(username: string, token: string) {
+  return call<{ blocked: true }>(`/api/block/${encodeURIComponent(username)}`, token, { method: 'POST' })
+}
+
+export function unblockAccount(username: string, token: string) {
+  return call<{ blocked: false }>(`/api/block/${encodeURIComponent(username)}`, token, { method: 'DELETE' })
+}
+
+export function getBlockedAccounts(token: string) {
+  return call<PublicProfile[]>('/api/me/blocked', token)
+}
+
+export function reportContent(input: { targetType: 'account' | 'completion' | 'board'; targetId: string; reason: string }, token: string) {
+  return call<{ ok: true }>('/api/report', token, { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function updateMyAvatar(dataUrl: string | undefined, token: string) {
+  return call<{ avatarUrl?: string }>('/api/me/avatar', token, { method: 'PATCH', body: JSON.stringify({ dataUrl }) })
+}
+
+export function updateMyBio(bio: string, token: string) {
+  return call<{ bio?: string }>('/api/me/bio', token, { method: 'PATCH', body: JSON.stringify({ bio }) })
+}
+
+export function logout(token: string) {
+  return call<{ ok: true }>('/api/logout', token, { method: 'POST' })
+}
+
+export function deleteMyAccount(token: string) {
+  return call<{ ok: true }>('/api/me', token, { method: 'DELETE' })
+}
+
+export function unsendPrompt(id: string, token: string) {
+  return call<{ id: string }>(`/api/prompts/${id}`, token, { method: 'DELETE' })
 }
 
 export function setMyPromptPermission(promptPermission: 'everyone' | 'followers' | 'mutuals', token: string) {

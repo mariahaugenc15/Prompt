@@ -7,12 +7,15 @@ import { CATEGORY_ICON, BoardsIcon } from '../components/Icons'
 import { PromptLogo } from '../components/PromptLogo'
 import { FollowListModal } from '../components/FollowListModal'
 import {
+  blockAccount,
   follow,
   getFollowers,
   getFollowing,
   getOrganizationBroadcasts,
   getProfile,
+  reportContent,
   sendBroadcast,
+  unblockAccount,
   unfollow,
   type BroadcastSummary,
   type PublicProfile,
@@ -34,6 +37,10 @@ export function OrgPage() {
   const [listOpen, setListOpen] = useState<'followers' | 'following' | null>(null)
   const [listLoading, setListLoading] = useState(false)
   const [listProfiles, setListProfiles] = useState<PublicProfile[]>([])
+
+  const [reporting, setReporting] = useState(false)
+  const [reportReason, setReportReason] = useState('')
+  const [reportSent, setReportSent] = useState(false)
 
   const isOwner = account?.accountType === 'organization' && account.username === username
   const isSelf = account?.username === username
@@ -83,11 +90,37 @@ export function OrgPage() {
     refresh()
   }
 
+  async function handleBlockToggle() {
+    if (!account || profile === null || profile === 'not-found') return
+    setBusy(true)
+    try {
+      if (profile.blockedByMe) await unblockAccount(username, account.token)
+      else await blockAccount(username, account.token)
+      refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleReport() {
+    if (!account || profile === null || profile === 'not-found' || !reportReason.trim()) return
+    const res = await reportContent({ targetType: 'account', targetId: profile.id, reason: reportReason.trim() }, account.token)
+    if (res.ok) {
+      setReportSent(true)
+      setReporting(false)
+      setReportReason('')
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5 p-4">
       <div className="flex items-center gap-3">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-paper-dim text-ink-soft">
-          <BoardsIcon size={22} />
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-paper-dim text-ink-soft">
+          {profile && profile.avatarUrl ? (
+            <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <BoardsIcon size={22} />
+          )}
         </span>
         <div className="flex-1">
           <h1 className="font-serif text-xl leading-tight">{profile === null ? '…' : profile.displayName}</h1>
@@ -102,6 +135,7 @@ export function OrgPage() {
               </button>
             </div>
           )}
+          {profile && profile.bio && <p className="mt-1 text-sm text-ink-soft">{profile.bio}</p>}
           {profile && profile.websiteUrl && (
             <a
               href={profile.websiteUrl.startsWith('http') ? profile.websiteUrl : `https://${profile.websiteUrl}`}
@@ -115,7 +149,7 @@ export function OrgPage() {
         </div>
       </div>
 
-      {!isSelf && account?.accountType === 'individual' && profile && (
+      {!isSelf && account?.accountType === 'individual' && profile && !profile.blockedByMe && (
         <div className="flex gap-2">
           <button
             onClick={handleFollowToggle}
@@ -144,6 +178,45 @@ export function OrgPage() {
           </Link>{' '}
           to follow this page and receive its broadcasts.
         </p>
+      )}
+
+      {!isSelf && account && profile && (
+        <div className="flex items-center gap-3 text-xs text-ink-faint">
+          <button onClick={handleBlockToggle} disabled={busy} className="underline underline-offset-2">
+            {profile.blockedByMe ? 'Unblock this account' : 'Block this account'}
+          </button>
+          {!reportSent && (
+            <button onClick={() => setReporting((v) => !v)} className="underline underline-offset-2">
+              Report
+            </button>
+          )}
+          {reportSent && <span className="text-ink-soft">Report sent — thank you.</span>}
+        </div>
+      )}
+
+      {reporting && (
+        <div className="rounded-sm border border-line bg-card p-3">
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">What's wrong with this account?</p>
+          <textarea
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            rows={2}
+            placeholder="Describe the issue…"
+            className="mb-2 w-full resize-none rounded-sm border border-line bg-paper p-2 text-sm outline-none focus:border-line-strong"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleReport}
+              disabled={!reportReason.trim()}
+              className="rounded-sm bg-ink px-3 py-1.5 text-xs font-medium text-paper disabled:bg-line disabled:text-ink-faint"
+            >
+              Submit report
+            </button>
+            <button onClick={() => setReporting(false)} className="rounded-sm border border-line px-3 py-1.5 text-xs text-ink-soft">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {isOwner && (

@@ -70,10 +70,6 @@ export function Home() {
 
   useEffect(() => {
     if (!account) return
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {})
-    }
-
     let cancelled = false
     async function poll() {
       const [historyRes, broadcastRes] = await Promise.all([getPromptHistory(account!.token), getActiveBroadcasts(account!.token)])

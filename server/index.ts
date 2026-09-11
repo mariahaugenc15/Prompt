@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import rateLimit from 'express-rate-limit'
 import crypto from 'node:crypto'
 import { db } from './db.js'
 import { socialRouter } from './socialRoutes.js'
@@ -8,6 +9,10 @@ import { boardsRouter } from './boardsRoutes.js'
 import { calendarsRouter } from './calendarsRoutes.js'
 import { feedRouter } from './feedRoutes.js'
 import { pushRouter } from './pushRoutes.js'
+import { authRouter } from './authRoutes.js'
+import { moderationRouter } from './moderationRoutes.js'
+import { mediaDir } from './mediaStore.js'
+import { hashPassword, verifyPassword } from './passwordHash.js'
 import {
   normalizeEmail,
   normalizeUsername,
@@ -39,46 +44,63 @@ app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : true }))
 // inflates that by ~1/3, so the limit needs headroom past that, not just
 // past the default 100kb.
 app.use(express.json({ limit: '12mb' }))
+
+// A moderate ceiling on every route — cheap insurance against a runaway
+// client or a scripted abuse attempt, without getting in the way of normal
+// use (polling every 15s, browsing feeds). A tighter limiter below layers
+// on top of this for the specific routes that matter most (credential
+// guessing, account-creation spam).
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+)
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { errors: { form: 'Too many attempts. Please wait a while and try again.' } },
+})
+app.use('/api/signup', authLimiter)
+app.use('/api/login', authLimiter)
+app.use('/api/password-reset', authLimiter)
+
+// Proof photos/videos and avatars saved by mediaStore.ts (see there for why
+// this needs to be this server's own absolute URL, not a relative path).
+app.use('/media', express.static(mediaDir, { maxAge: '30d', immutable: true }))
+
 app.use(socialRouter)
 app.use(promptRouter)
 app.use(boardsRouter)
 app.use(calendarsRouter)
 app.use(feedRouter)
 app.use(pushRouter)
+app.use(authRouter)
+app.use(moderationRouter)
 
 const PORT = Number(process.env.PORT ?? 8787)
 
 const findByUsername = db.prepare('SELECT 1 FROM accounts WHERE username_normalized = ?')
 const findByEmail = db.prepare('SELECT 1 FROM accounts WHERE email_normalized = ?')
 const findLoginRow = db.prepare(`
-  SELECT id, account_type, username, email, first_name, organization_name, password_hash, password_salt
+  SELECT id, account_type, username, email, first_name, organization_name, password_hash, password_salt, is_deleted
   FROM accounts WHERE username_normalized = ?
 `)
-const rotateToken = db.prepare('UPDATE accounts SET auth_token = ? WHERE id = ?')
+const rotateToken = db.prepare('UPDATE accounts SET auth_token = ?, auth_token_created_at = ? WHERE id = ?')
 const insertAccount = db.prepare(`
   INSERT INTO accounts (
     id, account_type, username, username_normalized, email, email_normalized,
-    password_hash, password_salt, first_name, organization_name, website_url, created_at, auth_token
+    password_hash, password_salt, first_name, organization_name, website_url, created_at, auth_token, auth_token_created_at
   ) VALUES (
     @id, @accountType, @username, @usernameNormalized, @email, @emailNormalized,
-    @passwordHash, @passwordSalt, @firstName, @organizationName, @websiteUrl, @createdAt, @authToken
+    @passwordHash, @passwordSalt, @firstName, @organizationName, @websiteUrl, @createdAt, @authToken, @createdAt
   )
 `)
-
-function hashPassword(password: string): { hash: string; salt: string } {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
-  return { hash, salt }
-}
-
-function verifyPassword(password: string, salt: string, expectedHash: string): boolean {
-  const candidate = crypto.scryptSync(password, salt, 64)
-  const expected = Buffer.from(expectedHash, 'hex')
-  // Both sides are always a 64-byte scrypt digest, so the length check
-  // above is just for timingSafeEqual's own precondition — it never
-  // becomes a length-based side channel on the password itself.
-  return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected)
-}
 
 function usernameTaken(username: string): boolean {
   return Boolean(findByUsername.get(normalizeUsername(username)))
@@ -192,6 +214,7 @@ app.post('/api/login', (req, res) => {
         organization_name: string | null
         password_hash: string
         password_salt: string
+        is_deleted: number
       }
     | undefined) : undefined
 
@@ -199,14 +222,14 @@ app.post('/api/login', (req, res) => {
   // is wrong — telling them apart would let an attacker enumerate accounts.
   const invalid = () => res.status(401).json({ errors: { form: 'Incorrect username or password.' } })
 
-  if (!row || !password) return invalid()
+  if (!row || !password || row.is_deleted) return invalid()
   if (!verifyPassword(password, row.password_salt, row.password_hash)) return invalid()
 
   // Rotate the token on every login rather than reusing whatever was minted
   // at sign-up (or a previous login) — a fresh session per login, same as
-  // any real auth system, even though there's no expiry yet (see README).
+  // any real auth system.
   const token = crypto.randomBytes(32).toString('hex')
-  rotateToken.run(token, row.id)
+  rotateToken.run(token, Date.now(), row.id)
 
   res.json({
     id: row.id,

@@ -18,6 +18,10 @@ import { CalendarDetail } from './pages/CalendarDetail'
 import { ExplorePrompts } from './pages/ExplorePrompts'
 import { SignUp } from './pages/SignUp'
 import { Login } from './pages/Login'
+import { ForgotPassword } from './pages/ForgotPassword'
+import { ResetPassword } from './pages/ResetPassword'
+import { Terms } from './pages/Terms'
+import { Privacy } from './pages/Privacy'
 import { OrgPage } from './pages/OrgPage'
 import { RealSend } from './pages/RealSend'
 
@@ -45,6 +49,10 @@ export default function App() {
       <Route path="/invite" element={<InviteLanding />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route
         path="/o/:username"
         element={

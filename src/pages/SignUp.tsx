@@ -33,6 +33,7 @@ export function SignUp() {
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const checkSeq = useRef(0)
 
@@ -257,11 +258,31 @@ export function SignUp() {
           />
         </Field>
 
+        <label className="flex items-start gap-2 text-xs text-ink-soft">
+          <input
+            type="checkbox"
+            checked={agreedToTerms}
+            onChange={(e) => setAgreedToTerms(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+          />
+          <span>
+            I agree to the{' '}
+            <Link to="/terms" target="_blank" className="underline">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link to="/privacy" target="_blank" className="underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+
         {submitError && <p className="text-sm text-danger">{submitError}</p>}
 
         <button
           type="submit"
-          disabled={submitting || usernameStatus === 'checking'}
+          disabled={submitting || usernameStatus === 'checking' || !agreedToTerms}
           className="mt-1 rounded-sm bg-ink py-3 text-sm font-medium text-paper transition disabled:bg-line disabled:text-ink-faint"
         >
           {submitting ? 'Creating account…' : 'Create account'}

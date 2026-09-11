@@ -1,8 +1,16 @@
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import { db } from './db.js'
 import { requireAuth, resolveOptionalAccountId } from './auth.js'
 import { canFollow, type PromptPermission } from './permissions.js'
 import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicProfile, searchAccounts, suggestedAccounts } from './accountsRepo.js'
+import { isBlockedEitherWay } from './blocksRepo.js'
+import { saveDataUrlAsFile } from './mediaStore.js'
+
+function parsePaging(req: Request, defaultLimit: number, maxLimit: number) {
+  const limit = Math.min(Math.max(Number(req.query.limit) || defaultLimit, 1), maxLimit)
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  return { limit, offset }
+}
 
 export const socialRouter = Router()
 
@@ -19,6 +27,33 @@ socialRouter.get('/api/me', requireAuth, (req, res) => {
     email: actor.email,
     promptPermission: actor.promptPermission,
   })
+})
+
+const setAvatarPath = db.prepare('UPDATE accounts SET avatar_path = ? WHERE id = ?')
+const setBio = db.prepare('UPDATE accounts SET bio = ? WHERE id = ?')
+const MAX_BIO_LENGTH = 280
+
+// Avatar and bio used to live only in the client's local zustand store —
+// never sent to the server, so nobody else ever actually saw the picture
+// or bio you set. Real columns + these two routes so a visited profile
+// shows what its owner actually set, not nothing.
+socialRouter.patch('/api/me/avatar', requireAuth, (req, res) => {
+  const actor = req.account!
+  const dataUrl = typeof req.body?.dataUrl === 'string' ? req.body.dataUrl : undefined
+  if (!dataUrl) {
+    setAvatarPath.run(null, actor.id)
+    return res.json({ avatarUrl: undefined })
+  }
+  const avatarUrl = saveDataUrlAsFile(dataUrl)
+  setAvatarPath.run(avatarUrl, actor.id)
+  res.json({ avatarUrl })
+})
+
+socialRouter.patch('/api/me/bio', requireAuth, (req, res) => {
+  const actor = req.account!
+  const bio = typeof req.body?.bio === 'string' ? req.body.bio.trim().slice(0, MAX_BIO_LENGTH) : ''
+  setBio.run(bio || null, actor.id)
+  res.json({ bio: bio || undefined })
 })
 
 // Individuals only — organizations can't receive 1:1 prompts at all, so
@@ -46,8 +81,8 @@ const deleteFollow = db.prepare('DELETE FROM follows WHERE follower_account_id =
 // requires a query string.
 socialRouter.get('/api/accounts', (req, res) => {
   const viewerId = resolveOptionalAccountId(req)
-  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100)
-  const results = listAccounts(viewerId, limit).map((a) => publicProfile(a, viewerId))
+  const { limit, offset } = parsePaging(req, 50, 100)
+  const results = listAccounts(viewerId, limit, offset).map((a) => publicProfile(a, viewerId))
   res.json(results)
 })
 
@@ -68,7 +103,8 @@ socialRouter.get('/api/search/accounts', (req, res) => {
   if (q.length < 2) return res.json([])
 
   const viewerId = resolveOptionalAccountId(req)
-  const results = searchAccounts(q, viewerId, 12).map((a) => publicProfile(a, viewerId))
+  const { limit, offset } = parsePaging(req, 12, 50)
+  const results = searchAccounts(q, viewerId, limit, offset).map((a) => publicProfile(a, viewerId))
   res.json(results)
 })
 
@@ -86,14 +122,16 @@ socialRouter.get('/api/accounts/:username/followers', (req, res) => {
   const target = getAccountByUsername(req.params.username)
   if (!target) return res.status(404).json({ errors: { form: 'No account with that username.' } })
   const viewerId = resolveOptionalAccountId(req)
-  res.json(getFollowers(target.id, 50).map((a) => publicProfile(a, viewerId)))
+  const { limit, offset } = parsePaging(req, 50, 100)
+  res.json(getFollowers(target.id, limit, offset, viewerId).map((a) => publicProfile(a, viewerId)))
 })
 
 socialRouter.get('/api/accounts/:username/following', (req, res) => {
   const target = getAccountByUsername(req.params.username)
   if (!target) return res.status(404).json({ errors: { form: 'No account with that username.' } })
   const viewerId = resolveOptionalAccountId(req)
-  res.json(getFollowing(target.id, 50).map((a) => publicProfile(a, viewerId)))
+  const { limit, offset } = parsePaging(req, 50, 100)
+  res.json(getFollowing(target.id, limit, offset, viewerId).map((a) => publicProfile(a, viewerId)))
 })
 
 socialRouter.post('/api/follow', requireAuth, (req, res) => {
@@ -105,6 +143,9 @@ socialRouter.post('/api/follow', requireAuth, (req, res) => {
   const target = getAccountByUsername(targetUsername)
   if (!target) return res.status(404).json({ errors: { username: 'No account with that username.' } })
   if (target.id === actor.id) return res.status(422).json({ errors: { username: 'You cannot follow yourself.' } })
+  if (isBlockedEitherWay(actor.id, target.id)) {
+    return res.status(403).json({ errors: { username: 'You cannot follow this account.' } })
+  }
 
   insertFollow.run(actor.id, target.id, Date.now())
   res.status(201).json(publicProfile(target, actor.id))

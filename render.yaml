@@ -17,3 +17,27 @@ services:
         value: /var/data
       - key: CORS_ORIGIN
         sync: false
+      # This server's own public URL — mediaStore.ts uses it to build
+      # absolute URLs for uploaded photos/videos/avatars, since a relative
+      # "/media/x" URL would resolve against the frontend's origin instead
+      # once the two are on different hosts. Set to this service's Render URL.
+      - key: PUBLIC_SERVER_URL
+        sync: false
+      # The frontend's public URL — used to build the link inside a
+      # password-reset email. Set to wherever the frontend is deployed.
+      - key: FRONTEND_URL
+        sync: false
+      # SMTP credentials for real password-reset emails (any provider that
+      # speaks SMTP: Resend, Mailgun, Postmark, etc.). Without these, reset
+      # emails are just logged to this service's console — fine for testing,
+      # not for real users. See server/emailer.ts.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

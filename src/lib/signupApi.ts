@@ -46,3 +46,24 @@ export async function submitLogin(username: string, password: string): Promise<S
   if (res.ok) return { ok: true, account: body }
   return { ok: false, errors: body.errors ?? { form: 'Something went wrong. Please try again.' } }
 }
+
+// Always resolves ok — the server responds identically whether or not the
+// email has an account, so a caller can never tell from this alone.
+export async function requestPasswordReset(email: string): Promise<void> {
+  await fetch(apiUrl('/api/password-reset/request'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+}
+
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<SignupResult> {
+  const res = await fetch(apiUrl('/api/password-reset/confirm'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  })
+  const body = await res.json()
+  if (res.ok) return { ok: true, account: body }
+  return { ok: false, errors: body.errors ?? { form: 'Something went wrong. Please try again.' } }
+}

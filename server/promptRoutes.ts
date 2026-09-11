@@ -7,6 +7,8 @@ import { displayName, getAccountById, getAccountByUsername, isFollowing } from '
 import { isSubscribed } from './boardsRepo.js'
 import { reactionCounts, toggleReaction } from './reactionsRepo.js'
 import { notifyAccount } from './pushRepo.js'
+import { saveDataUrlAsFile } from './mediaStore.js'
+import { isBlockedEitherWay } from './blocksRepo.js'
 
 export const promptRouter = Router()
 
@@ -45,6 +47,9 @@ promptRouter.post('/api/prompts', requireAuth, (req, res) => {
   const recipient = getAccountByUsername(recipientUsername)
   if (!recipient) return res.status(404).json({ errors: { recipientUsername: 'No account with that username.' } })
   if (recipient.id === sender.id) return res.status(422).json({ errors: { recipientUsername: 'You cannot prompt yourself.' } })
+  if (isBlockedEitherWay(sender.id, recipient.id)) {
+    return res.status(403).json({ errors: { recipientUsername: 'You cannot send a prompt to this account.' } })
+  }
 
   const relationship = {
     senderFollowsRecipient: isFollowing(sender.id, recipient.id),
@@ -180,6 +185,22 @@ promptRouter.get('/api/prompts/inbox', requireAuth, (req, res) => {
   res.json([...oneToOne, ...orgBroadcasts, ...boardBroadcasts].sort((a, b) => b.createdAt - a.createdAt))
 })
 
+// --- Unsend (1:1 only, sender-only, still pending) ------------------------
+
+const deletePromptStmt = db.prepare('DELETE FROM prompts WHERE id = ?')
+
+promptRouter.delete('/api/prompts/:id', requireAuth, (req, res) => {
+  const me = req.account!
+  const prompt = getPromptById.get(String(req.params.id)) as Record<string, unknown> | undefined
+  if (!prompt) return res.status(404).json({ errors: { form: 'Prompt not found.' } })
+  if (prompt.is_broadcast) return res.status(422).json({ errors: { form: 'Broadcasts cannot be unsent.' } })
+  if (prompt.sender_account_id !== me.id) return res.status(403).json({ errors: { form: 'You can only unsend a prompt you sent.' } })
+  if (prompt.status !== 'pending') return res.status(422).json({ errors: { form: 'This prompt has already been resolved.' } })
+
+  deletePromptStmt.run(prompt.id)
+  res.json({ id: prompt.id })
+})
+
 // --- Decline (1:1 only) --------------------------------------------------
 
 const getPromptById = db.prepare('SELECT * FROM prompts WHERE id = ?')
@@ -217,12 +238,13 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   if (!prompt) return res.status(404).json({ errors: { form: 'Prompt not found.' } })
 
   const mediaType = typeof req.body?.mediaType === 'string' ? req.body.mediaType : 'photo'
-  const mediaDataUrl = typeof req.body?.mediaDataUrl === 'string' ? req.body.mediaDataUrl : undefined
+  const rawMediaDataUrl = typeof req.body?.mediaDataUrl === 'string' ? req.body.mediaDataUrl : undefined
   // The lead-in caption is server-generated from the sender + original
   // prompt text and is never accepted from the client — only the
   // completer's own added text is theirs to author.
   const userCaption = typeof req.body?.caption === 'string' ? req.body.caption.trim() || undefined : undefined
-  if (!mediaDataUrl) return res.status(422).json({ errors: { media: 'Photo or video proof is required.' } })
+  if (!rawMediaDataUrl) return res.status(422).json({ errors: { media: 'Photo or video proof is required.' } })
+  const mediaDataUrl = saveDataUrlAsFile(rawMediaDataUrl)!
 
   const sender = getAccountById(prompt.sender_account_id as string)!
   const autoCaption = autoCaptionFor(displayName(sender), prompt.prompt_text as string)

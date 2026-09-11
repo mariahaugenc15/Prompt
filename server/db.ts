@@ -47,6 +47,24 @@ if (!accountColumns.has('auth_token')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN auth_token TEXT`)
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_auth_token ON accounts(auth_token)`)
 }
+if (!accountColumns.has('auth_token_created_at')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN auth_token_created_at INTEGER`)
+}
+if (!accountColumns.has('avatar_path')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN avatar_path TEXT`)
+}
+if (!accountColumns.has('bio')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN bio TEXT`)
+}
+if (!accountColumns.has('reset_token')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN reset_token TEXT`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN reset_token_expires INTEGER`)
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_reset_token ON accounts(reset_token)`)
+}
+if (!accountColumns.has('is_deleted')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN deleted_at INTEGER`)
+}
 
 // One row per follow relationship. Organizations never appear as the
 // follower (enforced in server/permissions.ts, not here) — they don't
@@ -188,6 +206,33 @@ db.exec(`
     created_at INTEGER NOT NULL,
     PRIMARY KEY (completion_id, account_id, kind)
   );
+`)
+
+// Blocking: a one-directional relationship. Blocking someone also breaks any
+// existing follow in either direction (enforced in blocksRepo.ts) so a
+// blocked account can't keep receiving your activity via a stale follow.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS blocks (
+    blocker_account_id TEXT NOT NULL,
+    blocked_account_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (blocker_account_id, blocked_account_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_account_id);
+`)
+
+// Reports: a lightweight queue for a human to review later — v1 has no
+// admin UI to act on these, just a durable record that a report happened.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    reporter_account_id TEXT NOT NULL,
+    target_type TEXT NOT NULL CHECK (target_type IN ('account', 'completion', 'board')),
+    target_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
 `)
 
 // Web Push subscriptions — lets a notification reach a device even when the

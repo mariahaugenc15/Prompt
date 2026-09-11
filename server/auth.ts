@@ -2,12 +2,12 @@ import type { NextFunction, Request, Response } from 'express'
 import { db } from './db.js'
 import type { AccountType, PromptPermission } from './permissions.js'
 
-// v1 stand-in for real login/sessions: signup mints a random bearer token
-// (server/index.ts) and the client sends it back on every subsequent
-// request. There's no separate login-with-password flow yet (see README) —
-// this is just enough of a session concept to make "enforced server-side"
-// mean something. A real login form / rotating sessions is a natural
-// follow-up, not implemented here.
+// Bearer-token sessions: signup and login (server/index.ts) each mint a
+// random token, and the client sends it back on every subsequent request.
+// One token per account at a time — logging in elsewhere overwrites the
+// old one, and /api/logout (authRoutes.ts) rotates it away explicitly.
+// MAX_TOKEN_AGE_MS below forces re-login periodically even without either
+// of those happening.
 
 export interface AuthedAccount {
   id: string
@@ -35,8 +35,16 @@ interface AccountRow {
 }
 
 const findByToken = db.prepare(
-  'SELECT id, account_type, username, email, prompt_permission, first_name, organization_name FROM accounts WHERE auth_token = ?',
+  `SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, auth_token_created_at, is_deleted
+   FROM accounts WHERE auth_token = ?`,
 )
+
+// A token never had an expiry until this pass — sessions are otherwise
+// valid forever, which is fine for a one-token-per-account model where
+// logging in elsewhere already invalidates the old one, but a lost/leaked
+// token would stay usable indefinitely. This forces re-login periodically
+// without needing full refresh-token infrastructure.
+const MAX_TOKEN_AGE_MS = 1000 * 60 * 60 * 24 * 90
 
 export function toAuthedAccount(row: AccountRow): AuthedAccount {
   return {
@@ -68,9 +76,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!token) {
     return res.status(401).json({ errors: { form: 'Sign in required.' } })
   }
-  const row = findByToken.get(token) as AccountRow | undefined
-  if (!row) {
+  const row = findByToken.get(token) as (AccountRow & { auth_token_created_at: number | null; is_deleted: number }) | undefined
+  if (!row || row.is_deleted) {
     return res.status(401).json({ errors: { form: 'Invalid or expired session.' } })
+  }
+  if (row.auth_token_created_at && Date.now() - row.auth_token_created_at > MAX_TOKEN_AGE_MS) {
+    return res.status(401).json({ errors: { form: 'Your session has expired. Please log in again.' } })
   }
   req.account = toAuthedAccount(row)
   next()

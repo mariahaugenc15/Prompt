@@ -68,6 +68,19 @@ if (!accountColumns.has('is_deleted')) {
 if (!accountColumns.has('is_admin')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`)
 }
+if (!accountColumns.has('is_verified')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0`)
+}
+// Two-factor auth (TOTP, RFC 6238 — see server/totp.ts). totp_secret holds
+// the base32 secret as soon as setup starts, but it isn't checked at login
+// until totp_enabled flips to 1 on a confirmed code — so an abandoned setup
+// never locks anyone out. totp_backup_codes is a JSON array of scrypt-hashed
+// one-time recovery codes (server/passwordHash.ts), consumed one at a time.
+if (!accountColumns.has('totp_enabled')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN totp_secret TEXT`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN totp_backup_codes TEXT`)
+}
 
 // Bootstraps the first admin(s) without needing direct DB access: list
 // usernames (comma-separated) in ADMIN_USERNAMES and, on every server
@@ -360,6 +373,47 @@ db.exec(`
     PRIMARY KEY (account_id, activity_date)
   );
   CREATE INDEX IF NOT EXISTS idx_activity_days_date ON activity_days(activity_date);
+`)
+
+// Verification requests: an account (organization or individual — "high-
+// profile" isn't a schema-level distinction, an admin judges that from the
+// category/links/explanation supplied) asks to be marked verified. Only one
+// pending request per account at a time (the partial unique index below),
+// so resubmitting spam requests isn't possible; a rejected request doesn't
+// block a future one once it's no longer pending. Approving one is what
+// flips accounts.is_verified — the row itself is left alone as history.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS verification_requests (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('organization', 'public_figure', 'other')),
+    links TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    review_note TEXT,
+    reviewed_by TEXT,
+    reviewed_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_verification_requests_status ON verification_requests(status);
+  CREATE INDEX IF NOT EXISTS idx_verification_requests_account ON verification_requests(account_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_verification_requests_one_pending
+    ON verification_requests(account_id) WHERE status = 'pending';
+`)
+
+// A short-lived hand-off between password verification and the TOTP
+// challenge (server/index.ts's /api/login and /api/login/totp): once a
+// password checks out for an account with 2FA enabled, the real auth token
+// isn't issued yet — this row's id stands in for "this device just proved
+// the password" for the few minutes it takes to enter a code, without
+// needing a signing secret or any new deployment config.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pending_logins (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_pending_logins_account ON pending_logins(account_id);
 `)
 
 // Web Push subscriptions — lets a notification reach a device even when the

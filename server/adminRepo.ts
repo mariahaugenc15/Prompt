@@ -14,18 +14,23 @@ export interface AdminAccountRow {
   organization_name: string | null
   is_admin: number
   is_deleted: number
+  is_verified: number
+  totp_enabled: number
   created_at: number
 }
 
+const ADMIN_ACCOUNT_COLUMNS =
+  'id, account_type, username, email, first_name, organization_name, is_admin, is_deleted, is_verified, totp_enabled, created_at'
+
 const listAccountsStmt = db.prepare(`
-  SELECT id, account_type, username, email, first_name, organization_name, is_admin, is_deleted, created_at
+  SELECT ${ADMIN_ACCOUNT_COLUMNS}
   FROM accounts
   ORDER BY created_at DESC
   LIMIT ? OFFSET ?
 `)
 
 const searchAccountsStmt = db.prepare(`
-  SELECT id, account_type, username, email, first_name, organization_name, is_admin, is_deleted, created_at
+  SELECT ${ADMIN_ACCOUNT_COLUMNS}
   FROM accounts
   WHERE username_normalized LIKE ? ESCAPE '\\' OR email_normalized LIKE ? ESCAPE '\\'
   ORDER BY created_at DESC
@@ -33,7 +38,7 @@ const searchAccountsStmt = db.prepare(`
 `)
 
 const getAccountStmt = db.prepare(`
-  SELECT id, account_type, username, email, first_name, organization_name, is_admin, is_deleted, created_at
+  SELECT ${ADMIN_ACCOUNT_COLUMNS}
   FROM accounts WHERE id = ?
 `)
 

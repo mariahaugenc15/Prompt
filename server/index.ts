@@ -14,10 +14,14 @@ import { moderationRouter } from './moderationRoutes.js'
 import { commentsRouter } from './commentsRoutes.js'
 import { feedbackRouter } from './feedbackRoutes.js'
 import { adminRouter } from './adminRoutes.js'
+import { twoFactorRouter } from './twoFactorRoutes.js'
+import { verificationRouter } from './verificationRoutes.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mediaDir } from './mediaStore.js'
 import { hashPassword, verifyPassword } from './passwordHash.js'
+import { verifyLoginFactor } from './twoFactorRepo.js'
+import { consumePendingLogin, createPendingLogin, peekPendingLogin } from './pendingLoginRepo.js'
 import {
   normalizeEmail,
   normalizeUsername,
@@ -82,6 +86,9 @@ const authLimiter = rateLimit({
 app.use('/api/signup', authLimiter)
 app.use('/api/login', authLimiter)
 app.use('/api/password-reset', authLimiter)
+// Also gates 2FA code-guessing: 20 attempts / 15 min is as tight a leash on
+// brute-forcing a 6-digit TOTP code as it is on a password.
+app.use('/api/login/totp', authLimiter)
 
 // Proof photos/videos and avatars saved by mediaStore.ts (see there for why
 // this needs to be this server's own absolute URL, not a relative path).
@@ -98,6 +105,8 @@ app.use(moderationRouter)
 app.use(commentsRouter)
 app.use(feedbackRouter)
 app.use(adminRouter)
+app.use(twoFactorRouter)
+app.use(verificationRouter)
 
 // Self-contained admin dashboard (no build step) — served as a static file
 // rather than part of the Vite frontend, since it's a separate audience
@@ -112,8 +121,11 @@ const PORT = Number(process.env.PORT ?? 8787)
 const findByUsername = db.prepare('SELECT 1 FROM accounts WHERE username_normalized = ?')
 const findByEmail = db.prepare('SELECT 1 FROM accounts WHERE email_normalized = ?')
 const findLoginRow = db.prepare(`
-  SELECT id, account_type, username, email, first_name, organization_name, password_hash, password_salt, is_deleted
+  SELECT id, account_type, username, email, first_name, organization_name, password_hash, password_salt, is_deleted, totp_enabled
   FROM accounts WHERE username_normalized = ?
+`)
+const findAccountForLoginResponse = db.prepare(`
+  SELECT id, account_type, username, email, first_name, organization_name FROM accounts WHERE id = ?
 `)
 const rotateToken = db.prepare('UPDATE accounts SET auth_token = ?, auth_token_created_at = ? WHERE id = ?')
 const insertAccount = db.prepare(`
@@ -224,6 +236,31 @@ app.post('/api/signup', (req, res) => {
   })
 })
 
+// Shared by the normal /api/login success path and /api/login/totp — issues
+// a fresh session the same way either time, so a 2FA-protected login ends
+// up identical to a non-2FA one from here on.
+function issueLoginResponse(accountId: string) {
+  const account = findAccountForLoginResponse.get(accountId) as {
+    id: string
+    account_type: SignupInput['accountType']
+    username: string
+    email: string
+    first_name: string | null
+    organization_name: string | null
+  }
+  const token = crypto.randomBytes(32).toString('hex')
+  rotateToken.run(token, Date.now(), account.id)
+  return {
+    id: account.id,
+    accountType: account.account_type,
+    username: account.username,
+    email: account.email,
+    firstName: account.first_name ?? undefined,
+    organizationName: account.organization_name ?? undefined,
+    token,
+  }
+}
+
 app.post('/api/login', (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username : ''
   const password = typeof req.body?.password === 'string' ? req.body.password : ''
@@ -239,6 +276,7 @@ app.post('/api/login', (req, res) => {
         password_hash: string
         password_salt: string
         is_deleted: number
+        totp_enabled: number
       }
     | undefined) : undefined
 
@@ -249,21 +287,33 @@ app.post('/api/login', (req, res) => {
   if (!row || !password || row.is_deleted) return invalid()
   if (!verifyPassword(password, row.password_salt, row.password_hash)) return invalid()
 
-  // Rotate the token on every login rather than reusing whatever was minted
-  // at sign-up (or a previous login) — a fresh session per login, same as
-  // any real auth system.
-  const token = crypto.randomBytes(32).toString('hex')
-  rotateToken.run(token, Date.now(), row.id)
+  // A correct password on a 2FA-enabled account doesn't get a token yet —
+  // it gets a short-lived hand-off id, and the client makes one more call
+  // (with a TOTP or backup code) to actually finish logging in.
+  if (row.totp_enabled) {
+    return res.json({ requiresTotp: true, loginToken: createPendingLogin(row.id) })
+  }
 
-  res.json({
-    id: row.id,
-    accountType: row.account_type,
-    username: row.username,
-    email: row.email,
-    firstName: row.first_name ?? undefined,
-    organizationName: row.organization_name ?? undefined,
-    token,
-  })
+  res.json(issueLoginResponse(row.id))
+})
+
+// POST /api/login/totp { loginToken, code } — the second step for a
+// password that checked out on a 2FA-enabled account. loginToken proves the
+// password step already succeeded (server/pendingLoginRepo.ts); code is
+// either the current 6-digit app code or an unused backup code.
+app.post('/api/login/totp', (req, res) => {
+  const loginToken = typeof req.body?.loginToken === 'string' ? req.body.loginToken : ''
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : ''
+  const invalid = () => res.status(401).json({ errors: { form: 'That code is incorrect or this login has expired. Try logging in again.' } })
+
+  const pending = loginToken ? peekPendingLogin(loginToken) : undefined
+  if (!pending || !code) return invalid()
+
+  const factor = verifyLoginFactor(pending.accountId, code)
+  if (!factor) return invalid()
+
+  consumePendingLogin(loginToken)
+  res.json(issueLoginResponse(pending.accountId))
 })
 
 // Last-resort handler: an unexpected error anywhere in a route should still

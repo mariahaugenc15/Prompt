@@ -17,6 +17,14 @@ import {
   adminSearchAccounts,
   adminUsageStats,
 } from './adminRepo.js'
+import {
+  adminApproveVerificationRequest,
+  adminGetVerificationRequest,
+  adminListVerificationRequests,
+  adminRejectVerificationRequest,
+  adminRevokeVerification,
+  type VerificationStatus,
+} from './verificationRepo.js'
 
 export const adminRouter = Router()
 
@@ -30,6 +38,10 @@ function pagination(req: import('express').Request): { limit: number; offset: nu
 
 function statusParam(req: import('express').Request): 'open' | 'resolved' {
   return req.query.status === 'resolved' ? 'resolved' : 'open'
+}
+
+function verificationStatusParam(req: import('express').Request): VerificationStatus {
+  return req.query.status === 'approved' || req.query.status === 'rejected' ? req.query.status : 'pending'
 }
 
 // --- Usage stats -----------------------------------------------------------
@@ -62,6 +74,43 @@ adminRouter.post('/api/admin/accounts/:id/ban', (req, res) => {
   if (!target) return res.status(404).json({ errors: { form: 'No account with that id.' } })
   if (id === req.account!.id) return res.status(422).json({ errors: { form: 'You cannot ban your own account.' } })
   adminBanAccount(id)
+  res.json({ ok: true })
+})
+
+// Independent of any specific verification_requests row — for taking a
+// verified badge back after the fact (misuse, no longer eligible), not just
+// at the moment of reviewing a request.
+adminRouter.post('/api/admin/accounts/:id/revoke-verification', (req, res) => {
+  const id = String(req.params.id)
+  if (!adminGetAccount(id)) return res.status(404).json({ errors: { form: 'No account with that id.' } })
+  adminRevokeVerification(id)
+  res.json({ ok: true })
+})
+
+// --- Verification requests --------------------------------------------------
+
+adminRouter.get('/api/admin/verification-requests', (req, res) => {
+  const { limit, offset } = pagination(req)
+  res.json(adminListVerificationRequests(verificationStatusParam(req), limit, offset))
+})
+
+adminRouter.post('/api/admin/verification-requests/:id/approve', (req, res) => {
+  const id = String(req.params.id)
+  const request = adminGetVerificationRequest(id)
+  if (!request) return res.status(404).json({ errors: { form: 'No verification request with that id.' } })
+  if (request.status !== 'pending') return res.status(422).json({ errors: { form: 'This request has already been reviewed.' } })
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined
+  adminApproveVerificationRequest(id, request.account_id, req.account!.id, note || undefined)
+  res.json({ ok: true })
+})
+
+adminRouter.post('/api/admin/verification-requests/:id/reject', (req, res) => {
+  const id = String(req.params.id)
+  const request = adminGetVerificationRequest(id)
+  if (!request) return res.status(404).json({ errors: { form: 'No verification request with that id.' } })
+  if (request.status !== 'pending') return res.status(422).json({ errors: { form: 'This request has already been reviewed.' } })
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined
+  adminRejectVerificationRequest(id, req.account!.id, note || undefined)
   res.json({ ok: true })
 })
 

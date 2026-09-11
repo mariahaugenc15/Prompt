@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CompletionFeedCard } from '../components/CompletionFeedCard'
 import { ExploreChallengesList } from '../components/ExploreChallengesList'
+import { VerifiedBadge } from '../components/VerifiedBadge'
 import { SearchIcon, ShuffleIcon, CloseIcon } from '../components/Icons'
 import { listAccounts, searchAccounts, suggestedAccounts, type PublicProfile } from '../lib/realAccountsApi'
 import { searchBoards, type RealBoard } from '../lib/boardsApi'
@@ -164,7 +165,10 @@ export function Feed() {
                       {p.displayName.charAt(0).toUpperCase()}
                     </span>
                     <div>
-                      <p className="text-sm font-medium leading-tight">{p.displayName}</p>
+                      <p className="flex items-center gap-1 text-sm font-medium leading-tight">
+                        {p.displayName}
+                        {p.isVerified && <VerifiedBadge size={12} />}
+                      </p>
                       <p className="text-xs text-ink-faint">@{p.username}</p>
                     </div>
                   </Link>
@@ -289,7 +293,10 @@ function ProfileTile({ profile }: { profile: PublicProfile }) {
         {profile.displayName.charAt(0).toUpperCase()}
       </span>
       <div>
-        <p className="text-sm font-medium leading-tight">{profile.displayName}</p>
+        <p className="flex items-center justify-center gap-1 text-sm font-medium leading-tight">
+          {profile.displayName}
+          {profile.isVerified && <VerifiedBadge size={12} />}
+        </p>
         <p className="text-xs text-ink-faint">@{profile.username}</p>
       </div>
     </Link>

@@ -20,6 +20,7 @@ export interface PublicProfile {
   followingCount: number
   isFollowing?: boolean
   blockedByMe?: boolean
+  isVerified: boolean
 }
 
 export type PromptStatus = 'pending' | 'completed' | 'declined' | 'expired'
@@ -115,6 +116,8 @@ export interface Me {
   email: string
   promptPermission: 'everyone' | 'followers' | 'mutuals'
   isAdmin: boolean
+  isVerified: boolean
+  totpEnabled: boolean
 }
 
 export function getMe(token: string) {

@@ -120,6 +120,10 @@
   .badge.admin { background: #e0d8f7; color: #4b2fa3; }
   .badge.deleted { background: #f3d6d6; color: #8a1c1c; }
   .badge.removed { background: #f3d6d6; color: #8a1c1c; }
+  .badge.verified { background: #d3e8fb; color: #1a5a8a; }
+  .badge.pending { background: #fde7d0; color: #8a4b00; }
+  .badge.approved { background: #dcf0dd; color: #1e6b23; }
+  .badge.rejected { background: #f3d6d6; color: #8a1c1c; }
 
   .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .row-actions button {
@@ -189,6 +193,7 @@
   <main>
     <nav class="tabs">
       <button data-tab="overview" class="active">Overview</button>
+      <button data-tab="verification">Verification</button>
       <button data-tab="reports">Reports</button>
       <button data-tab="feedback">Feedback</button>
       <button data-tab="comments">Comments</button>
@@ -201,6 +206,19 @@
       </div>
       <div id="overview-content" class="stat-grid"></div>
       <div class="stat-note">Active means at least one signed-in request that day, not just a fresh login — a session can stay active for weeks between logins. Activity is only recorded from when this dashboard shipped, so daily/monthly figures will read low until that much history has built up.</div>
+    </section>
+
+    <section id="panel-verification" class="panel">
+      <div class="toolbar">
+        <select id="verification-status">
+          <option value="pending" selected>Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <button class="secondary" id="verification-refresh">Refresh</button>
+      </div>
+      <div id="verification-content"></div>
+      <div class="pager" id="verification-pager"></div>
     </section>
 
     <section id="panel-reports" class="panel">
@@ -363,6 +381,7 @@
   var tabButtons = Array.prototype.slice.call(document.querySelectorAll('nav.tabs button'));
   var panels = {
     overview: document.getElementById('panel-overview'),
+    verification: document.getElementById('panel-verification'),
     reports: document.getElementById('panel-reports'),
     feedback: document.getElementById('panel-feedback'),
     comments: document.getElementById('panel-comments'),
@@ -381,6 +400,7 @@
 
   function refreshActiveTab() {
     if (activeTab === 'overview') loadOverview();
+    else if (activeTab === 'verification') loadVerification();
     else if (activeTab === 'reports') loadReports();
     else if (activeTab === 'feedback') loadFeedback();
     else if (activeTab === 'comments') loadComments();
@@ -430,6 +450,64 @@
         + statCard(Math.round(s.avgDailyActiveUsers30d * 10) / 10, 'Avg. daily active users', 'Averaged over the last 30 days');
       content.innerHTML = html;
     }).catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Verification requests ------------------------------------------------
+
+  var verificationOffset = 0;
+  document.getElementById('verification-status').addEventListener('change', function () { verificationOffset = 0; loadVerification(); });
+  document.getElementById('verification-refresh').addEventListener('click', function () { loadVerification(); });
+
+  function linkify(text) {
+    return escapeHtml(text).replace(/https?:\/\/[^\s<]+/g, function (url) {
+      return '<a href="' + url + '" target="_blank" rel="noreferrer">' + url + '</a>';
+    });
+  }
+
+  function loadVerification() {
+    var status = document.getElementById('verification-status').value;
+    var content = document.getElementById('verification-content');
+    content.innerHTML = emptyState('Loading…');
+    api('/api/admin/verification-requests?status=' + status + '&limit=' + PAGE_SIZE + '&offset=' + verificationOffset)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No ' + status + ' verification requests.');
+        var isPending = status === 'pending';
+        var html = '<table><thead><tr><th>Account</th><th>Category</th><th>Links</th><th>Why</th><th>Filed</th><th></th></tr></thead><tbody>';
+        rows.forEach(function (r) {
+          html += '<tr>'
+            + '<td><strong>@' + escapeHtml(r.requester_username) + '</strong><br><span class="muted" style="font-size:11px">' + escapeHtml(r.requester_account_type) + ' · ' + escapeHtml(r.requester_email) + '</span></td>'
+            + '<td>' + escapeHtml(r.category.replace('_', ' ')) + '</td>'
+            + '<td class="reason-text">' + linkify(r.links) + '</td>'
+            + '<td class="reason-text">' + escapeHtml(r.explanation) + (r.review_note ? '<br><span class="muted">Note: ' + escapeHtml(r.review_note) + '</span>' : '') + '</td>'
+            + '<td>' + fmtDate(r.created_at) + '</td>'
+            + '<td>' + (isPending
+              ? '<div class="row-actions" data-id="' + escapeHtml(r.id) + '"><button data-action="approve">Approve</button><button class="danger" data-action="reject">Reject</button></div>'
+              : '<span class="badge ' + r.status + '">' + r.status + '</span>') + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        content.querySelectorAll('[data-action="approve"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            var note = prompt('Note for this approval (optional):') || '';
+            api('/api/admin/verification-requests/' + id + '/approve', { method: 'POST', body: JSON.stringify({ note: note }) })
+              .then(loadVerification).catch(function (e) { alert(e.message); });
+          });
+        });
+        content.querySelectorAll('[data-action="reject"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            var note = prompt('Reason for rejecting (shown to the requester):') || '';
+            api('/api/admin/verification-requests/' + id + '/reject', { method: 'POST', body: JSON.stringify({ note: note }) })
+              .then(loadVerification).catch(function (e) { alert(e.message); });
+          });
+        });
+        renderPager(document.getElementById('verification-pager'), verificationOffset, rows.length,
+          function () { verificationOffset = Math.max(0, verificationOffset - PAGE_SIZE); loadVerification(); },
+          function () { verificationOffset += PAGE_SIZE; loadVerification(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
   }
 
   // --- Reports -------------------------------------------------------------
@@ -604,8 +682,14 @@
             + '<td><strong>' + escapeHtml(name) + '</strong><br><span class="muted" style="font-size:11px">@' + escapeHtml(a.username) + ' · ' + escapeHtml(a.account_type) + '</span></td>'
             + '<td>' + escapeHtml(a.email) + '</td>'
             + '<td>' + fmtDate(a.created_at) + '</td>'
-            + '<td>' + (a.is_admin ? '<span class="badge admin">admin</span> ' : '') + (a.is_deleted ? '<span class="badge deleted">deactivated</span>' : '') + '</td>'
-            + '<td>' + (a.is_deleted ? '' : '<div class="row-actions" data-id="' + escapeHtml(a.id) + '"><button class="danger" data-action="ban">Ban</button></div>') + '</td>'
+            + '<td>' + (a.is_admin ? '<span class="badge admin">admin</span> ' : '')
+              + (a.is_verified ? '<span class="badge verified">verified</span> ' : '')
+              + (a.totp_enabled ? '<span class="badge" style="background:#eee;color:#555">2FA</span> ' : '')
+              + (a.is_deleted ? '<span class="badge deleted">deactivated</span>' : '') + '</td>'
+            + '<td><div class="row-actions" data-id="' + escapeHtml(a.id) + '">'
+              + (a.is_verified ? '<button data-action="revoke">Revoke verification</button>' : '')
+              + (a.is_deleted ? '' : '<button class="danger" data-action="ban">Ban</button>')
+              + '</div></td>'
             + '</tr>';
         });
         html += '</tbody></table>';
@@ -615,6 +699,14 @@
             if (!confirm('Ban this account? This anonymizes their profile and blocks future login.')) return;
             var id = btn.closest('[data-id]').getAttribute('data-id');
             api('/api/admin/accounts/' + id + '/ban', { method: 'POST' })
+              .then(loadAccounts).catch(function (e) { alert(e.message); });
+          });
+        });
+        content.querySelectorAll('[data-action="revoke"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Revoke this account\'s verified badge?')) return;
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            api('/api/admin/accounts/' + id + '/revoke-verification', { method: 'POST' })
               .then(loadAccounts).catch(function (e) { alert(e.message); });
           });
         });

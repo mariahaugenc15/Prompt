@@ -18,6 +18,8 @@ export interface AuthedAccount {
   promptPermission: PromptPermission
   displayName: string
   isAdmin: boolean
+  isVerified: boolean
+  totpEnabled: boolean
 }
 
 declare module 'express-serve-static-core' {
@@ -35,10 +37,12 @@ interface AccountRow {
   first_name: string | null
   organization_name: string | null
   is_admin: number
+  is_verified: number
+  totp_enabled: number
 }
 
 const findByToken = db.prepare(
-  `SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, is_admin, auth_token_created_at, is_deleted
+  `SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, is_admin, is_verified, totp_enabled, auth_token_created_at, is_deleted
    FROM accounts WHERE auth_token = ?`,
 )
 
@@ -58,6 +62,8 @@ export function toAuthedAccount(row: AccountRow): AuthedAccount {
     promptPermission: row.prompt_permission,
     displayName: row.first_name ?? row.organization_name ?? row.username,
     isAdmin: Boolean(row.is_admin),
+    isVerified: Boolean(row.is_verified),
+    totpEnabled: Boolean(row.totp_enabled),
   }
 }
 

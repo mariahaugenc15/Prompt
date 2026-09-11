@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { PromptLogo } from '../components/PromptLogo'
 import { BackIcon } from '../components/Icons'
-import { submitLogin } from '../lib/signupApi'
+import { TotpChallengeForm } from '../components/TotpChallengeForm'
+import { submitLogin, type SignupSuccess } from '../lib/signupApi'
 
 export function Login() {
   const navigate = useNavigate()
@@ -13,6 +14,12 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [loginToken, setLoginToken] = useState<string | null>(null)
+
+  function finishLogin(account: SignupSuccess) {
+    setAccount(account)
+    navigate(account.accountType === 'organization' ? `/o/${account.username}` : '/')
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -20,12 +27,13 @@ export function Login() {
     setSubmitting(true)
     try {
       const result = await submitLogin(username.trim(), password)
-      if (!result.ok) {
+      if (result.kind === 'totp') {
+        setLoginToken(result.loginToken)
+      } else if (result.kind === 'error') {
         setError(result.errors.form ?? 'Incorrect username or password.')
-        return
+      } else {
+        finishLogin(result.account)
       }
-      setAccount(result.account)
-      navigate(result.account.accountType === 'organization' ? `/o/${result.account.username}` : '/')
     } finally {
       setSubmitting(false)
     }
@@ -39,46 +47,52 @@ export function Login() {
 
       <div className="text-center">
         <PromptLogo size={30} className="justify-center" />
-        <p className="mt-2 text-sm text-ink-soft">Log in to your account.</p>
+        <p className="mt-2 text-sm text-ink-soft">
+          {loginToken ? 'Verify it\'s you.' : 'Log in to your account.'}
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">
-          Username
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="mariah"
-            autoFocus
-            className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
-          />
-        </label>
+      {loginToken ? (
+        <TotpChallengeForm loginToken={loginToken} onSuccess={finishLogin} onCancel={() => setLoginToken(null)} />
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">
+            Username
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="mariah"
+              autoFocus
+              className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
+            />
+          </label>
 
-        <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
-          />
-        </label>
+          <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
+            />
+          </label>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={!username.trim() || !password || submitting}
-          className="mt-1 rounded-sm bg-ink py-3 text-sm font-medium text-paper transition disabled:bg-line disabled:text-ink-faint"
-        >
-          {submitting ? 'Logging in…' : 'Log in'}
-        </button>
+          <button
+            type="submit"
+            disabled={!username.trim() || !password || submitting}
+            className="mt-1 rounded-sm bg-ink py-3 text-sm font-medium text-paper transition disabled:bg-line disabled:text-ink-faint"
+          >
+            {submitting ? 'Logging in…' : 'Log in'}
+          </button>
 
-        <Link to="/forgot-password" className="text-center text-xs text-ink-faint underline underline-offset-2">
-          Forgot your password?
-        </Link>
-      </form>
+          <Link to="/forgot-password" className="text-center text-xs text-ink-faint underline underline-offset-2">
+            Forgot your password?
+          </Link>
+        </form>
+      )}
 
       <p className="text-center text-sm text-ink-faint">
         New here?{' '}

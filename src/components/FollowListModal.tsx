@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { CloseIcon } from './Icons'
+import { VerifiedBadge } from './VerifiedBadge'
 import type { PublicProfile } from '../lib/realAccountsApi'
 
 // The follow graph is one of the ways people find each other — see who an
@@ -46,7 +47,10 @@ export function FollowListModal({
                     {p.displayName.charAt(0).toUpperCase()}
                   </span>
                   <div>
-                    <p className="text-sm font-medium leading-tight">{p.displayName}</p>
+                    <p className="flex items-center gap-1 text-sm font-medium leading-tight">
+                      {p.displayName}
+                      {p.isVerified && <VerifiedBadge size={12} />}
+                    </p>
                     <p className="text-xs text-ink-faint">@{p.username}</p>
                   </div>
                 </Link>

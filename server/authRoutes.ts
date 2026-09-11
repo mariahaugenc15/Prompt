@@ -5,6 +5,7 @@ import { requireAuth } from './auth.js'
 import { hashPassword } from './passwordHash.js'
 import { sendEmail } from './emailer.js'
 import { deactivateAccount } from './accountsRepo.js'
+import { createPendingLogin } from './pendingLoginRepo.js'
 import { normalizeEmail, validatePassword } from '../shared/signupValidation.js'
 
 export const authRouter = Router()
@@ -17,14 +18,12 @@ const findByEmail = db.prepare(
 )
 const setResetToken = db.prepare('UPDATE accounts SET reset_token = ?, reset_token_expires = ? WHERE id = ?')
 const findByResetToken = db.prepare(
-  'SELECT id, username, reset_token_expires FROM accounts WHERE reset_token = ?',
+  'SELECT id, username, reset_token_expires, totp_enabled FROM accounts WHERE reset_token = ?',
 )
-const clearResetAndSetPassword = db.prepare(`
-  UPDATE accounts
-  SET password_hash = ?, password_salt = ?, reset_token = NULL, reset_token_expires = NULL,
-      auth_token = ?, auth_token_created_at = ?
-  WHERE id = ?
+const setNewPassword = db.prepare(`
+  UPDATE accounts SET password_hash = ?, password_salt = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?
 `)
+const rotateAuthTokenAfterReset = db.prepare('UPDATE accounts SET auth_token = ?, auth_token_created_at = ? WHERE id = ?')
 const getAccountForLoginResponse = db.prepare(
   'SELECT id, account_type, username, email, first_name, organization_name FROM accounts WHERE id = ?',
 )
@@ -60,7 +59,10 @@ authRouter.post('/api/password-reset/request', (req, res) => {
 // same shape as /api/login's response) so there's no separate "now go log
 // in again" step, and invalidates whatever session existed before —
 // exactly what you'd want if the reset was prompted by a lost/stolen
-// device.
+// device. An account with 2FA enabled still has to clear that step here too
+// — resetting the password proves control of the inbox, not the second
+// factor, and skipping straight to a token would make a compromised inbox
+// alone enough to walk around 2FA entirely.
 authRouter.post('/api/password-reset/confirm', (req, res) => {
   const token = typeof req.body?.token === 'string' ? req.body.token : ''
   const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : ''
@@ -68,14 +70,22 @@ authRouter.post('/api/password-reset/confirm', (req, res) => {
   const passwordError = validatePassword(newPassword)
   if (passwordError) return res.status(422).json({ errors: { newPassword: passwordError } })
 
-  const row = token ? (findByResetToken.get(token) as { id: string; username: string; reset_token_expires: number } | undefined) : undefined
+  const row = token
+    ? (findByResetToken.get(token) as { id: string; username: string; reset_token_expires: number; totp_enabled: number } | undefined)
+    : undefined
   if (!row || row.reset_token_expires < Date.now()) {
     return res.status(400).json({ errors: { form: 'That reset link is invalid or has expired. Request a new one.' } })
   }
 
   const { hash, salt } = hashPassword(newPassword)
+  setNewPassword.run(hash, salt, row.id)
+
+  if (row.totp_enabled) {
+    return res.json({ requiresTotp: true, loginToken: createPendingLogin(row.id) })
+  }
+
   const authToken = crypto.randomBytes(32).toString('hex')
-  clearResetAndSetPassword.run(hash, salt, authToken, Date.now(), row.id)
+  rotateAuthTokenAfterReset.run(authToken, Date.now(), row.id)
 
   const account = getAccountForLoginResponse.get(row.id) as {
     id: string

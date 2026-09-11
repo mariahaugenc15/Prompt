@@ -13,9 +13,11 @@ export interface AccountRow {
   website_url: string | null
   avatar_path: string | null
   bio: string | null
+  is_verified: number
 }
 
-const ACCOUNT_COLUMNS = 'id, account_type, username, email, prompt_permission, first_name, organization_name, website_url, avatar_path, bio'
+const ACCOUNT_COLUMNS =
+  'id, account_type, username, email, prompt_permission, first_name, organization_name, website_url, avatar_path, bio, is_verified'
 const ACCOUNT_COLUMNS_A = ACCOUNT_COLUMNS.split(', ').map((c) => `a.${c}`).join(', ')
 
 const byId = db.prepare(`SELECT ${ACCOUNT_COLUMNS} FROM accounts WHERE id = ?`)
@@ -157,6 +159,7 @@ export function publicProfile(account: AccountRow, viewerId?: string) {
     followingCount: followingCount(account.id),
     isFollowing: viewerId ? isFollowing(viewerId, account.id) : undefined,
     blockedByMe: viewerId ? isBlockedByViewer(viewerId, account.id) : undefined,
+    isVerified: Boolean(account.is_verified),
   }
 }
 

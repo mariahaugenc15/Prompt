@@ -6,6 +6,7 @@ import { fileToCompressedDataUrl } from '../lib/media'
 import { enablePushNotifications, pushSupported } from '../lib/push'
 import type { PromptPermission } from '../lib/types'
 import { CalendarIcon, CameraIcon, LockIcon, BoardsIcon, ShareIcon, BellIcon } from '../components/Icons'
+import { VerifiedBadge } from '../components/VerifiedBadge'
 import {
   getMe,
   getProfile,
@@ -27,6 +28,13 @@ import {
 } from '../lib/realAccountsApi'
 import { getMyCalendars, type RealCalendar } from '../lib/calendarsApi'
 import { getMyBoards, type RealBoard } from '../lib/boardsApi'
+import { startTwoFactorSetup, confirmTwoFactorSetup, disableTwoFactor } from '../lib/twoFactorApi'
+import {
+  getVerificationStatus,
+  requestVerification,
+  type VerificationCategory,
+  type VerificationStatus as VerificationStatusData,
+} from '../lib/verificationApi'
 
 export function Profile() {
   const navigate = useNavigate()
@@ -218,7 +226,10 @@ export function Profile() {
           />
         </label>
         <div className="flex-1">
-          <h1 className="font-serif text-xl leading-tight">{displayName}</h1>
+          <h1 className="flex items-center gap-1.5 font-serif text-xl leading-tight">
+            {displayName}
+            {me?.isVerified && <VerifiedBadge size={15} />}
+          </h1>
           <p className="text-xs text-ink-faint">
             {handle} · {profile?.followingCount ?? 0} following · {profile?.followerCount ?? 0} followers
           </p>
@@ -338,6 +349,16 @@ export function Profile() {
           )}
         </section>
       )}
+
+      {account && me && (
+        <SecuritySection
+          token={account.token}
+          totpEnabled={me.totpEnabled}
+          onChange={(enabled) => setMe((prev) => (prev ? { ...prev, totpEnabled: enabled, isVerified: enabled ? prev.isVerified : false } : prev))}
+        />
+      )}
+
+      {account && me && <VerificationSection token={account.token} isVerified={me.isVerified} totpEnabled={me.totpEnabled} />}
 
       {sentPending.length > 0 && (
         <section>
@@ -581,5 +602,328 @@ export function Profile() {
         )}
       </section>
     </div>
+  )
+}
+
+// Two-factor authentication (TOTP) setup/disable — a prerequisite for
+// requesting the verified badge (see VerificationSection below), not just a
+// general security option: a verified badge is a bigger prize for an
+// account-takeover attempt than an ordinary account, so it's only handed
+// out to accounts already hardened against one.
+function SecuritySection({
+  token,
+  totpEnabled,
+  onChange,
+}: {
+  token: string
+  totpEnabled: boolean
+  onChange: (enabled: boolean) => void
+}) {
+  const [stage, setStage] = useState<'idle' | 'setup' | 'backupCodes'>('idle')
+  const [secret, setSecret] = useState('')
+  const [code, setCode] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [backupCodes, setBackupCodes] = useState<string[]>([])
+  const [disabling, setDisabling] = useState(false)
+  const [disablePassword, setDisablePassword] = useState('')
+  const [disableError, setDisableError] = useState<string | null>(null)
+
+  async function handleStartSetup() {
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await startTwoFactorSetup(token)
+      if (res.ok) {
+        setSecret(res.data.secret)
+        setStage('setup')
+      } else {
+        setError(res.errors.form ?? 'Could not start setup.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleConfirm() {
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await confirmTwoFactorSetup(code.trim(), token)
+      if (res.ok) {
+        setBackupCodes(res.data.backupCodes)
+        setStage('backupCodes')
+        setCode('')
+        onChange(true)
+      } else {
+        setError(res.errors.code ?? res.errors.form ?? 'Incorrect code.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDisable() {
+    setDisableError(null)
+    setBusy(true)
+    try {
+      const res = await disableTwoFactor(disablePassword, token)
+      if (res.ok) {
+        onChange(false)
+        setDisabling(false)
+        setDisablePassword('')
+        setStage('idle')
+      } else {
+        setDisableError(res.errors.password ?? res.errors.form ?? 'Could not disable.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (stage === 'backupCodes') {
+    return (
+      <section className="rounded-sm border border-line bg-card p-4">
+        <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Save your backup codes</p>
+        <p className="mb-2 text-xs text-ink-faint">
+          Each one works once, if you ever lose access to your authenticator app. They won't be shown again.
+        </p>
+        <div className="mb-3 grid grid-cols-2 gap-1.5 rounded-sm bg-paper-dim p-3 font-mono text-xs">
+          {backupCodes.map((c) => (
+            <span key={c}>{c}</span>
+          ))}
+        </div>
+        <button onClick={() => setStage('idle')} className="w-full rounded-sm bg-ink py-2 text-sm font-medium text-paper">
+          Done
+        </button>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded-sm border border-line bg-card p-4">
+      <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Two-factor authentication</p>
+      {totpEnabled ? (
+        <>
+          <p className="mb-2 text-sm text-ink-soft">Enabled — a code from your authenticator app is required to log in.</p>
+          {disabling ? (
+            <div className="flex flex-col gap-1.5">
+              <input
+                type="password"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+                placeholder="Confirm your password"
+                className="rounded-sm border border-line bg-paper p-2 text-sm outline-none focus:border-line-strong"
+              />
+              {disableError && <p className="text-xs text-danger">{disableError}</p>}
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleDisable}
+                  disabled={!disablePassword || busy}
+                  className="flex-1 rounded-sm bg-danger py-1.5 text-xs font-medium text-paper disabled:opacity-50"
+                >
+                  Disable
+                </button>
+                <button
+                  onClick={() => {
+                    setDisabling(false)
+                    setDisablePassword('')
+                    setDisableError(null)
+                  }}
+                  className="flex-1 rounded-sm border border-line py-1.5 text-xs text-ink-soft"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setDisabling(true)} className="text-xs text-danger/80 underline underline-offset-2">
+              Disable two-factor authentication
+            </button>
+          )}
+        </>
+      ) : stage === 'setup' ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-ink-faint">
+            Add this key to an authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit
+            code it shows.
+          </p>
+          <p className="select-all rounded-sm bg-paper-dim p-2 text-center font-mono text-sm tracking-widest">{secret}</p>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="123456"
+            inputMode="numeric"
+            className="rounded-sm border border-line bg-paper p-2 text-center text-sm tracking-widest outline-none focus:border-line-strong"
+          />
+          {error && <p className="text-xs text-danger">{error}</p>}
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleConfirm}
+              disabled={!code.trim() || busy}
+              className="flex-1 rounded-sm bg-ink py-1.5 text-xs font-medium text-paper disabled:opacity-50"
+            >
+              {busy ? 'Confirming…' : 'Confirm'}
+            </button>
+            <button
+              onClick={() => {
+                setStage('idle')
+                setCode('')
+                setError(null)
+              }}
+              className="flex-1 rounded-sm border border-line py-1.5 text-xs text-ink-soft"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-ink-soft">Not enabled. Turning this on is required to request the verified badge.</p>
+          {error && <p className="mb-2 text-xs text-danger">{error}</p>}
+          <button
+            onClick={handleStartSetup}
+            disabled={busy}
+            className="w-full rounded-sm border border-ink py-2 text-sm font-medium disabled:opacity-50"
+          >
+            Set up two-factor authentication
+          </button>
+        </>
+      )}
+    </section>
+  )
+}
+
+const VERIFICATION_CATEGORIES: { value: VerificationCategory; label: string }[] = [
+  { value: 'organization', label: 'Organization' },
+  { value: 'public_figure', label: 'Public figure' },
+  { value: 'other', label: 'Other' },
+]
+
+// Lets an organization or high-profile individual (athlete, creator, etc.)
+// ask to be marked verified — reviewed by an admin in the dashboard
+// (server/adminRoutes.ts's /api/admin/verification-requests), not granted
+// automatically.
+function VerificationSection({
+  token,
+  isVerified,
+  totpEnabled,
+}: {
+  token: string
+  isVerified: boolean
+  totpEnabled: boolean
+}) {
+  const [status, setStatus] = useState<VerificationStatusData | null>(null)
+  const [category, setCategory] = useState<VerificationCategory>('organization')
+  const [links, setLinks] = useState('')
+  const [explanation, setExplanation] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    getVerificationStatus(token).then((res) => setStatus(res.ok ? res.data : null))
+  }, [token])
+
+  async function handleSubmit() {
+    setError(null)
+    setSubmitting(true)
+    try {
+      const res = await requestVerification({ category, links: links.trim(), explanation: explanation.trim() }, token)
+      if (res.ok) {
+        setSubmitted(true)
+        setLinks('')
+        setExplanation('')
+      } else {
+        setError(res.errors.form ?? res.errors.category ?? res.errors.links ?? res.errors.explanation ?? 'Could not submit request.')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (isVerified) {
+    return (
+      <section className="rounded-sm border border-line bg-card p-4">
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          <VerifiedBadge size={14} /> Verified
+        </p>
+        <p className="mt-1 text-xs text-ink-faint">This account has been reviewed and confirmed by Prompt.</p>
+      </section>
+    )
+  }
+
+  const pending = status?.latestRequest?.status === 'pending'
+  const rejected = status?.latestRequest?.status === 'rejected'
+
+  if (submitted || pending) {
+    return (
+      <section className="rounded-sm border border-line bg-card p-4">
+        <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Get verified</p>
+        <p className="text-sm text-ink-soft">Your request is in review — we'll follow up by email.</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded-sm border border-line bg-card p-4">
+      <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Get verified</p>
+      <p className="mb-2 text-xs text-ink-faint">
+        For organizations and high-profile individuals (athletes, creators, public figures) — a reviewed badge so
+        people know who they're actually following.
+      </p>
+      {!totpEnabled ? (
+        <p className="rounded-sm bg-paper-dim p-2 text-xs text-ink-soft">
+          Turn on two-factor authentication above before requesting verification.
+        </p>
+      ) : (
+        <>
+          {rejected && (
+            <p className="mb-2 rounded-sm bg-danger/5 p-2 text-xs text-ink-soft">
+              Your last request wasn't approved{status?.latestRequest?.reviewNote ? `: ${status.latestRequest.reviewNote}` : '.'}{' '}
+              You can submit a new one below.
+            </p>
+          )}
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {VERIFICATION_CATEGORIES.map((c) => (
+              <button
+                key={c.value}
+                onClick={() => setCategory(c.value)}
+                className={clsx(
+                  'rounded-full border px-2.5 py-1 text-xs',
+                  category === c.value ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
+                )}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={links}
+            onChange={(e) => setLinks(e.target.value)}
+            rows={2}
+            maxLength={1000}
+            placeholder="Links that help confirm who you are (official site, verified social profile, press, etc.)"
+            className="mb-2 w-full resize-none rounded-sm border border-line bg-paper p-2 text-sm outline-none focus:border-line-strong"
+          />
+          <textarea
+            value={explanation}
+            onChange={(e) => setExplanation(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="Why should this account be verified?"
+            className="mb-2 w-full resize-none rounded-sm border border-line bg-paper p-2 text-sm outline-none focus:border-line-strong"
+          />
+          {error && <p className="mb-2 text-xs text-danger">{error}</p>}
+          <button
+            onClick={handleSubmit}
+            disabled={!links.trim() || !explanation.trim() || submitting}
+            className="w-full rounded-sm bg-ink py-2 text-sm font-medium text-paper disabled:bg-line disabled:text-ink-faint"
+          >
+            {submitting ? 'Submitting…' : 'Submit for review'}
+          </button>
+        </>
+      )}
+    </section>
   )
 }

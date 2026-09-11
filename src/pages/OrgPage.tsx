@@ -6,6 +6,7 @@ import { CATEGORY_META, type Category } from '../lib/types'
 import { CATEGORY_ICON, BoardsIcon } from '../components/Icons'
 import { PromptLogo } from '../components/PromptLogo'
 import { FollowListModal } from '../components/FollowListModal'
+import { VerifiedBadge } from '../components/VerifiedBadge'
 import {
   blockAccount,
   follow,
@@ -123,7 +124,10 @@ export function OrgPage() {
           )}
         </span>
         <div className="flex-1">
-          <h1 className="font-serif text-xl leading-tight">{profile === null ? '…' : profile.displayName}</h1>
+          <h1 className="flex items-center gap-1.5 font-serif text-xl leading-tight">
+            {profile === null ? '…' : profile.displayName}
+            {profile && profile.isVerified && <VerifiedBadge size={15} />}
+          </h1>
           <p className="text-xs text-ink-faint">@{username}</p>
           {profile && (
             <div className="mt-0.5 flex gap-3 text-xs">

@@ -4,6 +4,7 @@ import { db } from './db.js'
 import { requireAuth } from './auth.js'
 import { hashPassword } from './passwordHash.js'
 import { sendEmail } from './emailer.js'
+import { deactivateAccount } from './accountsRepo.js'
 import { normalizeEmail, validatePassword } from '../shared/signupValidation.js'
 
 export const authRouter = Router()
@@ -109,19 +110,9 @@ authRouter.post('/api/logout', requireAuth, (req, res) => {
 // future login/auth, but keeps the row (and its id) intact so everything
 // that references this account by id — prompts, completions, board
 // ownership, follows — stays structurally valid for the other users who
-// see it, rather than orphaning their data.
-const deleteAccountStmt = db.prepare(`
-  UPDATE accounts
-  SET is_deleted = 1, deleted_at = ?, auth_token = NULL, first_name = NULL, organization_name = NULL,
-      bio = NULL, avatar_path = NULL, username = ?, username_normalized = ?, email = ?, email_normalized = ?
-  WHERE id = ?
-`)
-
+// see it, rather than orphaning their data. Same operation an admin ban
+// uses (see accountsRepo.ts's deactivateAccount).
 authRouter.delete('/api/me', requireAuth, (req, res) => {
-  const me = req.account!
-  const suffix = me.id.slice(0, 8)
-  const deletedUsername = `deleted_${suffix}`
-  const deletedEmail = `deleted_${suffix}@deleted.invalid`
-  deleteAccountStmt.run(Date.now(), deletedUsername, deletedUsername, deletedEmail, deletedEmail, me.id)
+  deactivateAccount(req.account!.id)
   res.json({ ok: true })
 })

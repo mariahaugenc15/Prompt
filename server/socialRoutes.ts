@@ -26,6 +26,7 @@ socialRouter.get('/api/me', requireAuth, (req, res) => {
     displayName: actor.displayName,
     email: actor.email,
     promptPermission: actor.promptPermission,
+    isAdmin: actor.isAdmin,
   })
 })
 

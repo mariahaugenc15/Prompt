@@ -114,6 +114,7 @@ export interface Me {
   displayName: string
   email: string
   promptPermission: 'everyone' | 'followers' | 'mutuals'
+  isAdmin: boolean
 }
 
 export function getMe(token: string) {
@@ -160,8 +161,12 @@ export function getBlockedAccounts(token: string) {
   return call<PublicProfile[]>('/api/me/blocked', token)
 }
 
-export function reportContent(input: { targetType: 'account' | 'completion' | 'board'; targetId: string; reason: string }, token: string) {
+export function reportContent(input: { targetType: 'account' | 'completion' | 'board' | 'comment'; targetId: string; reason: string }, token: string) {
   return call<{ ok: true }>('/api/report', token, { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function submitFeedback(message: string, token: string) {
+  return call<{ ok: true }>('/api/feedback', token, { method: 'POST', body: JSON.stringify({ message }) })
 }
 
 export function updateMyAvatar(dataUrl: string | undefined, token: string) {

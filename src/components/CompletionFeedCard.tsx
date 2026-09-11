@@ -1,15 +1,18 @@
 import clsx from 'clsx'
 import type { CompletionView } from '../lib/calendarsApi'
 import { CATEGORY_META } from '../lib/types'
+import { ReportButton } from './ReportButton'
 import { CATEGORY_ICON, FlagIcon, PinIcon, UpvoteIcon } from './Icons'
 
 // Renders any CompletionView (1:1 completion or board-broadcast completion)
 // in the masonry feed grid, with live server-backed reactions.
 export function CompletionFeedCard({
   completion,
+  token,
   onReact,
 }: {
   completion: CompletionView
+  token?: string
   onReact: (kind: 'upvote' | 'pin') => void
 }) {
   const meta = CATEGORY_META[completion.category]
@@ -55,6 +58,7 @@ export function CompletionFeedCard({
         >
           <PinIcon size={14} /> {completion.pinnedByMe ? 'Pinned' : 'Pin'}
         </button>
+        <ReportButton targetType="completion" targetId={completion.id} token={token} className="ml-auto" />
       </div>
     </div>
   )

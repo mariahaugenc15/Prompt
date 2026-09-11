@@ -16,6 +16,7 @@ export interface AuthedAccount {
   email: string
   promptPermission: PromptPermission
   displayName: string
+  isAdmin: boolean
 }
 
 declare module 'express-serve-static-core' {
@@ -32,10 +33,11 @@ interface AccountRow {
   prompt_permission: PromptPermission
   first_name: string | null
   organization_name: string | null
+  is_admin: number
 }
 
 const findByToken = db.prepare(
-  `SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, auth_token_created_at, is_deleted
+  `SELECT id, account_type, username, email, prompt_permission, first_name, organization_name, is_admin, auth_token_created_at, is_deleted
    FROM accounts WHERE auth_token = ?`,
 )
 
@@ -54,6 +56,7 @@ export function toAuthedAccount(row: AccountRow): AuthedAccount {
     email: row.email,
     promptPermission: row.prompt_permission,
     displayName: row.first_name ?? row.organization_name ?? row.username,
+    isAdmin: Boolean(row.is_admin),
   }
 }
 
@@ -84,5 +87,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ errors: { form: 'Your session has expired. Please log in again.' } })
   }
   req.account = toAuthedAccount(row)
+  next()
+}
+
+// Chain after requireAuth on any /api/admin/* route. Being an admin is a
+// property of the account (accounts.is_admin, set via the ADMIN_USERNAMES
+// bootstrap in db.ts — see there), not a separate credential, so this is
+// just requireAuth plus one more check rather than a whole second auth path.
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.account?.isAdmin) {
+    return res.status(403).json({ errors: { form: 'Admin access required.' } })
+  }
   next()
 }

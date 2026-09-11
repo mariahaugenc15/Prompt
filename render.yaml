@@ -17,6 +17,11 @@ services:
         value: /var/data
       - key: CORS_ORIGIN
         sync: false
+      # Comma-separated usernames to grant admin access (the trust & safety
+      # dashboard at /admin) — applied on every server start. See
+      # server/db.ts and "Admin dashboard & trust & safety" in the README.
+      - key: ADMIN_USERNAMES
+        sync: false
       # Optional override only. mediaStore.ts normally derives this
       # server's own public URL from each request (needed to build absolute
       # URLs for uploaded photos/videos/avatars, since a relative "/media/x"

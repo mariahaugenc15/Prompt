@@ -159,3 +159,24 @@ export function publicProfile(account: AccountRow, viewerId?: string) {
     blockedByMe: viewerId ? isBlockedByViewer(viewerId, account.id) : undefined,
   }
 }
+
+// Soft-deactivates an account: anonymizes the display identity and blocks
+// future login/auth, but keeps the row (and its id) intact so everything
+// that references this account by id — prompts, completions, board
+// ownership, follows — stays structurally valid for the other users who
+// see it, rather than orphaning their data. Used both for a user deleting
+// their own account (authRoutes.ts) and an admin banning one
+// (adminRoutes.ts) — same operation either way, just who triggers it.
+const deactivateStmt = db.prepare(`
+  UPDATE accounts
+  SET is_deleted = 1, deleted_at = ?, auth_token = NULL, first_name = NULL, organization_name = NULL,
+      bio = NULL, avatar_path = NULL, username = ?, username_normalized = ?, email = ?, email_normalized = ?
+  WHERE id = ?
+`)
+
+export function deactivateAccount(accountId: string): void {
+  const suffix = accountId.slice(0, 8)
+  const deletedUsername = `deleted_${suffix}`
+  const deletedEmail = `deleted_${suffix}@deleted.invalid`
+  deactivateStmt.run(Date.now(), deletedUsername, deletedUsername, deletedEmail, deletedEmail, accountId)
+}

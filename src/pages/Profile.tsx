@@ -20,6 +20,7 @@ import {
   deleteMyAccount,
   getPromptHistory,
   unsendPrompt,
+  submitFeedback,
   type Me,
   type PublicProfile,
   type OneToOneHistoryItem,
@@ -154,6 +155,25 @@ export function Profile() {
     setNotifStatus('busy')
     const result = await enablePushNotifications(account.token)
     setNotifStatus(result === 'subscribed' ? 'on' : result === 'denied' ? 'denied' : result === 'unsupported' ? 'unsupported' : 'idle')
+  }
+
+  const [feedbackText, setFeedbackText] = useState('')
+  const [feedbackSending, setFeedbackSending] = useState(false)
+  const [feedbackSent, setFeedbackSent] = useState(false)
+
+  async function handleSendFeedback() {
+    if (!account || !feedbackText.trim()) return
+    setFeedbackSending(true)
+    try {
+      const res = await submitFeedback(feedbackText.trim(), account.token)
+      if (res.ok) {
+        setFeedbackText('')
+        setFeedbackSent(true)
+        setTimeout(() => setFeedbackSent(false), 3000)
+      }
+    } finally {
+      setFeedbackSending(false)
+    }
   }
 
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
@@ -474,6 +494,26 @@ export function Profile() {
           </div>
         </section>
       )}
+
+      <section className="rounded-sm border border-line bg-card p-4">
+        <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Send feedback</p>
+        <p className="mb-2 text-xs text-ink-faint">Bugs, ideas, anything — this goes straight to the people running Prompt.</p>
+        <textarea
+          value={feedbackText}
+          onChange={(e) => setFeedbackText(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="What's on your mind?"
+          className="w-full resize-none rounded-sm border border-line bg-paper p-2.5 text-sm outline-none focus:border-line-strong"
+        />
+        <button
+          onClick={handleSendFeedback}
+          disabled={!feedbackText.trim() || feedbackSending}
+          className="mt-2 w-full rounded-sm bg-ink py-2 text-sm font-medium text-paper disabled:bg-line disabled:text-ink-faint"
+        >
+          {feedbackSending ? 'Sending…' : feedbackSent ? 'Sent — thank you!' : 'Send feedback'}
+        </button>
+      </section>
 
       <section className="border-t border-line pt-4">
         <Link to="/terms" className="mr-3 text-xs text-ink-faint underline underline-offset-2">

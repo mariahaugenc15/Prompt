@@ -11,6 +11,11 @@ import { feedRouter } from './feedRoutes.js'
 import { pushRouter } from './pushRoutes.js'
 import { authRouter } from './authRoutes.js'
 import { moderationRouter } from './moderationRoutes.js'
+import { commentsRouter } from './commentsRoutes.js'
+import { feedbackRouter } from './feedbackRoutes.js'
+import { adminRouter } from './adminRoutes.js'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { mediaDir } from './mediaStore.js'
 import { hashPassword, verifyPassword } from './passwordHash.js'
 import {
@@ -90,6 +95,17 @@ app.use(feedRouter)
 app.use(pushRouter)
 app.use(authRouter)
 app.use(moderationRouter)
+app.use(commentsRouter)
+app.use(feedbackRouter)
+app.use(adminRouter)
+
+// Self-contained admin dashboard (no build step) — served as a static file
+// rather than part of the Vite frontend, since it's a separate audience
+// (the app owner, not end users) with its own login gate (requireAdmin).
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+app.get('/admin', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'adminPanel.html'))
+})
 
 const PORT = Number(process.env.PORT ?? 8787)
 

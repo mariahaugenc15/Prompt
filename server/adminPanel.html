@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prompt Admin</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f3ef;
+    color: #1c1c1a;
+  }
+  header {
+    background: #1c1c1a;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: 0.02em; }
+  header .who { font-size: 13px; opacity: 0.75; }
+  header button {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.4);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  header button:hover { background: rgba(255,255,255,0.1); }
+
+  #login-screen {
+    max-width: 360px;
+    margin: 80px auto;
+    background: #fff;
+    padding: 28px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  #login-screen h2 { margin-top: 0; font-size: 18px; }
+  #login-screen label { display: block; font-size: 13px; margin: 12px 0 4px; color: #555; }
+  #login-screen input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  #login-screen button {
+    margin-top: 18px;
+    width: 100%;
+    padding: 10px;
+    background: #1c1c1a;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #login-error { color: #b3261e; font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  nav.tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  nav.tabs button {
+    padding: 8px 14px;
+    border: 1px solid #ddd;
+    background: #fff;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #333;
+  }
+  nav.tabs button.active { background: #1c1c1a; color: #fff; border-color: #1c1c1a; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+  .toolbar input[type="text"] {
+    padding: 7px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    min-width: 220px;
+  }
+  .toolbar select {
+    padding: 7px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .toolbar button.secondary {
+    padding: 7px 12px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #eee; vertical-align: top; }
+  th { background: #eeece5; font-weight: 600; color: #444; }
+  tr:last-child td { border-bottom: none; }
+  td.muted { color: #888; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.open { background: #fde7d0; color: #8a4b00; }
+  .badge.resolved { background: #dcf0dd; color: #1e6b23; }
+  .badge.admin { background: #e0d8f7; color: #4b2fa3; }
+  .badge.deleted { background: #f3d6d6; color: #8a1c1c; }
+  .badge.removed { background: #f3d6d6; color: #8a1c1c; }
+
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .row-actions button {
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .row-actions button.danger { border-color: #d99; color: #a33; }
+  .row-actions button:hover { background: #f5f5f5; }
+
+  .pager { display: flex; gap: 8px; margin-top: 12px; align-items: center; font-size: 13px; }
+  .pager button {
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .pager button:disabled { opacity: 0.4; cursor: default; }
+
+  .empty { padding: 30px; text-align: center; color: #888; font-size: 13px; background: #fff; border-radius: 10px; }
+  .reason-text { max-width: 320px; white-space: pre-wrap; word-break: break-word; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <h2>Prompt Admin</h2>
+  <form id="login-form">
+    <label for="login-username">Username</label>
+    <input id="login-username" type="text" autocomplete="username" required />
+    <label for="login-password">Password</label>
+    <input id="login-password" type="password" autocomplete="current-password" required />
+    <button type="submit">Sign in</button>
+    <div id="login-error"></div>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1>Prompt Admin</h1>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <span class="who" id="who"></span>
+      <button id="logout-btn">Sign out</button>
+    </div>
+  </header>
+  <main>
+    <nav class="tabs">
+      <button data-tab="reports" class="active">Reports</button>
+      <button data-tab="feedback">Feedback</button>
+      <button data-tab="comments">Comments</button>
+      <button data-tab="accounts">Accounts</button>
+    </nav>
+
+    <section id="panel-reports" class="panel active">
+      <div class="toolbar">
+        <select id="reports-status">
+          <option value="open" selected>Open</option>
+          <option value="resolved">Resolved</option>
+        </select>
+        <button class="secondary" id="reports-refresh">Refresh</button>
+      </div>
+      <div id="reports-content"></div>
+      <div class="pager" id="reports-pager"></div>
+    </section>
+
+    <section id="panel-feedback" class="panel">
+      <div class="toolbar">
+        <select id="feedback-status">
+          <option value="open" selected>Open</option>
+          <option value="resolved">Resolved</option>
+        </select>
+        <button class="secondary" id="feedback-refresh">Refresh</button>
+      </div>
+      <div id="feedback-content"></div>
+      <div class="pager" id="feedback-pager"></div>
+    </section>
+
+    <section id="panel-comments" class="panel">
+      <div class="toolbar">
+        <button class="secondary" id="comments-refresh">Refresh</button>
+      </div>
+      <div id="comments-content"></div>
+      <div class="pager" id="comments-pager"></div>
+    </section>
+
+    <section id="panel-accounts" class="panel">
+      <div class="toolbar">
+        <input type="text" id="accounts-search" placeholder="Search username or email…" />
+        <button class="secondary" id="accounts-search-btn">Search</button>
+        <button class="secondary" id="accounts-clear-btn">Clear</button>
+      </div>
+      <div id="accounts-content"></div>
+      <div class="pager" id="accounts-pager"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var TOKEN_KEY = 'prompt_admin_token';
+  var PAGE_SIZE = 25;
+
+  function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+  function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function fmtDate(ms) {
+    if (!ms) return '—';
+    var d = new Date(ms);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    var token = getToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return fetch(path, Object.assign({}, opts, { headers: headers })).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        if (!res.ok) {
+          var msg = (body && body.errors && (body.errors.form || Object.values(body.errors)[0])) || ('Request failed (' + res.status + ')');
+          throw new Error(msg);
+        }
+        return body;
+      });
+    });
+  }
+
+  // --- Auth / shell ----------------------------------------------------
+
+  var loginScreen = document.getElementById('login-screen');
+  var appEl = document.getElementById('app');
+  var loginForm = document.getElementById('login-form');
+  var loginError = document.getElementById('login-error');
+  var whoEl = document.getElementById('who');
+
+  function showLogin(message) {
+    appEl.hidden = true;
+    loginScreen.hidden = false;
+    loginError.textContent = message || '';
+  }
+
+  function showApp(me) {
+    loginScreen.hidden = true;
+    appEl.hidden = false;
+    whoEl.textContent = '@' + me.username;
+  }
+
+  function boot() {
+    var token = getToken();
+    if (!token) return showLogin();
+    api('/api/me').then(function (me) {
+      if (!me.isAdmin) {
+        clearToken();
+        return showLogin('That account does not have admin access.');
+      }
+      showApp(me);
+      refreshActiveTab();
+    }).catch(function () {
+      clearToken();
+      showLogin();
+    });
+  }
+
+  loginForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    loginError.textContent = '';
+    var username = document.getElementById('login-username').value.trim();
+    var password = document.getElementById('login-password').value;
+    fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username, password: password }),
+    }).then(function (res) {
+      return res.json().then(function (body) { return { ok: res.ok, body: body }; });
+    }).then(function (r) {
+      if (!r.ok) throw new Error((r.body.errors && r.body.errors.form) || 'Sign-in failed.');
+      setToken(r.body.token);
+      return api('/api/me');
+    }).then(function (me) {
+      if (!me.isAdmin) {
+        clearToken();
+        return showLogin('That account does not have admin access.');
+      }
+      showApp(me);
+      refreshActiveTab();
+    }).catch(function (err) {
+      loginError.textContent = err.message;
+    });
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', function () {
+    var token = getToken();
+    clearToken();
+    if (token) {
+      fetch('/api/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }).catch(function () {});
+    }
+    showLogin();
+  });
+
+  // --- Tabs --------------------------------------------------------------
+
+  var tabButtons = Array.prototype.slice.call(document.querySelectorAll('nav.tabs button'));
+  var panels = {
+    reports: document.getElementById('panel-reports'),
+    feedback: document.getElementById('panel-feedback'),
+    comments: document.getElementById('panel-comments'),
+    accounts: document.getElementById('panel-accounts'),
+  };
+  var activeTab = 'reports';
+
+  tabButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      activeTab = btn.getAttribute('data-tab');
+      tabButtons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+      Object.keys(panels).forEach(function (k) { panels[k].classList.toggle('active', k === activeTab); });
+      refreshActiveTab();
+    });
+  });
+
+  function refreshActiveTab() {
+    if (activeTab === 'reports') loadReports();
+    else if (activeTab === 'feedback') loadFeedback();
+    else if (activeTab === 'comments') loadComments();
+    else if (activeTab === 'accounts') loadAccounts();
+  }
+
+  function renderPager(el, offset, pageLen, onPrev, onNext) {
+    el.innerHTML = '';
+    var prev = document.createElement('button');
+    prev.textContent = '← Previous';
+    prev.disabled = offset <= 0;
+    prev.addEventListener('click', onPrev);
+    var next = document.createElement('button');
+    next.textContent = 'Next →';
+    next.disabled = pageLen < PAGE_SIZE;
+    next.addEventListener('click', onNext);
+    var label = document.createElement('span');
+    label.textContent = 'Showing ' + (pageLen === 0 ? 0 : offset + 1) + '–' + (offset + pageLen);
+    el.appendChild(prev);
+    el.appendChild(label);
+    el.appendChild(next);
+  }
+
+  function emptyState(text) {
+    return '<div class="empty">' + escapeHtml(text) + '</div>';
+  }
+
+  // --- Reports -------------------------------------------------------------
+
+  var reportsOffset = 0;
+  document.getElementById('reports-status').addEventListener('change', function () { reportsOffset = 0; loadReports(); });
+  document.getElementById('reports-refresh').addEventListener('click', function () { loadReports(); });
+
+  function loadReports() {
+    var status = document.getElementById('reports-status').value;
+    var content = document.getElementById('reports-content');
+    content.innerHTML = emptyState('Loading…');
+    api('/api/admin/reports?status=' + status + '&limit=' + PAGE_SIZE + '&offset=' + reportsOffset)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No ' + status + ' reports.');
+        var isOpen = status === 'open';
+        var html = '<table><thead><tr><th>Target</th><th>Reason</th><th>Reporter</th><th>Filed</th><th>Status</th><th></th></tr></thead><tbody>';
+        rows.forEach(function (r) {
+          html += '<tr>'
+            + '<td><strong>' + escapeHtml(r.target_type) + '</strong><br><span class="muted" style="font-size:11px">' + escapeHtml(r.target_id) + '</span></td>'
+            + '<td class="reason-text">' + escapeHtml(r.reason) + (r.resolution_note ? '<br><span class="muted">Resolved: ' + escapeHtml(r.resolution_note) + '</span>' : '') + '</td>'
+            + '<td>' + (r.reporter_username ? '@' + escapeHtml(r.reporter_username) : '<span class="muted">—</span>') + '<br><span class="muted" style="font-size:11px">' + escapeHtml(r.reporter_email || '') + '</span></td>'
+            + '<td>' + fmtDate(r.created_at) + '</td>'
+            + '<td><span class="badge ' + r.status + '">' + r.status + '</span></td>'
+            + '<td><div class="row-actions" data-id="' + escapeHtml(r.id) + '">'
+            + (isOpen ? '<button data-action="resolve">Resolve</button>' : '<button data-action="reopen">Reopen</button>')
+            + '</div></td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        content.querySelectorAll('[data-action="resolve"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            var note = prompt('Resolution note (optional):') || '';
+            api('/api/admin/reports/' + id + '/resolve', { method: 'POST', body: JSON.stringify({ note: note }) })
+              .then(loadReports).catch(function (e) { alert(e.message); });
+          });
+        });
+        content.querySelectorAll('[data-action="reopen"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            api('/api/admin/reports/' + id + '/reopen', { method: 'POST' })
+              .then(loadReports).catch(function (e) { alert(e.message); });
+          });
+        });
+        renderPager(document.getElementById('reports-pager'), reportsOffset, rows.length,
+          function () { reportsOffset = Math.max(0, reportsOffset - PAGE_SIZE); loadReports(); },
+          function () { reportsOffset += PAGE_SIZE; loadReports(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Feedback --------------------------------------------------------------
+
+  var feedbackOffset = 0;
+  document.getElementById('feedback-status').addEventListener('change', function () { feedbackOffset = 0; loadFeedback(); });
+  document.getElementById('feedback-refresh').addEventListener('click', function () { loadFeedback(); });
+
+  function loadFeedback() {
+    var status = document.getElementById('feedback-status').value;
+    var content = document.getElementById('feedback-content');
+    content.innerHTML = emptyState('Loading…');
+    api('/api/admin/feedback?status=' + status + '&limit=' + PAGE_SIZE + '&offset=' + feedbackOffset)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No ' + status + ' feedback.');
+        var isOpen = status === 'open';
+        var html = '<table><thead><tr><th>Message</th><th>From</th><th>Sent</th><th>Status</th><th></th></tr></thead><tbody>';
+        rows.forEach(function (f) {
+          html += '<tr>'
+            + '<td class="reason-text">' + escapeHtml(f.message) + (f.resolution_note ? '<br><span class="muted">Resolved: ' + escapeHtml(f.resolution_note) + '</span>' : '') + '</td>'
+            + '<td>' + (f.author_username ? '@' + escapeHtml(f.author_username) : '<span class="muted">—</span>') + '<br><span class="muted" style="font-size:11px">' + escapeHtml(f.email) + '</span></td>'
+            + '<td>' + fmtDate(f.created_at) + '</td>'
+            + '<td><span class="badge ' + f.status + '">' + f.status + '</span></td>'
+            + '<td><div class="row-actions" data-id="' + escapeHtml(f.id) + '">'
+            + (isOpen ? '<button data-action="resolve">Resolve</button>' : '<button data-action="reopen">Reopen</button>')
+            + '</div></td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        content.querySelectorAll('[data-action="resolve"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            var note = prompt('Resolution note (optional):') || '';
+            api('/api/admin/feedback/' + id + '/resolve', { method: 'POST', body: JSON.stringify({ note: note }) })
+              .then(loadFeedback).catch(function (e) { alert(e.message); });
+          });
+        });
+        content.querySelectorAll('[data-action="reopen"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            api('/api/admin/feedback/' + id + '/reopen', { method: 'POST' })
+              .then(loadFeedback).catch(function (e) { alert(e.message); });
+          });
+        });
+        renderPager(document.getElementById('feedback-pager'), feedbackOffset, rows.length,
+          function () { feedbackOffset = Math.max(0, feedbackOffset - PAGE_SIZE); loadFeedback(); },
+          function () { feedbackOffset += PAGE_SIZE; loadFeedback(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Comments --------------------------------------------------------------
+
+  var commentsOffset = 0;
+  document.getElementById('comments-refresh').addEventListener('click', function () { loadComments(); });
+
+  function loadComments() {
+    var content = document.getElementById('comments-content');
+    content.innerHTML = emptyState('Loading…');
+    api('/api/admin/comments?limit=' + PAGE_SIZE + '&offset=' + commentsOffset)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No comments yet.');
+        var html = '<table><thead><tr><th>Comment</th><th>Author</th><th>On completion</th><th>Posted</th><th></th></tr></thead><tbody>';
+        rows.forEach(function (c) {
+          html += '<tr>'
+            + '<td class="reason-text">' + escapeHtml(c.text) + (c.is_removed ? '<br><span class="badge removed">removed' + (c.removed_by ? ' by admin' : ' by author') + '</span>' : '') + '</td>'
+            + '<td>' + (c.author_username ? '@' + escapeHtml(c.author_username) : '<span class="muted">—</span>') + '</td>'
+            + '<td><span class="muted" style="font-size:11px">' + escapeHtml(c.completion_id) + '</span></td>'
+            + '<td>' + fmtDate(c.created_at) + '</td>'
+            + '<td>' + (c.is_removed ? '' : '<div class="row-actions" data-id="' + escapeHtml(c.id) + '"><button class="danger" data-action="remove">Remove</button></div>') + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        content.querySelectorAll('[data-action="remove"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Remove this comment?')) return;
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            api('/api/admin/comments/' + id + '/remove', { method: 'POST' })
+              .then(loadComments).catch(function (e) { alert(e.message); });
+          });
+        });
+        renderPager(document.getElementById('comments-pager'), commentsOffset, rows.length,
+          function () { commentsOffset = Math.max(0, commentsOffset - PAGE_SIZE); loadComments(); },
+          function () { commentsOffset += PAGE_SIZE; loadComments(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Accounts --------------------------------------------------------------
+
+  var accountsOffset = 0;
+  var accountsQuery = '';
+  document.getElementById('accounts-search-btn').addEventListener('click', function () {
+    accountsQuery = document.getElementById('accounts-search').value.trim();
+    accountsOffset = 0;
+    loadAccounts();
+  });
+  document.getElementById('accounts-search').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('accounts-search-btn').click(); }
+  });
+  document.getElementById('accounts-clear-btn').addEventListener('click', function () {
+    accountsQuery = '';
+    document.getElementById('accounts-search').value = '';
+    accountsOffset = 0;
+    loadAccounts();
+  });
+
+  function loadAccounts() {
+    var content = document.getElementById('accounts-content');
+    content.innerHTML = emptyState('Loading…');
+    var qs = 'limit=' + PAGE_SIZE + '&offset=' + accountsOffset + (accountsQuery ? '&q=' + encodeURIComponent(accountsQuery) : '');
+    api('/api/admin/accounts?' + qs)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No accounts found.');
+        var html = '<table><thead><tr><th>Account</th><th>Email</th><th>Joined</th><th>Flags</th><th></th></tr></thead><tbody>';
+        rows.forEach(function (a) {
+          var name = a.first_name || a.organization_name || a.username;
+          html += '<tr>'
+            + '<td><strong>' + escapeHtml(name) + '</strong><br><span class="muted" style="font-size:11px">@' + escapeHtml(a.username) + ' · ' + escapeHtml(a.account_type) + '</span></td>'
+            + '<td>' + escapeHtml(a.email) + '</td>'
+            + '<td>' + fmtDate(a.created_at) + '</td>'
+            + '<td>' + (a.is_admin ? '<span class="badge admin">admin</span> ' : '') + (a.is_deleted ? '<span class="badge deleted">deactivated</span>' : '') + '</td>'
+            + '<td>' + (a.is_deleted ? '' : '<div class="row-actions" data-id="' + escapeHtml(a.id) + '"><button class="danger" data-action="ban">Ban</button></div>') + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        content.querySelectorAll('[data-action="ban"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Ban this account? This anonymizes their profile and blocks future login.')) return;
+            var id = btn.closest('[data-id]').getAttribute('data-id');
+            api('/api/admin/accounts/' + id + '/ban', { method: 'POST' })
+              .then(loadAccounts).catch(function (e) { alert(e.message); });
+          });
+        });
+        renderPager(document.getElementById('accounts-pager'), accountsOffset, rows.length,
+          function () { accountsOffset = Math.max(0, accountsOffset - PAGE_SIZE); loadAccounts(); },
+          function () { accountsOffset += PAGE_SIZE; loadAccounts(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

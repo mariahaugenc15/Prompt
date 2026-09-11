@@ -65,6 +65,27 @@ if (!accountColumns.has('is_deleted')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0`)
   db.exec(`ALTER TABLE accounts ADD COLUMN deleted_at INTEGER`)
 }
+if (!accountColumns.has('is_admin')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`)
+}
+
+// Bootstraps the first admin(s) without needing direct DB access: list
+// usernames (comma-separated) in ADMIN_USERNAMES and, on every server
+// start, each matching account is granted admin. Idempotent and re-run on
+// every boot rather than once, so it still works if the account in
+// question hasn't signed up yet at deploy time — the next restart after
+// they do picks it up. Not reversible from here: removing a username from
+// the env var does not revoke access already granted (there's no
+// "downgrade" step) — do that by hand via the admin dashboard once one
+// exists, or direct DB access.
+const adminUsernames = (process.env.ADMIN_USERNAMES ?? '')
+  .split(',')
+  .map((u) => u.trim().toLowerCase())
+  .filter(Boolean)
+if (adminUsernames.length > 0) {
+  const grantAdmin = db.prepare('UPDATE accounts SET is_admin = 1 WHERE username_normalized = ?')
+  for (const username of adminUsernames) grantAdmin.run(username)
+}
 
 // One row per follow relationship. Organizations never appear as the
 // follower (enforced in server/permissions.ts, not here) — they don't
@@ -221,18 +242,104 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_account_id);
 `)
 
-// Reports: a lightweight queue for a human to review later — v1 has no
-// admin UI to act on these, just a durable record that a report happened.
+// Reports: a flag on an account, completion (post), board, or comment.
+// reporter_email is captured at submission time from the reporter's own
+// account (never client-supplied — see moderationRoutes.ts) so the admin
+// dashboard can follow up without cross-referencing the accounts table.
 db.exec(`
   CREATE TABLE IF NOT EXISTS reports (
     id TEXT PRIMARY KEY,
     reporter_account_id TEXT NOT NULL,
-    target_type TEXT NOT NULL CHECK (target_type IN ('account', 'completion', 'board')),
+    reporter_email TEXT,
+    target_type TEXT NOT NULL CHECK (target_type IN ('account', 'completion', 'board', 'comment')),
     target_id TEXT NOT NULL,
     reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+    resolution_note TEXT,
+    resolved_by TEXT,
+    resolved_at INTEGER,
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
+  CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+`)
+
+// Defensive migration for a reports table created before this pass: add
+// the new nullable columns in place, but the target_type CHECK constraint
+// (which didn't allow 'comment') can only be widened by rebuilding the
+// table — SQLite has no ALTER TABLE for constraints. Only a handful of
+// rows ever exist here, so a rename-copy-drop is cheap and safe.
+const reportsTableSql = (db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'reports'`).get() as
+  | { sql: string }
+  | undefined)?.sql
+if (reportsTableSql && !reportsTableSql.includes("'comment'")) {
+  db.exec(`
+    ALTER TABLE reports RENAME TO reports_old;
+    CREATE TABLE reports (
+      id TEXT PRIMARY KEY,
+      reporter_account_id TEXT NOT NULL,
+      reporter_email TEXT,
+      target_type TEXT NOT NULL CHECK (target_type IN ('account', 'completion', 'board', 'comment')),
+      target_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+      resolution_note TEXT,
+      resolved_by TEXT,
+      resolved_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+    INSERT INTO reports (id, reporter_account_id, target_type, target_id, reason, created_at)
+      SELECT id, reporter_account_id, target_type, target_id, reason, created_at FROM reports_old;
+    DROP TABLE reports_old;
+    CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
+    CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+  `)
+}
+const reportColumns = new Set((db.prepare('PRAGMA table_info(reports)').all() as { name: string }[]).map((c) => c.name))
+if (!reportColumns.has('reporter_email')) {
+  db.exec(`ALTER TABLE reports ADD COLUMN reporter_email TEXT`)
+}
+if (!reportColumns.has('status')) {
+  db.exec(`ALTER TABLE reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'`)
+  db.exec(`ALTER TABLE reports ADD COLUMN resolution_note TEXT`)
+  db.exec(`ALTER TABLE reports ADD COLUMN resolved_by TEXT`)
+  db.exec(`ALTER TABLE reports ADD COLUMN resolved_at INTEGER`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)`)
+}
+
+// Feedback: open-ended, not tied to any specific post/account — a direct
+// line to the people running the app, same resolve workflow as a report.
+// email is captured the same way (from the account, not client-supplied).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+    resolution_note TEXT,
+    resolved_by TEXT,
+    resolved_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status);
+`)
+
+// Comments on a completion (post). Soft-deleted (is_removed) rather than
+// hard-deleted so a moderation action leaves an audit trail — removed_by
+// is an admin account id when an admin removed it, NULL when the author
+// deleted their own.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS completion_comments (
+    id TEXT PRIMARY KEY,
+    completion_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    is_removed INTEGER NOT NULL DEFAULT 0,
+    removed_by TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_completion_comments_completion ON completion_comments(completion_id);
 `)
 
 // Web Push subscriptions — lets a notification reach a device even when the

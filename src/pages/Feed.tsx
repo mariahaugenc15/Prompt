@@ -258,7 +258,7 @@ export function Feed() {
               <>
                 <div className="columns-2 gap-3">
                   {(tab === 'following' ? following : community).map((c) => (
-                    <CompletionFeedCard key={c.id} completion={c} onReact={(kind) => handleReact(tab, c.id, kind)} />
+                    <CompletionFeedCard key={c.id} completion={c} token={account?.token} onReact={(kind) => handleReact(tab, c.id, kind)} />
                   ))}
                 </div>
                 {(tab === 'following' ? followingHasMore : communityHasMore) && (

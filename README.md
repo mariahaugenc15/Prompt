@@ -82,6 +82,20 @@ Real, multi-account, server-enforced — not the mock single-user prototype abov
 - **Broadcast data model**: one `prompts` row per broadcast (`is_broadcast = 1`, `recipient_account_id = NULL`), with each follower's completion as its own row in `prompt_completions` — never duplicated as separate prompt rows per follower. A follower can complete a given broadcast exactly once (unique index on `prompt_id, completer_account_id`); completing an already-completed one is a clean 409, including when two requests race past the same check (verified by triggering the real unique-constraint violation, not just the pre-check).
 - **Verified/Influencer accounts, the per-person allowlist, and the admin verification-review queue (Section 8.4) are deliberately not built** — the MVP doc (Section 11) explicitly defers them. `server/permissions.ts` is written so that row slots into the existing functions later without changing any of their callers.
 
+## Admin dashboard & trust & safety
+
+Keeping a growing user base safe needs someone able to see what's been flagged and act on it — this is a self-contained tool for that, not a public feature.
+
+- **Reporting**: any signed-in account can flag an account, a completion (post), a board, or a comment (`POST /api/report`) with a free-text reason. The reporter's own verified account email is always attached server-side (`req.account.email`, never something the client sends) so an admin has a real address to follow up with.
+- **Feedback**: `POST /api/feedback` is the open-ended counterpart — not tied to any post, a direct line to the people running the app, same email-attached pattern.
+- **Comments**: real comments on completions (`GET`/`POST /api/completions/:id/comments`, `DELETE /api/comments/:id` for your own) — soft-deleted (not hard-deleted) so a moderator's removal leaves an audit trail rather than erasing evidence.
+- **Admin role**: `accounts.is_admin`, granted by listing usernames (comma-separated) in the **`ADMIN_USERNAMES`** env var — checked and applied on every server start (`server/db.ts`), so it works even if the account signs up after the var is set. There's deliberately no "downgrade" from here — removing a name from the list doesn't revoke access already granted; do that from the dashboard (ban) or direct DB access.
+- **Dashboard**: a single self-contained HTML page (`server/adminPanel.html`, no build step) served at **`/admin`** by this same backend. It logs in through the existing `/api/login` endpoint (so there's no separate credential system) and, once `isAdmin` comes back true from `/api/me`, calls `/api/admin/*` (all gated by `requireAuth` + `requireAdmin`) to:
+  - browse/search every account and **ban** one (reuses the same anonymize-and-lock path a self-delete takes — `accountsRepo.ts`'s `deactivateAccount`),
+  - review reports and feedback, filter open vs. resolved, and mark either **resolved** (with an optional note) or reopen it,
+  - browse all comments (including removed ones, for audit) and remove one.
+- Set `ADMIN_USERNAMES` in your deployment env (see `render.yaml`) to whichever of your own usernames should have access, then visit `https://your-backend-host/admin`.
+
 ## Deliberately out of scope (per the brief's fast-follow list)
 
 Geo-discovery, invite-only board member-adds, custom named calendars, "share my month" export, audio prompts, board analytics dashboards, monetization, segmented completion scores.

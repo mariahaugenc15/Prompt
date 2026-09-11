@@ -33,12 +33,15 @@ moderationRouter.get('/api/me/blocked', requireAuth, (req, res) => {
   res.json(profiles)
 })
 
-const REPORT_TARGET_TYPES = ['account', 'completion', 'board']
+const REPORT_TARGET_TYPES = ['account', 'completion', 'board', 'comment']
 const insertReport = db.prepare(`
-  INSERT INTO reports (id, reporter_account_id, target_type, target_id, reason, created_at)
-  VALUES (@id, @reporterAccountId, @targetType, @targetId, @reason, @createdAt)
+  INSERT INTO reports (id, reporter_account_id, reporter_email, target_type, target_id, reason, created_at)
+  VALUES (@id, @reporterAccountId, @reporterEmail, @targetType, @targetId, @reason, @createdAt)
 `)
 
+// reporter_email always comes from the authenticated account, never the
+// request body — the whole point is a real, verified address the admin
+// dashboard can follow up on, not whatever a client happens to send.
 moderationRouter.post('/api/report', requireAuth, (req, res) => {
   const me = req.account!
   const targetType = String(req.body?.targetType ?? '')
@@ -51,6 +54,14 @@ moderationRouter.post('/api/report', requireAuth, (req, res) => {
   if (!targetId) return res.status(422).json({ errors: { targetId: 'targetId is required.' } })
   if (!reason) return res.status(422).json({ errors: { reason: 'Please describe the issue.' } })
 
-  insertReport.run({ id: crypto.randomUUID(), reporterAccountId: me.id, targetType, targetId, reason, createdAt: Date.now() })
+  insertReport.run({
+    id: crypto.randomUUID(),
+    reporterAccountId: me.id,
+    reporterEmail: me.email,
+    targetType,
+    targetId,
+    reason,
+    createdAt: Date.now(),
+  })
   res.status(201).json({ ok: true })
 })

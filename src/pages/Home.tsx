@@ -314,6 +314,7 @@ export function Home() {
           dayKey={selectedDay}
           completions={dayCompletions}
           myUsername={account?.username}
+          token={account?.token}
           myCalendars={myCalendars}
           onClose={() => setSelectedDay(null)}
           onReact={handleReact}

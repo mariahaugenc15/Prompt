@@ -855,6 +855,7 @@ function VerificationSection({
 
   const pending = status?.latestRequest?.status === 'pending'
   const rejected = status?.latestRequest?.status === 'rejected'
+  const notEnoughFollowers = status ? status.followerCount <= status.minFollowersRequired : false
 
   if (submitted || pending) {
     return (
@@ -875,6 +876,11 @@ function VerificationSection({
       {!totpEnabled ? (
         <p className="rounded-sm bg-paper-dim p-2 text-xs text-ink-soft">
           Turn on two-factor authentication above before requesting verification.
+        </p>
+      ) : notEnoughFollowers ? (
+        <p className="rounded-sm bg-paper-dim p-2 text-xs text-ink-soft">
+          You need more than {status!.minFollowersRequired.toLocaleString()} followers to request verification — you
+          currently have {status!.followerCount.toLocaleString()}.
         </p>
       ) : (
         <>

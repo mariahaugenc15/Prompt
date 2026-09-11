@@ -16,6 +16,8 @@ export type VerificationCategory = 'organization' | 'public_figure' | 'other'
 
 export interface VerificationStatus {
   isVerified: boolean
+  followerCount: number
+  minFollowersRequired: number
   latestRequest: {
     status: 'pending' | 'approved' | 'rejected'
     category: VerificationCategory

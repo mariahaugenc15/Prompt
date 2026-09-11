@@ -15,6 +15,7 @@ import {
   adminResolveFeedback,
   adminResolveReport,
   adminSearchAccounts,
+  adminUsageStats,
 } from './adminRepo.js'
 
 export const adminRouter = Router()
@@ -30,6 +31,12 @@ function pagination(req: import('express').Request): { limit: number; offset: nu
 function statusParam(req: import('express').Request): 'open' | 'resolved' {
   return req.query.status === 'resolved' ? 'resolved' : 'open'
 }
+
+// --- Usage stats -----------------------------------------------------------
+
+adminRouter.get('/api/admin/stats', (_req, res) => {
+  res.json(adminUsageStats())
+})
 
 // --- Accounts --------------------------------------------------------------
 

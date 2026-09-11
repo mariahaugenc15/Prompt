@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import { db } from './db.js'
+import { recordActivity } from './activityRepo.js'
 import type { AccountType, PromptPermission } from './permissions.js'
 
 // Bearer-token sessions: signup and login (server/index.ts) each mint a
@@ -70,7 +71,9 @@ export function resolveOptionalAccountId(req: Request): string | undefined {
   const header = req.header('authorization') ?? ''
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
   if (!token) return undefined
-  return (findIdByToken.get(token) as { id: string } | undefined)?.id
+  const id = (findIdByToken.get(token) as { id: string } | undefined)?.id
+  if (id) recordActivity(id)
+  return id
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -87,6 +90,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ errors: { form: 'Your session has expired. Please log in again.' } })
   }
   req.account = toAuthedAccount(row)
+  recordActivity(row.id)
   next()
 }
 

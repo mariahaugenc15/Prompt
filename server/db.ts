@@ -342,6 +342,26 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_completion_comments_completion ON completion_comments(completion_id);
 `)
 
+// One row per (account, calendar day) the account made an authenticated
+// request on — the basis for the admin dashboard's active-user metrics
+// (server/adminRepo.ts). "Active" is tracked as any authenticated activity,
+// not just a fresh login: a session token is valid for up to 90 days
+// without needing to log in again (see server/auth.ts), so counting logins
+// alone would badly undercount someone using the app daily on a session
+// they signed into weeks ago — activity is the metric that actually
+// reflects engagement. INSERT OR IGNORE keeps recording it idempotent (and
+// cheap) no matter how many requests a account makes in a day. There's no
+// history before this table was added, so day-over-day metrics only start
+// counting from whenever this shipped.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS activity_days (
+    account_id TEXT NOT NULL,
+    activity_date TEXT NOT NULL,
+    PRIMARY KEY (account_id, activity_date)
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity_days_date ON activity_days(activity_date);
+`)
+
 // Web Push subscriptions — lets a notification reach a device even when the
 // app itself isn't open, unlike the in-page Notification API used until now.
 db.exec(`

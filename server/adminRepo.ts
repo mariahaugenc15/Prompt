@@ -192,3 +192,61 @@ export function adminListComments(limit: number, offset = 0): AdminCommentRow[] 
 export function adminGetComment(id: string): AdminCommentRow | undefined {
   return getCommentStmt.get(id) as AdminCommentRow | undefined
 }
+
+// --- Usage stats -----------------------------------------------------------
+// Backs the dashboard's Overview tab. "Active" is any authenticated request
+// (server/activityRepo.ts), not just a fresh login — see db.ts's
+// activity_days comment for why. There's no activity history before that
+// table shipped, so these are only meaningful from then on.
+
+export interface UsageStats {
+  allTimeUsers: number
+  deactivatedUsers: number
+  monthlyActiveUsers: number
+  dailyActiveUsersToday: number
+  avgDailyActiveUsers30d: number
+}
+
+const allTimeUsersStmt = db.prepare('SELECT COUNT(*) AS n FROM accounts')
+const deactivatedUsersStmt = db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE is_deleted = 1')
+
+// Distinct accounts with at least one recorded activity day in the last 30
+// days — the standard "monthly active users" definition (any activity in
+// the trailing window), joined against accounts so a banned/deleted
+// account's stale activity rows don't inflate the count.
+const monthlyActiveUsersStmt = db.prepare(`
+  SELECT COUNT(DISTINCT ad.account_id) AS n
+  FROM activity_days ad
+  JOIN accounts a ON a.id = ad.account_id AND a.is_deleted = 0
+  WHERE ad.activity_date >= date('now', '-30 days')
+`)
+
+const dailyActiveUsersTodayStmt = db.prepare(`
+  SELECT COUNT(DISTINCT ad.account_id) AS n
+  FROM activity_days ad
+  JOIN accounts a ON a.id = ad.account_id AND a.is_deleted = 0
+  WHERE ad.activity_date = date('now')
+`)
+
+// Average of each day's distinct active-account count over the last 30
+// days — "daily average use," as opposed to just today's snapshot, which
+// can swing a lot day to day for a small user base.
+const avgDailyActiveUsers30dStmt = db.prepare(`
+  SELECT AVG(cnt) AS avg FROM (
+    SELECT COUNT(DISTINCT ad.account_id) AS cnt
+    FROM activity_days ad
+    JOIN accounts a ON a.id = ad.account_id AND a.is_deleted = 0
+    WHERE ad.activity_date >= date('now', '-30 days')
+    GROUP BY ad.activity_date
+  )
+`)
+
+export function adminUsageStats(): UsageStats {
+  return {
+    allTimeUsers: (allTimeUsersStmt.get() as { n: number }).n,
+    deactivatedUsers: (deactivatedUsersStmt.get() as { n: number }).n,
+    monthlyActiveUsers: (monthlyActiveUsersStmt.get() as { n: number }).n,
+    dailyActiveUsersToday: (dailyActiveUsersTodayStmt.get() as { n: number }).n,
+    avgDailyActiveUsers30d: (avgDailyActiveUsers30dStmt.get() as { avg: number | null }).avg ?? 0,
+  }
+}

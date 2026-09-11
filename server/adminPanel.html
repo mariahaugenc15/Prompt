@@ -146,6 +146,21 @@
   .empty { padding: 30px; text-align: center; color: #888; font-size: 13px; background: #fff; border-radius: 10px; }
   .reason-text { max-width: 320px; white-space: pre-wrap; word-break: break-word; }
 
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .stat-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .stat-card .stat-value { font-size: 28px; font-weight: 700; line-height: 1.1; }
+  .stat-card .stat-label { font-size: 12px; color: #666; margin-top: 6px; }
+  .stat-card .stat-sub { font-size: 11px; color: #999; margin-top: 2px; }
+  .stat-note { font-size: 12px; color: #888; margin-top: 14px; max-width: 640px; }
+
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -173,13 +188,22 @@
   </header>
   <main>
     <nav class="tabs">
-      <button data-tab="reports" class="active">Reports</button>
+      <button data-tab="overview" class="active">Overview</button>
+      <button data-tab="reports">Reports</button>
       <button data-tab="feedback">Feedback</button>
       <button data-tab="comments">Comments</button>
       <button data-tab="accounts">Accounts</button>
     </nav>
 
-    <section id="panel-reports" class="panel active">
+    <section id="panel-overview" class="panel active">
+      <div class="toolbar">
+        <button class="secondary" id="overview-refresh">Refresh</button>
+      </div>
+      <div id="overview-content" class="stat-grid"></div>
+      <div class="stat-note">Active means at least one signed-in request that day, not just a fresh login — a session can stay active for weeks between logins. Activity is only recorded from when this dashboard shipped, so daily/monthly figures will read low until that much history has built up.</div>
+    </section>
+
+    <section id="panel-reports" class="panel">
       <div class="toolbar">
         <select id="reports-status">
           <option value="open" selected>Open</option>
@@ -338,12 +362,13 @@
 
   var tabButtons = Array.prototype.slice.call(document.querySelectorAll('nav.tabs button'));
   var panels = {
+    overview: document.getElementById('panel-overview'),
     reports: document.getElementById('panel-reports'),
     feedback: document.getElementById('panel-feedback'),
     comments: document.getElementById('panel-comments'),
     accounts: document.getElementById('panel-accounts'),
   };
-  var activeTab = 'reports';
+  var activeTab = 'overview';
 
   tabButtons.forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -355,7 +380,8 @@
   });
 
   function refreshActiveTab() {
-    if (activeTab === 'reports') loadReports();
+    if (activeTab === 'overview') loadOverview();
+    else if (activeTab === 'reports') loadReports();
     else if (activeTab === 'feedback') loadFeedback();
     else if (activeTab === 'comments') loadComments();
     else if (activeTab === 'accounts') loadAccounts();
@@ -380,6 +406,30 @@
 
   function emptyState(text) {
     return '<div class="empty">' + escapeHtml(text) + '</div>';
+  }
+
+  // --- Overview / usage stats --------------------------------------------
+
+  document.getElementById('overview-refresh').addEventListener('click', function () { loadOverview(); });
+
+  function statCard(value, label, sub) {
+    return '<div class="stat-card"><div class="stat-value">' + escapeHtml(value) + '</div>'
+      + '<div class="stat-label">' + escapeHtml(label) + '</div>'
+      + (sub ? '<div class="stat-sub">' + escapeHtml(sub) + '</div>' : '')
+      + '</div>';
+  }
+
+  function loadOverview() {
+    var content = document.getElementById('overview-content');
+    content.innerHTML = emptyState('Loading…');
+    api('/api/admin/stats').then(function (s) {
+      var html = ''
+        + statCard(s.allTimeUsers, 'All-time users', s.deactivatedUsers + ' deactivated')
+        + statCard(s.monthlyActiveUsers, 'Active users (30 days)', 'At least one visit in the last 30 days')
+        + statCard(s.dailyActiveUsersToday, 'Active users (today)')
+        + statCard(Math.round(s.avgDailyActiveUsers30d * 10) / 10, 'Avg. daily active users', 'Averaged over the last 30 days');
+      content.innerHTML = html;
+    }).catch(function (e) { content.innerHTML = emptyState(e.message); });
   }
 
   // --- Reports -------------------------------------------------------------

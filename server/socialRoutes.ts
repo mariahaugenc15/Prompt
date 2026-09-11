@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { db } from './db.js'
 import { requireAuth, resolveOptionalAccountId } from './auth.js'
 import { canFollow, type PromptPermission } from './permissions.js'
-import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicProfile, searchAccounts } from './accountsRepo.js'
+import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicProfile, searchAccounts, suggestedAccounts } from './accountsRepo.js'
 
 export const socialRouter = Router()
 
@@ -49,6 +49,15 @@ socialRouter.get('/api/accounts', (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100)
   const results = listAccounts(viewerId, limit).map((a) => publicProfile(a, viewerId))
   res.json(results)
+})
+
+// GET /api/accounts/suggested — people you may know: followed by accounts
+// you follow, falling back to recently-joined accounts when that graph
+// walk comes up short.
+socialRouter.get('/api/accounts/suggested', requireAuth, (req, res) => {
+  const me = req.account!
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50)
+  res.json(suggestedAccounts(me.id, limit).map((a) => publicProfile(a, me.id)))
 })
 
 // GET /api/search/accounts?q=foo — backs "find people" in the client search

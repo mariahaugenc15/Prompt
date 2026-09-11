@@ -3,18 +3,31 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import type { CalendarVisibility } from '../lib/types'
+import { createCalendar } from '../lib/calendarsApi'
 
 export function CreateCalendar() {
   const navigate = useNavigate()
-  const createCalendar = useStore((s) => s.createCalendar)
+  const account = useStore((s) => s.account)
 
   const [name, setName] = useState('')
   const [visibility, setVisibility] = useState<CalendarVisibility>('private')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleCreate() {
-    if (!name.trim()) return
-    const id = createCalendar(name.trim(), visibility)
-    navigate(`/calendars/${id}`)
+  async function handleCreate() {
+    if (!name.trim() || !account) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await createCalendar(name.trim(), visibility, account.token)
+      if (!res.ok) {
+        setError(res.errors.name ?? res.errors.form ?? 'Could not create that calendar.')
+        return
+      }
+      navigate(`/calendars/${res.data.id}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -53,17 +66,19 @@ export function CreateCalendar() {
         </div>
         <p className="mt-2 text-xs text-ink-faint">
           {visibility === 'private'
-            ? 'Only you can see it. Note: a prompt completed as part of a public board challenge stays public regardless — a private calendar can organize it for you, but it can’t hide it.'
+            ? 'Only members can see it. Note: a prompt completed as part of a public board challenge stays public regardless — a private calendar can organize it for you, but it can’t hide it.'
             : 'Anyone can find and join it, and see what gets tagged into it.'}
         </p>
       </div>
 
+      {error && <p className="text-sm text-danger">{error}</p>}
+
       <button
         onClick={handleCreate}
-        disabled={!name.trim()}
+        disabled={!name.trim() || submitting}
         className="mt-2 rounded-sm bg-ink py-3 text-sm font-medium text-paper disabled:bg-line disabled:text-ink-faint"
       >
-        Create calendar
+        {submitting ? 'Creating…' : 'Create calendar'}
       </button>
     </div>
   )

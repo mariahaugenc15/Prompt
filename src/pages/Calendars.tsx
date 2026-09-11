@@ -1,20 +1,30 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import { CURRENT_USER_ID } from '../lib/seed'
 import { IndexCard } from '../components/IndexCard'
 import { CalendarIcon, PlusIcon, LockIcon } from '../components/Icons'
+import { discoverCalendars, getMyCalendars, joinCalendar, type RealCalendar } from '../lib/calendarsApi'
 
 export function Calendars() {
-  const calendars = useStore((s) => s.calendars)
-  const users = useStore((s) => s.users)
-  const joinCalendar = useStore((s) => s.joinCalendar)
+  const account = useStore((s) => s.account)
+  const [mine, setMine] = useState<RealCalendar[]>([])
+  const [discover, setDiscover] = useState<RealCalendar[]>([])
 
-  const owned = calendars.filter((c) => c.ownerId === CURRENT_USER_ID)
-  const joined = calendars.filter((c) => c.ownerId !== CURRENT_USER_ID && c.memberIds.includes(CURRENT_USER_ID))
-  const discover = calendars.filter((c) => c.visibility === 'public' && !c.memberIds.includes(CURRENT_USER_ID))
+  function refresh() {
+    if (!account) return
+    getMyCalendars(account.token).then((res) => setMine(res.ok ? res.data : []))
+    discoverCalendars(account.token).then((res) => setDiscover(res.ok ? res.data : []))
+  }
 
-  function ownerName(ownerId: string) {
-    return users.find((u) => u.id === ownerId)?.name ?? 'Someone'
+  useEffect(refresh, [account])
+
+  const owned = mine.filter((c) => c.isOwner)
+  const joined = mine.filter((c) => !c.isOwner)
+
+  async function handleJoin(id: string) {
+    if (!account) return
+    const res = await joinCalendar(id, account.token)
+    if (res.ok) refresh()
   }
 
   return (
@@ -49,7 +59,7 @@ export function Calendars() {
           <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Your calendars</p>
           <div className="flex flex-col gap-2">
             {owned.map((c) => (
-              <CalendarRow key={c.id} id={c.id} name={c.name} visibility={c.visibility} memberCount={c.memberIds.length} owned />
+              <CalendarRow key={c.id} id={c.id} name={c.name} visibility={c.visibility} memberCount={c.memberCount} owned />
             ))}
           </div>
         </section>
@@ -60,14 +70,7 @@ export function Calendars() {
           <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Joined</p>
           <div className="flex flex-col gap-2">
             {joined.map((c) => (
-              <CalendarRow
-                key={c.id}
-                id={c.id}
-                name={c.name}
-                visibility={c.visibility}
-                memberCount={c.memberIds.length}
-                ownerName={ownerName(c.ownerId)}
-              />
+              <CalendarRow key={c.id} id={c.id} name={c.name} visibility={c.visibility} memberCount={c.memberCount} />
             ))}
           </div>
         </section>
@@ -82,14 +85,13 @@ export function Calendars() {
               id={c.id}
               name={c.name}
               visibility={c.visibility}
-              memberCount={c.memberIds.length}
-              ownerName={ownerName(c.ownerId)}
-              onJoin={() => joinCalendar(c.id)}
+              memberCount={c.memberCount}
+              onJoin={() => handleJoin(c.id)}
             />
           ))}
           {discover.length === 0 && (
             <p className="text-sm text-ink-faint">
-              {calendars.length === 0 ? 'No public calendars yet — be the first to create one.' : 'No public calendars left to join right now.'}
+              {mine.length === 0 ? 'No public calendars yet — be the first to create one.' : 'No public calendars left to join right now.'}
             </p>
           )}
         </div>
@@ -103,7 +105,6 @@ function CalendarRow({
   name,
   visibility,
   memberCount,
-  ownerName,
   owned,
   onJoin,
 }: {
@@ -111,7 +112,6 @@ function CalendarRow({
   name: string
   visibility: 'public' | 'private'
   memberCount: number
-  ownerName?: string
   owned?: boolean
   onJoin?: () => void
 }) {
@@ -138,7 +138,6 @@ function CalendarRow({
           </div>
           <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-faint">
             {visibility === 'private' ? 'Private' : 'Public'} · {memberCount} {memberCount === 1 ? 'member' : 'members'}
-            {ownerName ? ` · started by ${ownerName}` : ''}
           </p>
         </div>
       </Link>

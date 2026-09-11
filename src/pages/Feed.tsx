@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
-import { CURRENT_USER_ID } from '../lib/seed'
-import { SubmissionCard } from '../components/SubmissionCard'
+import { CompletionFeedCard } from '../components/CompletionFeedCard'
 import { ExploreChallengesList } from '../components/ExploreChallengesList'
 import { SearchIcon, ShuffleIcon, CloseIcon } from '../components/Icons'
-import { listAccounts, searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
+import { listAccounts, searchAccounts, suggestedAccounts, type PublicProfile } from '../lib/realAccountsApi'
 import { searchBoards, type RealBoard } from '../lib/boardsApi'
+import { getFollowingFeed, getCommunityFeed } from '../lib/feedApi'
+import { reactToCompletion, type CompletionView } from '../lib/calendarsApi'
 
 function shuffled<T>(arr: T[]): T[] {
   const copy = [...arr]
@@ -21,53 +22,59 @@ function shuffled<T>(arr: T[]): T[] {
 export function Feed() {
   const [tab, setTab] = useState<'following' | 'community' | 'explore'>('following')
   const [query, setQuery] = useState('')
-  const submissions = useStore((s) => s.submissions)
-  const following = useStore((s) => s.following)
-  const boards = useStore((s) => s.boards)
-  const users = useStore((s) => s.users)
   const account = useStore((s) => s.account)
 
-  const followingIds = new Set([...following, CURRENT_USER_ID])
-  const subscribedBoardIds = new Set(boards.filter((b) => b.subscriberIds.includes(CURRENT_USER_ID)).map((b) => b.id))
+  const [following, setFollowing] = useState<CompletionView[]>([])
+  const [community, setCommunity] = useState<CompletionView[]>([])
 
-  const items = useMemo(() => {
-    const sorted = [...submissions].sort((a, b) => b.createdAt - a.createdAt)
-    if (tab === 'following') return sorted.filter((s) => !s.boardId && followingIds.has(s.userId))
-    if (tab === 'community') return sorted.filter((s) => s.boardId && subscribedBoardIds.has(s.boardId))
-    return []
-  }, [submissions, tab, following, boards])
+  useEffect(() => {
+    if (!account) return
+    getFollowingFeed(account.token).then((res) => setFollowing(res.ok ? res.data : []))
+    getCommunityFeed(account.token).then((res) => setCommunity(res.ok ? res.data : []))
+  }, [account])
 
-  // Explore's profile grid: real, signed-up accounts always come first —
-  // they're actual people — with the fixed mock roster (Sam Rivera and
-  // friends, this demo's stand-in "bots") pushed to the bottom rather than
-  // interleaved, so a real profile is never buried under filler.
-  const [realPool, setRealPool] = useState<PublicProfile[]>([])
-  const [mockPool, setMockPool] = useState(() => shuffled(users))
+  async function handleReact(list: 'following' | 'community', completionId: string, kind: 'upvote' | 'pin') {
+    if (!account) return
+    const res = await reactToCompletion(completionId, kind, account.token)
+    if (!res.ok) return
+    const patch = (items: CompletionView[]) => items.map((c) => (c.id === completionId ? { ...c, ...res.data } : c))
+    if (list === 'following') setFollowing(patch)
+    else setCommunity(patch)
+  }
+
+  // Explore's profile grid: real, signed-up accounts, with anyone in your
+  // extended network you don't already follow surfaced first.
+  const [allProfiles, setAllProfiles] = useState<PublicProfile[]>([])
+  const [suggested, setSuggested] = useState<PublicProfile[]>([])
   const [exploreMode, setExploreMode] = useState<'profiles' | 'prompts'>('profiles')
 
   useEffect(() => {
     listAccounts(account?.token).then((res) => {
-      if (res.ok) setRealPool(shuffled(res.data))
+      if (res.ok) setAllProfiles(shuffled(res.data))
     })
-  }, [account?.token])
+    if (account) {
+      suggestedAccounts(account.token).then((res) => {
+        if (res.ok) setSuggested(res.data)
+      })
+    }
+  }, [account])
 
   function reshuffleProfiles() {
-    setRealPool((prev) => shuffled(prev))
-    setMockPool(shuffled(users))
+    setAllProfiles((prev) => shuffled(prev))
   }
 
-  const q = query.trim().toLowerCase()
-  const matchingUsers = q ? users.filter((u) => u.id !== CURRENT_USER_ID && (u.name.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q))) : []
-  const matchingBoards = q ? boards.filter((b) => b.name.toLowerCase().includes(q)) : []
-  const searching = q.length > 0
+  const suggestedIds = new Set(suggested.map((p) => p.id))
+  const restProfiles = allProfiles.filter((p) => !suggestedIds.has(p.id) && p.id !== account?.id)
 
-  // Real, signed-up accounts (server-backed) — a separate directory from the
-  // fixed mock roster above, so anyone who's actually signed up shows up in
-  // search too, not just the five seed profiles this demo ships with.
+  const q = query.trim().toLowerCase()
+  const searching = q.length >= 2
+
   const [realMatches, setRealMatches] = useState<PublicProfile[]>([])
+  const [realBoardMatches, setRealBoardMatches] = useState<RealBoard[]>([])
   useEffect(() => {
-    if (q.length < 2) {
+    if (!searching) {
       setRealMatches([])
+      setRealBoardMatches([])
       return
     }
     let cancelled = false
@@ -75,25 +82,6 @@ export function Feed() {
       searchAccounts(q, account?.token).then((res) => {
         if (!cancelled) setRealMatches(res.ok ? res.data : [])
       })
-    }, 300)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [q, account?.token])
-
-  // Real, server-backed public boards — a board made public on someone
-  // else's device is otherwise invisible here entirely, not just harder to
-  // find, since the mock roster above only ever knows about boards created
-  // on this exact device.
-  const [realBoardMatches, setRealBoardMatches] = useState<RealBoard[]>([])
-  useEffect(() => {
-    if (q.length < 2) {
-      setRealBoardMatches([])
-      return
-    }
-    let cancelled = false
-    const timer = setTimeout(() => {
       searchBoards(q, account?.token).then((res) => {
         if (!cancelled) setRealBoardMatches(res.ok ? res.data : [])
       })
@@ -102,7 +90,7 @@ export function Feed() {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [q, account?.token])
+  }, [q, searching, account?.token])
 
   return (
     <div className="flex flex-col gap-3">
@@ -115,7 +103,7 @@ export function Feed() {
             placeholder="Search people and communities"
             className="w-full rounded-full border border-line bg-card py-2 pl-9 pr-9 text-base outline-none focus:border-line-strong"
           />
-          {searching && (
+          {query && (
             <button onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-ink-faint">
               <CloseIcon size={14} />
             </button>
@@ -127,21 +115,10 @@ export function Feed() {
         <div className="flex flex-col gap-4 px-4">
           <section>
             <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">People</p>
-            {matchingUsers.length === 0 && realMatches.length === 0 ? (
+            {realMatches.length === 0 ? (
               <p className="text-sm text-ink-faint">No people found.</p>
             ) : (
               <div className="flex flex-col gap-1.5">
-                {matchingUsers.map((u) => (
-                  <Link key={u.id} to={`/u/${u.id}`} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-sm">
-                      {u.initial}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium leading-tight">{u.name}</p>
-                      <p className="text-xs text-ink-faint">{u.handle}</p>
-                    </div>
-                  </Link>
-                ))}
                 {realMatches.map((p) => (
                   <Link
                     key={p.id}
@@ -162,29 +139,18 @@ export function Feed() {
           </section>
           <section>
             <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Communities</p>
-            {(() => {
-              const mockIds = new Set(matchingBoards.map((b) => b.id))
-              const realOnly = realBoardMatches.filter((b) => !mockIds.has(b.id))
-              if (matchingBoards.length === 0 && realOnly.length === 0) {
-                return <p className="text-sm text-ink-faint">No communities found.</p>
-              }
-              return (
-                <div className="flex flex-col gap-1.5">
-                  {matchingBoards.map((b) => (
-                    <Link key={b.id} to={`/boards/${b.id}`} className="rounded-sm border border-line bg-card px-3 py-2">
-                      <p className="text-sm font-medium leading-tight">{b.name}</p>
-                      <p className="line-clamp-1 text-xs text-ink-faint">{b.description}</p>
-                    </Link>
-                  ))}
-                  {realOnly.map((b) => (
-                    <Link key={b.id} to={`/boards/${b.id}`} className="rounded-sm border border-line bg-card px-3 py-2">
-                      <p className="text-sm font-medium leading-tight">{b.name}</p>
-                      <p className="line-clamp-1 text-xs text-ink-faint">{b.description}</p>
-                    </Link>
-                  ))}
-                </div>
-              )
-            })()}
+            {realBoardMatches.length === 0 ? (
+              <p className="text-sm text-ink-faint">No communities found.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {realBoardMatches.map((b) => (
+                  <Link key={b.id} to={`/boards/${b.id}`} className="rounded-sm border border-line bg-card px-3 py-2">
+                    <p className="text-sm font-medium leading-tight">{b.name}</p>
+                    <p className="line-clamp-1 text-xs text-ink-faint">{b.description}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
           </section>
         </div>
       ) : (
@@ -225,60 +191,38 @@ export function Feed() {
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-xs uppercase tracking-wider text-ink-faint">Profiles</p>
-                      <button
-                        onClick={reshuffleProfiles}
-                        className="flex items-center gap-1 text-xs font-medium text-ink"
-                      >
+                      <button onClick={reshuffleProfiles} className="flex items-center gap-1 text-xs font-medium text-ink">
                         <ShuffleIcon size={13} /> Shuffle
                       </button>
                     </div>
+                    {suggested.length > 0 && (
+                      <div className="mb-4">
+                        <p className="mb-2 text-[11px] uppercase tracking-wider text-ink-faint">People you may know</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {suggested.map((p) => (
+                            <ProfileTile key={p.id} profile={p} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
-                      {realPool.map((p) => (
-                        <Link
-                          key={p.id}
-                          to={`/o/${p.username}`}
-                          className="flex flex-col items-center gap-2 rounded-sm border border-line bg-card p-4 text-center"
-                        >
-                          <span className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-lg">
-                            {p.displayName.charAt(0).toUpperCase()}
-                          </span>
-                          <div>
-                            <p className="text-sm font-medium leading-tight">{p.displayName}</p>
-                            <p className="text-xs text-ink-faint">@{p.username}</p>
-                          </div>
-                        </Link>
+                      {restProfiles.map((p) => (
+                        <ProfileTile key={p.id} profile={p} />
                       ))}
-                      {mockPool
-                        .filter((u) => u.id !== CURRENT_USER_ID)
-                        .map((u) => (
-                          <Link
-                            key={u.id}
-                            to={`/u/${u.id}`}
-                            className="flex flex-col items-center gap-2 rounded-sm border border-line bg-card p-4 text-center"
-                          >
-                            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-lg">
-                              {u.initial}
-                            </span>
-                            <div>
-                              <p className="text-sm font-medium leading-tight">{u.name}</p>
-                              <p className="text-xs text-ink-faint">{u.handle}</p>
-                            </div>
-                          </Link>
-                        ))}
                     </div>
                   </div>
                 ) : (
                   <ExploreChallengesList />
                 )}
               </div>
-            ) : items.length === 0 ? (
+            ) : (tab === 'following' ? following : community).length === 0 ? (
               <p className="mt-8 text-center text-sm text-ink-faint">
                 {tab === 'following' ? 'Follow friends to see what they’ve actually done.' : 'Subscribe to a board to see its gallery.'}
               </p>
             ) : (
               <div className="columns-2 gap-3">
-                {items.map((sub) => (
-                  <SubmissionCard key={sub.id} submission={sub} />
+                {(tab === 'following' ? following : community).map((c) => (
+                  <CompletionFeedCard key={c.id} completion={c} onReact={(kind) => handleReact(tab, c.id, kind)} />
                 ))}
               </div>
             )}
@@ -286,5 +230,22 @@ export function Feed() {
         </>
       )}
     </div>
+  )
+}
+
+function ProfileTile({ profile }: { profile: PublicProfile }) {
+  return (
+    <Link
+      to={`/o/${profile.username}`}
+      className="flex flex-col items-center gap-2 rounded-sm border border-line bg-card p-4 text-center"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-lg">
+        {profile.displayName.charAt(0).toUpperCase()}
+      </span>
+      <div>
+        <p className="text-sm font-medium leading-tight">{profile.displayName}</p>
+        <p className="text-xs text-ink-faint">@{profile.username}</p>
+      </div>
+    </Link>
   )
 }

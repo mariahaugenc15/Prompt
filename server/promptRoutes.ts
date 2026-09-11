@@ -4,6 +4,9 @@ import { db } from './db.js'
 import { requireAuth } from './auth.js'
 import { canBroadcast, canCompleteBroadcast, canReceiveOneToOne, canSendOneToOne } from './permissions.js'
 import { displayName, getAccountById, getAccountByUsername, isFollowing } from './accountsRepo.js'
+import { isSubscribed } from './boardsRepo.js'
+import { reactionCounts, toggleReaction } from './reactionsRepo.js'
+import { notifyAccount } from './pushRepo.js'
 
 export const promptRouter = Router()
 
@@ -68,6 +71,8 @@ promptRouter.post('/api/prompts', requireAuth, (req, res) => {
     createdAt: Date.now(),
   })
 
+  notifyAccount(recipient.id, `${sender.displayName} sent you a prompt`, parsed.text)
+
   res.status(201).json({
     id,
     category: parsed.category,
@@ -103,7 +108,10 @@ promptRouter.post('/api/prompts/broadcast', requireAuth, (req, res) => {
   res.status(201).json({ id, category: parsed.category, text: parsed.text, status: 'active', senderUsername: sender.username })
 })
 
-// --- Inbox: actionable pending items ------------------------------------
+// --- Active broadcasts available to me (organization or board) -----------
+// Backs the fridge-note strip on Home alongside 1:1 prompts: any broadcast
+// from someone I follow, or from a board I subscribe to, that I haven't
+// completed yet.
 
 const pendingOneToOne = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt, p.status,
@@ -114,16 +122,26 @@ const pendingOneToOne = db.prepare(`
   ORDER BY p.created_at DESC
 `)
 
-const activeBroadcastsFromFollowed = db.prepare(`
-  SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt,
+const activeOrgBroadcastsFromFollowed = db.prepare(`
+  SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt, p.board_id AS boardId,
          a.username AS senderUsername, a.first_name, a.organization_name
   FROM prompts p
   JOIN accounts a ON a.id = p.sender_account_id
   JOIN follows f ON f.followee_account_id = p.sender_account_id AND f.follower_account_id = ?
-  WHERE p.is_broadcast = 1 AND p.status = 'active'
-    AND NOT EXISTS (
-      SELECT 1 FROM prompt_completions c WHERE c.prompt_id = p.id AND c.completer_account_id = ?
-    )
+  WHERE p.is_broadcast = 1 AND p.board_id IS NULL AND p.status = 'active'
+    AND NOT EXISTS (SELECT 1 FROM prompt_completions c WHERE c.prompt_id = p.id AND c.completer_account_id = ?)
+  ORDER BY p.created_at DESC
+`)
+
+const activeBoardBroadcastsFromSubscribed = db.prepare(`
+  SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt, p.board_id AS boardId,
+         a.username AS senderUsername, a.first_name, a.organization_name, b.name AS boardName
+  FROM prompts p
+  JOIN accounts a ON a.id = p.sender_account_id
+  JOIN boards b ON b.id = p.board_id
+  JOIN board_subscribers s ON s.board_id = p.board_id AND s.account_id = ?
+  WHERE p.is_broadcast = 1 AND p.board_id IS NOT NULL AND p.status = 'active'
+    AND NOT EXISTS (SELECT 1 FROM prompt_completions c WHERE c.prompt_id = p.id AND c.completer_account_id = ?)
   ORDER BY p.created_at DESC
 `)
 
@@ -135,6 +153,8 @@ interface InboxRow {
   senderUsername: string
   first_name: string | null
   organization_name: string | null
+  boardId?: string | null
+  boardName?: string
 }
 
 function inboxItem(row: InboxRow, isBroadcast: boolean) {
@@ -146,15 +166,18 @@ function inboxItem(row: InboxRow, isBroadcast: boolean) {
     createdAt: row.createdAt,
     senderUsername: row.senderUsername,
     senderDisplayName: row.first_name ?? row.organization_name ?? row.senderUsername,
+    boardId: row.boardId ?? undefined,
+    boardName: row.boardName,
   }
 }
 
 promptRouter.get('/api/prompts/inbox', requireAuth, (req, res) => {
   const me = req.account!
   const oneToOne = (pendingOneToOne.all(me.id) as InboxRow[]).map((row) => inboxItem(row, false))
-  const broadcasts = (activeBroadcastsFromFollowed.all(me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
+  const orgBroadcasts = (activeOrgBroadcastsFromFollowed.all(me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
+  const boardBroadcasts = (activeBoardBroadcastsFromSubscribed.all(me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
 
-  res.json([...oneToOne, ...broadcasts].sort((a, b) => b.createdAt - a.createdAt))
+  res.json([...oneToOne, ...orgBroadcasts, ...boardBroadcasts].sort((a, b) => b.createdAt - a.createdAt))
 })
 
 // --- Decline (1:1 only) --------------------------------------------------
@@ -174,7 +197,7 @@ promptRouter.post('/api/prompts/:id/decline', requireAuth, (req, res) => {
   res.json({ id: prompt.id, status: 'declined' })
 })
 
-// --- Complete (1:1 or broadcast) -----------------------------------------
+// --- Complete (1:1, organization broadcast, or board broadcast) ----------
 
 const completeOneToOneStmt = db.prepare(`
   UPDATE prompts
@@ -190,7 +213,7 @@ const insertCompletion = db.prepare(`
 
 promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   const me = req.account!
-  const prompt = getPromptById.get(req.params.id) as Record<string, unknown> | undefined
+  const prompt = getPromptById.get(String(req.params.id)) as Record<string, unknown> | undefined
   if (!prompt) return res.status(404).json({ errors: { form: 'Prompt not found.' } })
 
   const mediaType = typeof req.body?.mediaType === 'string' ? req.body.mediaType : 'photo'
@@ -205,7 +228,9 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   const autoCaption = autoCaptionFor(displayName(sender), prompt.prompt_text as string)
 
   if (prompt.is_broadcast) {
-    const check = canCompleteBroadcast(me, prompt.sender_account_id as string, isFollowing(me.id, prompt.sender_account_id as string))
+    const boardId = prompt.board_id as string | null
+    const eligible = boardId ? isSubscribed(boardId, me.id) : isFollowing(me.id, prompt.sender_account_id as string)
+    const check = canCompleteBroadcast(me, prompt.sender_account_id as string, eligible, { allowSelf: Boolean(boardId) })
     if (!check.ok) return res.status(403).json({ errors: { form: check.reason } })
 
     const id = crypto.randomUUID()
@@ -273,11 +298,25 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   })
 })
 
+// --- Reactions (upvote/pin) on a completion -------------------------------
+// completionId is either a completed prompts.id (1:1) or a
+// prompt_completions.id (broadcast) — the reactions table doesn't care which.
+
+promptRouter.post('/api/completions/:id/react', requireAuth, (req, res) => {
+  const me = req.account!
+  const kind = String(req.body?.kind ?? '')
+  if (kind !== 'upvote' && kind !== 'pin') {
+    return res.status(422).json({ errors: { kind: 'kind must be "upvote" or "pin".' } })
+  }
+  toggleReaction(String(req.params.id), me.id, kind)
+  res.json(reactionCounts(String(req.params.id), me.id))
+})
+
 // --- Organization broadcast gallery ---------------------------------------
 
 const broadcastsForOrg = db.prepare(`
   SELECT id, category, prompt_text AS text, created_at AS createdAt
-  FROM prompts WHERE sender_account_id = ? AND is_broadcast = 1
+  FROM prompts WHERE sender_account_id = ? AND is_broadcast = 1 AND board_id IS NULL
   ORDER BY created_at DESC
 `)
 const completionsForPrompt = db.prepare(`

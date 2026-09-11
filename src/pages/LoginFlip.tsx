@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useStore } from '../lib/store'
 import { CalendarGrid } from '../components/CalendarGrid'
 import { PromptLogo } from '../components/PromptLogo'
 
 export function LoginFlip() {
   const [flipping, setFlipping] = useState(false)
   const navigate = useNavigate()
-  const prompts = useStore((s) => s.prompts)
   const now = new Date()
 
   return (
@@ -22,7 +20,7 @@ export function LoginFlip() {
                 {now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
               </p>
               <p className="mb-4 text-xs text-ink-faint">Today is already open.</p>
-              <CalendarGrid year={now.getFullYear()} month={now.getMonth()} prompts={prompts} />
+              <CalendarGrid year={now.getFullYear()} month={now.getMonth()} completions={[]} />
             </div>
           </div>
 

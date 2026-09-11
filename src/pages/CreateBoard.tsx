@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import type { BoardCategory } from '../lib/types'
-import { createBoard as createRealBoard } from '../lib/boardsApi'
+import { createBoard } from '../lib/boardsApi'
 
 const CATEGORIES: { id: BoardCategory; label: string }[] = [
   { id: 'brand', label: 'Brand' },
@@ -13,16 +13,18 @@ const CATEGORIES: { id: BoardCategory; label: string }[] = [
   { id: 'interest', label: 'Interest' },
 ]
 
+const ICON_CHOICES = ['📌', '🏃', '🎨', '🌱', '📚', '🎧', '🍳', '🐾', '⚡', '🏔️', '📷', '☕']
+
 export function CreateBoard() {
   const navigate = useNavigate()
   const account = useStore((s) => s.account)
-  const createBoard = useStore((s) => s.createBoard)
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<BoardCategory>('interest')
   const [visibility, setVisibility] = useState<'public' | 'invite'>('public')
   const [locationTag, setLocationTag] = useState('')
+  const [icon, setIcon] = useState(ICON_CHOICES[0])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,27 +33,14 @@ export function CreateBoard() {
     setSubmitting(true)
     setError(null)
     try {
-      // The real board record is what makes it findable and joinable by
-      // anyone else on the app — created first so the mock-layer board
-      // below (which drives this device's own challenge/submission
-      // machinery) shares its id, rather than risking a board that only
-      // ever exists locally.
-      const res = await createRealBoard(
-        { name: name.trim(), description: description.trim(), category, visibility, locationTag: locationTag.trim() || undefined },
+      const res = await createBoard(
+        { name: name.trim(), description: description.trim(), category, visibility, locationTag: locationTag.trim() || undefined, icon },
         account.token,
       )
       if (!res.ok) {
         setError(res.errors.form ?? res.errors.name ?? 'Could not create that board. Please try again.')
         return
       }
-      createBoard({
-        id: res.data.id,
-        name: name.trim(),
-        description: description.trim(),
-        category,
-        visibility,
-        locationTag: locationTag.trim() || undefined,
-      })
       navigate(`/boards/${res.data.id}`)
     } finally {
       setSubmitting(false)
@@ -61,6 +50,24 @@ export function CreateBoard() {
   return (
     <div className="flex flex-col gap-5 p-4">
       <h1 className="font-serif text-2xl">Create a board</h1>
+
+      <div>
+        <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Icon</p>
+        <div className="flex flex-wrap gap-2">
+          {ICON_CHOICES.map((i) => (
+            <button
+              key={i}
+              onClick={() => setIcon(i)}
+              className={clsx(
+                'flex h-10 w-10 items-center justify-center rounded-sm border text-lg transition',
+                icon === i ? 'border-ink bg-ink-soft/10' : 'border-line',
+              )}
+            >
+              {i}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">
         Board name

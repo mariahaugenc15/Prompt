@@ -170,6 +170,27 @@ export function getPromptHistory(token: string) {
   return call<PromptHistory>('/api/prompts/history', token)
 }
 
+export interface ActiveBroadcastItem {
+  id: string
+  isBroadcast: true
+  category: Category
+  text: string
+  createdAt: number
+  senderUsername: string
+  senderDisplayName: string
+  boardId?: string
+  boardName?: string
+}
+
+// Broadcasts (organization or board) available to me that I haven't
+// completed yet — pending 1:1 prompts come from getPromptHistory instead,
+// so this is filtered to isBroadcast only.
+export async function getActiveBroadcasts(token: string): Promise<{ ok: true; data: ActiveBroadcastItem[] } | { ok: false; errors: Record<string, string> }> {
+  const res = await call<(ActiveBroadcastItem | { isBroadcast: false })[]>('/api/prompts/inbox', token)
+  if (!res.ok) return res
+  return { ok: true, data: res.data.filter((item): item is ActiveBroadcastItem => item.isBroadcast) }
+}
+
 export function completePrompt(
   id: string,
   input: { mediaType: string; mediaDataUrl: string; caption?: string },
@@ -180,4 +201,26 @@ export function completePrompt(
 
 export function getOrganizationBroadcasts(username: string) {
   return call<BroadcastSummary[]>(`/api/organizations/${encodeURIComponent(username)}/broadcasts`, undefined)
+}
+
+export function suggestedAccounts(token: string, limit = 10) {
+  return call<PublicProfile[]>(`/api/accounts/suggested?limit=${limit}`, token)
+}
+
+export function getCompletionScore(token: string) {
+  return call<{ score: number | null; completed: number; total: number }>('/api/me/completion-score', token)
+}
+
+// --- Push notifications ----------------------------------------------------
+
+export function getPushPublicKey() {
+  return call<{ publicKey: string }>('/api/push/public-key', undefined)
+}
+
+export function subscribeToPush(subscription: PushSubscriptionJSON, token: string) {
+  return call<{ ok: true }>('/api/push/subscribe', token, { method: 'POST', body: JSON.stringify(subscription) })
+}
+
+export function unsubscribeFromPush(endpoint: string, token: string) {
+  return call<{ ok: true }>('/api/push/unsubscribe', token, { method: 'POST', body: JSON.stringify({ endpoint }) })
 }

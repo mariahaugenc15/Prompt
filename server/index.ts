@@ -5,6 +5,9 @@ import { db } from './db.js'
 import { socialRouter } from './socialRoutes.js'
 import { promptRouter } from './promptRoutes.js'
 import { boardsRouter } from './boardsRoutes.js'
+import { calendarsRouter } from './calendarsRoutes.js'
+import { feedRouter } from './feedRoutes.js'
+import { pushRouter } from './pushRoutes.js'
 import {
   normalizeEmail,
   normalizeUsername,
@@ -39,6 +42,9 @@ app.use(express.json({ limit: '12mb' }))
 app.use(socialRouter)
 app.use(promptRouter)
 app.use(boardsRouter)
+app.use(calendarsRouter)
+app.use(feedRouter)
+app.use(pushRouter)
 
 const PORT = Number(process.env.PORT ?? 8787)
 

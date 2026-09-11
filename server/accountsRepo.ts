@@ -79,6 +79,30 @@ export function listAccounts(excludeAccountId: string | undefined, limit: number
   return listStmt.all(excludeAccountId ?? '', limit) as AccountRow[]
 }
 
+// People you may know: accounts followed by accounts you follow (mutuals
+// of your mutuals), excluding yourself and anyone you already follow.
+// Falls back to the most recently-joined accounts when that graph walk
+// comes up short (a brand-new account, or one that follows nobody yet).
+const suggestionsFromNetworkStmt = db.prepare(`
+  SELECT DISTINCT a.id, a.account_type, a.username, a.email, a.prompt_permission, a.first_name, a.organization_name, a.website_url
+  FROM accounts a
+  JOIN follows f2 ON f2.followee_account_id = a.id
+  WHERE f2.follower_account_id IN (SELECT followee_account_id FROM follows WHERE follower_account_id = ?)
+    AND a.id != ?
+    AND a.id NOT IN (SELECT followee_account_id FROM follows WHERE follower_account_id = ?)
+  LIMIT ?
+`)
+
+export function suggestedAccounts(accountId: string, limit: number): AccountRow[] {
+  const fromNetwork = suggestionsFromNetworkStmt.all(accountId, accountId, accountId, limit) as AccountRow[]
+  if (fromNetwork.length >= limit) return fromNetwork
+  const seen = new Set([accountId, ...fromNetwork.map((a) => a.id)])
+  const fallback = (listStmt.all(accountId, limit) as AccountRow[]).filter(
+    (a) => !seen.has(a.id) && !isFollowing(accountId, a.id),
+  )
+  return [...fromNetwork, ...fallback].slice(0, limit)
+}
+
 export function isFollowing(followerId: string, followeeId: string): boolean {
   return Boolean(followRow.get(followerId, followeeId))
 }

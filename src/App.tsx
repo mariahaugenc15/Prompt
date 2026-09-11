@@ -15,9 +15,7 @@ import { Profile } from './pages/Profile'
 import { Calendars } from './pages/Calendars'
 import { CreateCalendar } from './pages/CreateCalendar'
 import { CalendarDetail } from './pages/CalendarDetail'
-import { PublicProfile } from './pages/PublicProfile'
 import { ExplorePrompts } from './pages/ExplorePrompts'
-import { SendPrompt } from './pages/SendPrompt'
 import { SignUp } from './pages/SignUp'
 import { Login } from './pages/Login'
 import { OrgPage } from './pages/OrgPage'
@@ -68,14 +66,6 @@ export default function App() {
         element={
           <Protected>
             <Home />
-          </Protected>
-        }
-      />
-      <Route
-        path="/send"
-        element={
-          <Protected>
-            <SendPrompt />
           </Protected>
         }
       />
@@ -140,14 +130,6 @@ export default function App() {
         element={
           <Protected>
             <CalendarDetail />
-          </Protected>
-        }
-      />
-      <Route
-        path="/u/:userId"
-        element={
-          <Protected>
-            <PublicProfile />
           </Protected>
         }
       />

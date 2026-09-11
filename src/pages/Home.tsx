@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useStore, todayKey } from '../lib/store'
-import { CURRENT_USER_ID } from '../lib/seed'
-import { computeCompletionScore } from '../lib/completionScore'
+import { useStore } from '../lib/store'
 import { CalendarGrid } from '../components/CalendarGrid'
 import { FridgeNoteStack, FridgeNoteDetail, type FridgeNoteViewModel } from '../components/FridgeNote'
 import { DayDetailSheet } from '../components/DayDetailSheet'
 import { RealCompleteForm } from '../components/RealCompleteForm'
-import type { Prompt } from '../lib/types'
 import { PlusIcon, CloseIcon } from '../components/Icons'
-import { getPromptHistory, completePrompt, type OneToOneHistoryItem } from '../lib/realAccountsApi'
+import {
+  getActiveBroadcasts,
+  getCompletionScore,
+  getPromptHistory,
+  completePrompt,
+  type ActiveBroadcastItem,
+  type OneToOneHistoryItem,
+} from '../lib/realAccountsApi'
+import { reactToCompletion, tagCompletion, getMyCalendars, type CompletionView, type RealCalendar } from '../lib/calendarsApi'
+import { getMyActivity } from '../lib/feedApi'
 
-const REAL_PROMPTS_POLL_MS = 15000
+const POLL_MS = 15000
 
 async function notifyNewPrompt(title: string, body: string) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
@@ -33,33 +39,34 @@ async function notifyNewPrompt(title: string, body: string) {
 
 export function Home() {
   const navigate = useNavigate()
-  const prompts = useStore((s) => s.prompts)
-  const users = useStore((s) => s.users)
   const account = useStore((s) => s.account)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
-  const acceptPrompt = useStore((s) => s.acceptPrompt)
 
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
   const now = new Date()
-  const pending = useMemo(() => prompts.filter((p) => p.toUserId === CURRENT_USER_ID && p.status === 'pending'), [prompts])
-  const score = useMemo(() => computeCompletionScore(CURRENT_USER_ID, prompts), [prompts])
 
-  function senderFor(p: Prompt) {
-    return users.find((u) => u.id === p.fromUserId)
-  }
-
-  // Real, server-backed 1:1 prompts sent directly to this account — every
-  // one of them (not just still-pending ones), so there's a single
-  // permanent place to find any prompt again instead of a separate inbox
-  // that empties out once you've acted on something. Polled regularly so a
-  // prompt someone just sent shows up (and triggers a notification)
-  // without needing a manual refresh.
-  const [realItems, setRealItems] = useState<OneToOneHistoryItem[]>([])
-  const [completingReal, setCompletingReal] = useState<OneToOneHistoryItem | null>(null)
+  const [activity, setActivity] = useState<CompletionView[]>([])
+  const [myCalendars, setMyCalendars] = useState<RealCalendar[]>([])
+  const [score, setScore] = useState<number | null>(null)
+  const [oneToOne, setOneToOne] = useState<OneToOneHistoryItem[]>([])
+  const [broadcasts, setBroadcasts] = useState<ActiveBroadcastItem[]>([])
+  const [completingBroadcast, setCompletingBroadcast] = useState<ActiveBroadcastItem | null>(null)
   const [completingBusy, setCompletingBusy] = useState(false)
   const seenPendingIds = useRef<Set<string> | null>(null)
+
+  function refreshActivity() {
+    if (!account) return
+    getMyActivity(account.token).then((res) => { if (res.ok) setActivity(res.data) })
+    getCompletionScore(account.token).then((res) => { if (res.ok) setScore(res.data.score) })
+  }
+
+  useEffect(() => {
+    if (!account) return
+    getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
+    refreshActivity()
+  }, [account])
 
   useEffect(() => {
     if (!account) return
@@ -69,127 +76,163 @@ export function Home() {
 
     let cancelled = false
     async function poll() {
-      const res = await getPromptHistory(account!.token)
-      if (cancelled || !res.ok) return
-      const received = res.data.oneToOne.filter((item) => item.recipientUsername === account!.username)
-      const pendingIds = received.filter((item) => item.status === 'pending').map((item) => item.id)
-      if (seenPendingIds.current === null) {
-        // The first fetch after landing on this page — these were already
-        // sitting there, so treat them as "already seen" rather than
-        // firing a notification for every one of them at once.
-        seenPendingIds.current = new Set(pendingIds)
-      } else {
-        for (const item of received) {
-          if (item.status === 'pending' && !seenPendingIds.current.has(item.id)) {
-            seenPendingIds.current.add(item.id)
-            notifyNewPrompt(`${item.senderDisplayName} sent you a prompt`, item.promptText)
+      const [historyRes, broadcastRes] = await Promise.all([getPromptHistory(account!.token), getActiveBroadcasts(account!.token)])
+      if (cancelled) return
+
+      if (historyRes.ok) {
+        const received = historyRes.data.oneToOne.filter((item) => item.recipientUsername === account!.username)
+        setOneToOne(received)
+      }
+
+      if (broadcastRes.ok) {
+        const pendingIds = broadcastRes.data.map((item) => item.id)
+        if (seenPendingIds.current === null) {
+          // The first fetch after landing on this page — these were
+          // already sitting there, so don't fire a notification for every
+          // one of them at once.
+          seenPendingIds.current = new Set(pendingIds)
+        } else {
+          for (const item of broadcastRes.data) {
+            if (!seenPendingIds.current.has(item.id)) {
+              seenPendingIds.current.add(item.id)
+              notifyNewPrompt(`${item.senderDisplayName} sent you a prompt`, item.text)
+            }
           }
         }
+        setBroadcasts(broadcastRes.data)
       }
-      setRealItems(received)
     }
 
     poll()
-    const interval = setInterval(poll, REAL_PROMPTS_POLL_MS)
+    const interval = setInterval(poll, POLL_MS)
     return () => {
       cancelled = true
       clearInterval(interval)
     }
   }, [account])
 
-  async function handleCompleteReal(input: { mediaType: string; mediaDataUrl: string; caption?: string }) {
-    if (!completingReal || !account) return
+  // 1:1 pending notifications use the same seen-tracking as broadcasts, kept
+  // separate since they come from a different endpoint.
+  const seenOneToOnePendingIds = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    const pendingIds = oneToOne.filter((p) => p.status === 'pending').map((p) => p.id)
+    if (seenOneToOnePendingIds.current === null) {
+      seenOneToOnePendingIds.current = new Set(pendingIds)
+      return
+    }
+    for (const p of oneToOne) {
+      if (p.status === 'pending' && !seenOneToOnePendingIds.current.has(p.id)) {
+        seenOneToOnePendingIds.current.add(p.id)
+        notifyNewPrompt(`${p.senderDisplayName} sent you a prompt`, p.promptText)
+      }
+    }
+  }, [oneToOne])
+
+  async function handleCompleteBroadcast(input: { mediaType: string; mediaDataUrl: string; caption?: string }) {
+    if (!completingBroadcast || !account) return
     setCompletingBusy(true)
     try {
-      const res = await completePrompt(completingReal.id, input, account.token)
+      const res = await completePrompt(completingBroadcast.id, input, account.token)
       if (res.ok) {
-        setRealItems((prev) =>
-          prev.map((item) =>
-            item.id === completingReal.id
-              ? {
-                  ...item,
-                  status: 'completed',
-                  mediaType: res.data.mediaType,
-                  mediaDataUrl: res.data.mediaDataUrl,
-                  autoCaption: res.data.autoCaption,
-                  userCaption: res.data.userCaption,
-                }
-              : item,
-          ),
-        )
-        setCompletingReal(null)
+        setBroadcasts((prev) => prev.filter((b) => b.id !== completingBroadcast.id))
+        setCompletingBroadcast(null)
+        refreshActivity()
       }
     } finally {
       setCompletingBusy(false)
     }
   }
 
+  async function handleCompleteOneToOne(item: OneToOneHistoryItem, input: { mediaType: string; mediaDataUrl: string; caption?: string }) {
+    if (!account) return
+    const res = await completePrompt(item.id, input, account.token)
+    if (res.ok) {
+      setOneToOne((prev) =>
+        prev.map((p) =>
+          p.id === item.id
+            ? { ...p, status: 'completed', mediaType: res.data.mediaType, mediaDataUrl: res.data.mediaDataUrl, autoCaption: res.data.autoCaption, userCaption: res.data.userCaption }
+            : p,
+        ),
+      )
+      refreshActivity()
+    }
+  }
+
+  const [completingOneToOne, setCompletingOneToOne] = useState<OneToOneHistoryItem | null>(null)
+  const [completingOneToOneBusy, setCompletingOneToOneBusy] = useState(false)
+
+  async function submitOneToOneCompletion(input: { mediaType: string; mediaDataUrl: string; caption?: string }) {
+    if (!completingOneToOne) return
+    setCompletingOneToOneBusy(true)
+    try {
+      await handleCompleteOneToOne(completingOneToOne, input)
+      setCompletingOneToOne(null)
+    } finally {
+      setCompletingOneToOneBusy(false)
+    }
+  }
+
   const notes: FridgeNoteViewModel[] = useMemo(() => {
-    const mockNotes: FridgeNoteViewModel[] = pending.map((p) => {
-      const from = p.anonymous ? undefined : senderFor(p)
-      const selfSent = p.fromUserId === CURRENT_USER_ID
-      return {
-        id: p.id,
-        category: p.category,
-        text: p.text,
-        selfSent,
-        status: 'pending',
-        stackLabel: p.boardId ? (selfSent ? 'Your board' : 'Board prompt') : from ? from.name : 'Someone sent you a prompt',
-        detailSourceLabel: p.boardId
-          ? selfSent
-            ? 'From a board you created'
-            : 'From a board you follow'
-          : p.anonymous
-            ? 'From someone who wants to stay a secret'
-            : `From ${from?.name ?? 'a friend'}`,
-        onAccept: () => {
-          acceptPrompt(p.id)
-          setOpenNoteId(null)
-          setSelectedDay(todayKey())
-        },
-      }
-    })
-    const realNotes: FridgeNoteViewModel[] = realItems.map((item) => ({
+    const oneToOneNotes: FridgeNoteViewModel[] = oneToOne.map((item) => ({
       id: item.id,
       category: item.category,
       text: item.promptText,
       selfSent: false,
-      status: item.status === 'pending' || item.status === 'completed' || item.status === 'declined' ? item.status : 'declined',
+      status: item.status === 'pending' || item.status === 'completed' ? item.status : 'declined',
       stackLabel: item.senderDisplayName,
       detailSourceLabel: `From ${item.senderDisplayName}`,
-      onAccept:
-        item.status === 'pending'
-          ? () => {
-              setOpenNoteId(null)
-              setCompletingReal(item)
-            }
-          : undefined,
+      onAccept: item.status === 'pending' ? () => { setOpenNoteId(null); setCompletingOneToOne(item) } : undefined,
       completion:
         item.status === 'completed'
           ? { mediaType: item.mediaType ?? 'photo', mediaDataUrl: item.mediaDataUrl, autoCaption: item.autoCaption, userCaption: item.userCaption }
           : undefined,
     }))
-    // Real prompts first — an actual person is waiting on these.
-    return [...realNotes, ...mockNotes]
-  }, [pending, realItems, users])
+    const broadcastNotes: FridgeNoteViewModel[] = broadcasts.map((item) => ({
+      id: item.id,
+      category: item.category,
+      text: item.text,
+      selfSent: false,
+      status: 'pending',
+      stackLabel: item.boardName ?? item.senderDisplayName,
+      detailSourceLabel: item.boardName ? `From ${item.boardName}` : `From ${item.senderDisplayName}`,
+      onAccept: () => { setOpenNoteId(null); setCompletingBroadcast(item) },
+    }))
+    return [...broadcastNotes, ...oneToOneNotes]
+  }, [oneToOne, broadcasts])
 
   const openNote = notes.find((n) => n.id === openNoteId)
 
-  // Your own backlog first — a pending fridge note, then anything already
-  // accepted for today — and only once there's genuinely nothing waiting
-  // does this send you off to find something new.
   function handleCompletePrompt() {
     const actionable = notes.find((n) => n.status === 'pending')
     if (actionable) {
       setOpenNoteId(actionable.id)
       return
     }
-    const acceptedToday = prompts.find((p) => p.toUserId === CURRENT_USER_ID && p.status === 'accepted' && p.dayKey === todayKey())
-    if (acceptedToday) {
-      setSelectedDay(todayKey())
-      return
-    }
     navigate('/explore')
+  }
+
+  const dayCompletions = selectedDay ? activity.filter((c) => c.dayKey === selectedDay) : []
+
+  async function handleReact(completionId: string, kind: 'upvote' | 'pin') {
+    if (!account) return
+    const res = await reactToCompletion(completionId, kind, account.token)
+    if (res.ok) {
+      setActivity((prev) => prev.map((c) => (c.id === completionId ? { ...c, ...res.data } : c)))
+    }
+  }
+
+  async function handleTag(completionId: string, calendarIds: string[]) {
+    if (!account) return
+    const res = await tagCompletion(completionId, calendarIds, account.token)
+    if (res.ok) {
+      setActivity((prev) =>
+        prev.map((c) =>
+          c.id === completionId
+            ? { ...c, calendarIds: res.data.calendarIds, calendarNames: myCalendars.filter((cal) => res.data.calendarIds.includes(cal.id)).map((cal) => cal.name) }
+            : c,
+        ),
+      )
+    }
   }
 
   return (
@@ -216,12 +259,12 @@ export function Home() {
       </div>
 
       <div className="px-4">
-        <CalendarGrid year={now.getFullYear()} month={now.getMonth()} prompts={prompts} onDayClick={setSelectedDay} />
+        <CalendarGrid year={now.getFullYear()} month={now.getMonth()} completions={activity} onDayClick={setSelectedDay} />
       </div>
 
       <div className="flex gap-2 px-4">
         <Link
-          to="/send"
+          to="/real/send"
           className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-ink bg-ink py-2.5 text-sm font-medium text-paper"
         >
           <PlusIcon size={15} /> Send a prompt
@@ -236,24 +279,63 @@ export function Home() {
 
       {openNote && <FridgeNoteDetail note={openNote} onClose={() => setOpenNoteId(null)} />}
 
-      {completingReal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-6" onClick={() => setCompletingReal(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-xs rounded-sm border border-line bg-card p-5 shadow-note">
-            <button onClick={() => setCompletingReal(null)} className="absolute right-0 top-0 p-3 text-ink-faint">
-              <CloseIcon size={16} />
-            </button>
-            <p className="mb-3 font-serif text-lg leading-snug text-ink">Complete this prompt</p>
-            <RealCompleteForm
-              senderDisplayName={completingReal.senderDisplayName}
-              promptText={completingReal.promptText}
-              submitting={completingBusy}
-              onSubmit={handleCompleteReal}
-            />
-          </div>
-        </div>
+      {completingBroadcast && (
+        <CompleteModal
+          senderDisplayName={completingBroadcast.senderDisplayName}
+          promptText={completingBroadcast.text}
+          submitting={completingBusy}
+          onClose={() => setCompletingBroadcast(null)}
+          onSubmit={handleCompleteBroadcast}
+        />
       )}
 
-      {selectedDay && <DayDetailSheet dayKey={selectedDay} onClose={() => setSelectedDay(null)} />}
+      {completingOneToOne && (
+        <CompleteModal
+          senderDisplayName={completingOneToOne.senderDisplayName}
+          promptText={completingOneToOne.promptText}
+          submitting={completingOneToOneBusy}
+          onClose={() => setCompletingOneToOne(null)}
+          onSubmit={submitOneToOneCompletion}
+        />
+      )}
+
+      {selectedDay && (
+        <DayDetailSheet
+          dayKey={selectedDay}
+          completions={dayCompletions}
+          myUsername={account?.username}
+          myCalendars={myCalendars}
+          onClose={() => setSelectedDay(null)}
+          onReact={handleReact}
+          onTag={handleTag}
+        />
+      )}
+    </div>
+  )
+}
+
+function CompleteModal({
+  senderDisplayName,
+  promptText,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  senderDisplayName: string
+  promptText: string
+  submitting: boolean
+  onClose: () => void
+  onSubmit: (input: { mediaType: string; mediaDataUrl: string; caption?: string }) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-6" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-xs rounded-sm border border-line bg-card p-5 shadow-note">
+        <button onClick={onClose} className="absolute right-0 top-0 p-3 text-ink-faint">
+          <CloseIcon size={16} />
+        </button>
+        <p className="mb-3 font-serif text-lg leading-snug text-ink">Complete this prompt</p>
+        <RealCompleteForm senderDisplayName={senderDisplayName} promptText={promptText} submitting={submitting} onSubmit={onSubmit} />
+      </div>
     </div>
   )
 }

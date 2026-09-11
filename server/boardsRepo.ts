@@ -9,12 +9,13 @@ export interface BoardRow {
   category: string
   visibility: 'public' | 'invite'
   location_tag: string | null
+  icon: string | null
   created_at: number
 }
 
 const insertBoard = db.prepare(`
-  INSERT INTO boards (id, owner_account_id, name, description, category, visibility, location_tag, created_at)
-  VALUES (@id, @ownerAccountId, @name, @description, @category, @visibility, @locationTag, @createdAt)
+  INSERT INTO boards (id, owner_account_id, name, description, category, visibility, location_tag, icon, created_at)
+  VALUES (@id, @ownerAccountId, @name, @description, @category, @visibility, @locationTag, @icon, @createdAt)
 `)
 const insertSubscriber = db.prepare(
   'INSERT OR IGNORE INTO board_subscribers (board_id, account_id, created_at) VALUES (?, ?, ?)',
@@ -22,6 +23,7 @@ const insertSubscriber = db.prepare(
 const byId = db.prepare('SELECT * FROM boards WHERE id = ?')
 const subscriberCountStmt = db.prepare('SELECT COUNT(*) AS n FROM board_subscribers WHERE board_id = ?')
 const isSubscribedStmt = db.prepare('SELECT 1 FROM board_subscribers WHERE board_id = ? AND account_id = ?')
+const subscriberIdsStmt = db.prepare('SELECT account_id FROM board_subscribers WHERE board_id = ?')
 
 // Boards that are public and not already subscribed to — the "Discover"
 // list backing anyone finding a board they don't already belong to.
@@ -60,10 +62,15 @@ export function createBoard(input: {
   category: string
   visibility: 'public' | 'invite'
   locationTag?: string
+  icon?: string
   createdAt: number
 }): void {
-  insertBoard.run({ ...input, locationTag: input.locationTag ?? null })
+  insertBoard.run({ ...input, locationTag: input.locationTag ?? null, icon: input.icon ?? null })
   insertSubscriber.run(input.id, input.ownerAccountId, input.createdAt)
+}
+
+export function getSubscriberIds(boardId: string): string[] {
+  return (subscriberIdsStmt.all(boardId) as { account_id: string }[]).map((r) => r.account_id)
 }
 
 export function getBoardById(id: string): BoardRow | undefined {
@@ -104,6 +111,7 @@ export function publicBoardView(board: BoardRow, viewerId?: string) {
     category: board.category,
     visibility: board.visibility,
     locationTag: board.location_tag ?? undefined,
+    icon: board.icon ?? undefined,
     ownerUsername: owner?.username ?? '',
     ownerDisplayName: owner ? displayName(owner) : '',
     subscriberCount: subscriberCount(board.id),

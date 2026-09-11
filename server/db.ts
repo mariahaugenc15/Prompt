@@ -102,6 +102,19 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_completions_prompt_completer ON prompt_completions(prompt_id, completer_account_id);
 `)
 
+// A broadcast can now originate from a board instead of (or in addition to)
+// being sent by an organization account — same fan-out-to-subscribers
+// mechanic, just gated by board membership instead of a follow. cadence is
+// display-only (v1 has no scheduler that actually re-fires a challenge).
+const promptColumns = new Set((db.prepare('PRAGMA table_info(prompts)').all() as { name: string }[]).map((c) => c.name))
+if (!promptColumns.has('board_id')) {
+  db.exec(`ALTER TABLE prompts ADD COLUMN board_id TEXT`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompts_board ON prompts(board_id)`)
+}
+if (!promptColumns.has('cadence')) {
+  db.exec(`ALTER TABLE prompts ADD COLUMN cadence TEXT`)
+}
+
 // Boards: a named public/private group any real account can create, find,
 // and join — the server-backed record of a board's existence and
 // membership so a public one is genuinely discoverable by anyone on the
@@ -127,4 +140,65 @@ db.exec(`
     PRIMARY KEY (board_id, account_id)
   );
   CREATE INDEX IF NOT EXISTS idx_board_subscribers_account ON board_subscribers(account_id);
+`)
+
+const boardColumns = new Set((db.prepare('PRAGMA table_info(boards)').all() as { name: string }[]).map((c) => c.name))
+if (!boardColumns.has('icon')) {
+  db.exec(`ALTER TABLE boards ADD COLUMN icon TEXT`)
+}
+
+// Calendars: a named, optionally-shared filter over your own completions.
+// Joining a public calendar doesn't grant you anyone else's completions —
+// it just means whatever any member tags into it shows up merged there.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS calendars (
+    id TEXT PRIMARY KEY,
+    owner_account_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    visibility TEXT NOT NULL CHECK (visibility IN ('public', 'private')),
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_calendars_visibility ON calendars(visibility);
+
+  CREATE TABLE IF NOT EXISTS calendar_members (
+    calendar_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (calendar_id, account_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_calendar_members_account ON calendar_members(account_id);
+
+  -- completion_id is either a prompts.id (a completed 1:1 prompt) or a
+  -- prompt_completions.id (a completed broadcast) — the two completion
+  -- shapes share this one tagging table rather than needing two.
+  CREATE TABLE IF NOT EXISTS completion_calendars (
+    completion_id TEXT NOT NULL,
+    calendar_id TEXT NOT NULL,
+    PRIMARY KEY (completion_id, calendar_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_completion_calendars_calendar ON completion_calendars(calendar_id);
+`)
+
+// Reactions on a completion (same dual completion-id space as above).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS completion_reactions (
+    completion_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('upvote', 'pin')),
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (completion_id, account_id, kind)
+  );
+`)
+
+// Web Push subscriptions — lets a notification reach a device even when the
+// app itself isn't open, unlike the in-page Notification API used until now.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_push_subscriptions_account ON push_subscriptions(account_id);
 `)

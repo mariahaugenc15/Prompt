@@ -1,28 +1,31 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { useStore, todayKey } from '../lib/store'
-import { CURRENT_USER_ID } from '../lib/seed'
-import type { Prompt, UserCalendar } from '../lib/types'
+import type { CompletionView, RealCalendar } from '../lib/calendarsApi'
 import { CATEGORY_META } from '../lib/types'
-import { isPromptPublic } from '../lib/calendarVisibility'
-import { CATEGORY_ICON, CloseIcon, FlagIcon, CheckIcon, GlobeIcon, LockIcon, StarIcon } from './Icons'
-import { CompleteChallengeForm } from './CompleteChallengeForm'
+import { CATEGORY_ICON, CloseIcon, FlagIcon, PinIcon, UpvoteIcon } from './Icons'
 
-export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: () => void }) {
-  const prompts = useStore((s) => s.prompts)
-  const users = useStore((s) => s.users)
-  const boards = useStore((s) => s.boards)
-  const calendars = useStore((s) => s.calendars)
-  const completeChallenge = useStore((s) => s.completeChallenge)
-  const setDayCover = useStore((s) => s.setDayCover)
-
-  const dayPrompts = prompts.filter((p) => p.dayKey === dayKey && (p.status === 'accepted' || p.status === 'completed'))
-  const completedCount = dayPrompts.filter((p) => p.status === 'completed').length
+export function DayDetailSheet({
+  dayKey,
+  completions,
+  myUsername,
+  myCalendars,
+  onClose,
+  onReact,
+  onTag,
+}: {
+  dayKey: string
+  completions: CompletionView[]
+  myUsername?: string
+  myCalendars: RealCalendar[]
+  onClose: () => void
+  onReact: (completionId: string, kind: 'upvote' | 'pin') => void
+  onTag: (completionId: string, calendarIds: string[]) => void
+}) {
   const label = new Date(dayKey + 'T00:00:00').toLocaleDateString(undefined, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   })
-  const myCalendars = calendars.filter((c) => c.memberIds.includes(CURRENT_USER_ID))
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40" onClick={onClose}>
@@ -41,28 +44,17 @@ export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: (
           </button>
         </div>
 
-        {dayPrompts.length === 0 && <p className="text-sm text-ink-faint">Nothing written in yet.</p>}
-        {completedCount > 1 && (
-          <p className="mb-3 text-xs text-ink-faint">Multiple prompts today — pick a star to set which photo shows on the calendar.</p>
-        )}
+        {completions.length === 0 && <p className="text-sm text-ink-faint">Nothing completed yet.</p>}
 
         <div className="flex flex-col gap-4">
-          {dayPrompts.map((p) => (
-            <DayPromptCard
-              key={p.id}
-              prompt={p}
-              calendars={calendars}
+          {completions.map((c) => (
+            <CompletionCard
+              key={c.id}
+              completion={c}
+              isMine={c.completerUsername === myUsername}
               myCalendars={myCalendars}
-              showCoverPicker={completedCount > 1}
-              onSetCover={() => setDayCover(dayKey, p.id)}
-              senderName={
-                p.boardId
-                  ? boards.find((b) => b.id === p.boardId)?.name
-                  : p.anonymous
-                    ? undefined
-                    : users.find((u) => u.id === p.fromUserId)?.name
-              }
-              onComplete={(proof, calendarIds) => completeChallenge(p.id, proof, calendarIds)}
+              onReact={(kind) => onReact(c.id, kind)}
+              onTag={(calendarIds) => onTag(c.id, calendarIds)}
             />
           ))}
         </div>
@@ -71,82 +63,92 @@ export function DayDetailSheet({ dayKey, onClose }: { dayKey: string; onClose: (
   )
 }
 
-function DayPromptCard({
-  prompt,
-  calendars,
+function CompletionCard({
+  completion,
+  isMine,
   myCalendars,
-  showCoverPicker,
-  onSetCover,
-  senderName,
-  onComplete,
+  onReact,
+  onTag,
 }: {
-  prompt: Prompt
-  calendars: UserCalendar[]
-  myCalendars: UserCalendar[]
-  showCoverPicker: boolean
-  onSetCover: () => void
-  senderName?: string
-  onComplete: (proof: import('../lib/types').Proof, calendarIds: string[]) => void
+  completion: CompletionView
+  isMine: boolean
+  myCalendars: RealCalendar[]
+  onReact: (kind: 'upvote' | 'pin') => void
+  onTag: (calendarIds: string[]) => void
 }) {
-  const meta = CATEGORY_META[prompt.category]
-  const isToday = prompt.dayKey === todayKey()
-  const isPublic = isPromptPublic(prompt, calendars)
+  const meta = CATEGORY_META[completion.category]
+  const [editingTags, setEditingTags] = useState(false)
 
   return (
     <div className="rounded-sm border border-line bg-card p-4">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-ink-faint">
-          <CATEGORY_ICON category={prompt.category} size={13} />
+          <CATEGORY_ICON category={completion.category} size={13} />
           {meta.label}
         </span>
-        {prompt.status === 'completed' && (
-          <span className="flex items-center gap-2">
-            {showCoverPicker && (
-              <button
-                onClick={onSetCover}
-                title={prompt.isDayCover ? 'Calendar cover for this day' : 'Set as calendar cover for this day'}
-                className="-m-2 p-2 text-ink-faint"
-              >
-                <StarIcon size={15} filled={prompt.isDayCover} className={prompt.isDayCover ? 'text-accent' : ''} />
-              </button>
-            )}
-            <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-ink-faint">
-              {isPublic ? <GlobeIcon size={12} /> : <LockIcon size={12} />}
-              {isPublic ? 'Public' : 'Private'}
-            </span>
-            <CheckIcon size={16} className="text-accent" />
-          </span>
+        {completion.boardName && (
+          <span className="text-[10px] uppercase tracking-wide text-ink-faint">{completion.boardName}</span>
         )}
       </div>
-      <p className="mt-2 font-serif text-base leading-snug">{prompt.text}</p>
+      <p className="mt-2 font-serif text-base leading-snug">{completion.text}</p>
       <p className="mt-1.5 flex items-center gap-1 text-xs text-ink-faint">
         <FlagIcon size={12} />
-        {senderName ? `Assigned by ${senderName}` : prompt.boardId ? 'Board challenge' : 'Assigned anonymously'}
+        {completion.isSelfSent ? 'Your own board' : `From ${completion.senderDisplayName ?? 'someone'}`}
       </p>
 
-      {prompt.status === 'completed' && prompt.proof && (
-        <div className="mt-3">
-          {prompt.proof.type === 'photo' && prompt.proof.dataUrl && (
-            <img src={prompt.proof.dataUrl} className="max-h-56 w-full rounded-sm object-cover" alt="proof" />
-          )}
-          {prompt.proof.type === 'video' && prompt.proof.dataUrl && (
-            <video src={prompt.proof.dataUrl} controls playsInline className="max-h-56 w-full rounded-sm bg-ink" />
-          )}
-          {prompt.proof.caption && <p className="mt-2 text-sm italic text-ink-soft">"{prompt.proof.caption}"</p>}
-          {prompt.calendarIds && prompt.calendarIds.length > 0 && (
-            <p className="mt-2 text-xs text-ink-faint">
-              Filed in {prompt.calendarIds.map((id) => calendars.find((c) => c.id === id)?.name).filter(Boolean).join(', ')}
-            </p>
-          )}
-        </div>
-      )}
+      <div className="mt-3">
+        {completion.mediaDataUrl && completion.mediaType === 'photo' && (
+          <img src={completion.mediaDataUrl} className="max-h-56 w-full rounded-sm object-cover" alt="proof" />
+        )}
+        {completion.mediaDataUrl && completion.mediaType === 'video' && (
+          <video src={completion.mediaDataUrl} controls playsInline className="max-h-56 w-full rounded-sm bg-ink" />
+        )}
+        {completion.userCaption && <p className="mt-2 text-sm italic text-ink-soft">"{completion.userCaption}"</p>}
+        {completion.calendarNames.length > 0 && (
+          <p className="mt-2 text-xs text-ink-faint">Filed in {completion.calendarNames.join(', ')}</p>
+        )}
+      </div>
 
-      {prompt.status === 'accepted' && isToday && (
-        <div className="mt-3">
-          <CompleteChallengeForm
-            onSubmit={onComplete}
-            calendarOptions={myCalendars.map((c) => ({ id: c.id, name: c.name, visibility: c.visibility }))}
-          />
+      <div className="mt-3 flex items-center gap-3 border-t border-line pt-2.5">
+        <button
+          onClick={() => onReact('upvote')}
+          className={completion.upvotedByMe ? 'flex items-center gap-1 text-xs text-accent' : 'flex items-center gap-1 text-xs text-ink-faint'}
+        >
+          <UpvoteIcon size={14} /> {completion.upvotes}
+        </button>
+        <button
+          onClick={() => onReact('pin')}
+          className={completion.pinnedByMe ? 'flex items-center gap-1 text-xs text-accent' : 'flex items-center gap-1 text-xs text-ink-faint'}
+        >
+          <PinIcon size={14} /> {completion.pinnedByMe ? 'Pinned' : 'Pin'}
+        </button>
+        {isMine && myCalendars.length > 0 && (
+          <button onClick={() => setEditingTags((v) => !v)} className="ml-auto text-xs text-ink-faint underline underline-offset-2">
+            File into calendars
+          </button>
+        )}
+      </div>
+
+      {editingTags && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {myCalendars.map((cal) => {
+            const active = completion.calendarIds.includes(cal.id)
+            return (
+              <button
+                key={cal.id}
+                onClick={() =>
+                  onTag(active ? completion.calendarIds.filter((id) => id !== cal.id) : [...completion.calendarIds, cal.id])
+                }
+                className={
+                  active
+                    ? 'rounded-full border border-ink bg-ink px-2.5 py-1 text-xs text-paper'
+                    : 'rounded-full border border-line px-2.5 py-1 text-xs text-ink-soft'
+                }
+              >
+                {cal.name}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

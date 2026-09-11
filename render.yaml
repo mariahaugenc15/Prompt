@@ -2,23 +2,33 @@ services:
   - type: web
     name: prompt-api
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install
     # Not `npm run server` — that runs tsx in --watch mode, a dev-only file
     # watcher with no place in a production container (extra overhead, and
     # one more thing that can go wrong before the app ever binds a port).
     # `npm start` runs the server once, plainly.
     startCommand: npm start
-    # A persistent disk is what makes this "live" rather than a demo: without
-    # it, every redeploy or restart wipes every account. Disks require a paid
-    # plan (Starter or above) — Render's free web services can't attach one.
-    disk:
-      name: prompt-data
-      mountPath: /var/data
-      sizeGB: 1
+    # No persistent disk while running on a plan that can't attach one
+    # (Render's free/Hobby tier — disks need a paid plan, "Pro" on this
+    # account since there's no separate "Starter" tier available here).
+    # Without it, every redeploy or restart wipes every account and upload —
+    # fine for testing the app is actually live, not for real users. Once
+    # upgraded, uncomment this block AND set DATA_DIR back to /var/data below
+    # (or just let a Blueprint sync do both, if this service is ever
+    # recreated from this file rather than managed by hand in the dashboard).
+    # disk:
+    #   name: prompt-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
     envVars:
-      - key: DATA_DIR
-        value: /var/data
+      # Deliberately omitted for now: leaving DATA_DIR unset makes the app
+      # fall back to a directory inside its own (ephemeral) container
+      # filesystem — see server/db.ts — which always exists and is always
+      # writable, unlike /var/data without a disk mounted there. Add this
+      # back with value /var/data once the disk above is uncommented.
+      # - key: DATA_DIR
+      #   value: /var/data
       - key: CORS_ORIGIN
         sync: false
       # Comma-separated usernames to grant admin access (the trust & safety

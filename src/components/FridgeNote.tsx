@@ -3,13 +3,11 @@ import clsx from 'clsx'
 import { CATEGORY_META, type Category } from '../lib/types'
 import { PinIcon, CATEGORY_ICON, CloseIcon, CheckIcon } from './Icons'
 
-// A single fridge note, whether it's a mock-layer prompt or a real,
-// server-backed one sent to your account — both render through the same
-// stack/detail UI so "a prompt was sent to you" always looks and behaves
-// the same regardless of which system it came from. Notes stay visible
-// here after they're resolved (not just while pending), so there's one
-// permanent place to find any prompt again, not a separate inbox that
-// empties out once you've acted on something.
+// A single fridge note for a real, server-backed prompt sent to your
+// account. A completed note stays visible here (it's the record of what
+// you made), but a declined one is dropped from the list entirely once
+// you decline it — there's nothing to look back on, so it doesn't need a
+// permanent place.
 export interface FridgeNoteViewModel {
   id: string
   category: Category
@@ -21,6 +19,7 @@ export interface FridgeNoteViewModel {
   detailSourceLabel: string
   status: 'pending' | 'completed' | 'declined'
   onAccept?: () => void // only meaningful (and shown) when status === 'pending'
+  onDecline?: () => void // only meaningful (and shown) when status === 'pending' — 1:1 only, broadcasts can't be declined
   completion?: { mediaType: string; mediaDataUrl?: string; autoCaption?: string; userCaption?: string }
 }
 
@@ -104,12 +103,21 @@ export function FridgeNoteDetail({ note, onClose }: { note: FridgeNoteViewModel;
         {note.status === 'declined' && <p className="mt-3 text-sm italic text-ink-faint">You declined this one.</p>}
 
         <div className="mt-5 flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-soft transition hover:border-line-strong"
-          >
-            Close
-          </button>
+          {note.status === 'pending' && note.onDecline ? (
+            <button
+              onClick={note.onDecline}
+              className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-soft transition hover:border-line-strong"
+            >
+              Decline
+            </button>
+          ) : (
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-sm border border-line py-2 text-sm text-ink-soft transition hover:border-line-strong"
+            >
+              Close
+            </button>
+          )}
           {note.status === 'pending' && note.onAccept && (
             <button
               onClick={note.onAccept}

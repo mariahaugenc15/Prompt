@@ -65,8 +65,8 @@ export function getMyCalendars(token: string) {
   return call<RealCalendar[]>('/api/calendars/mine', token)
 }
 
-export function discoverCalendars(token: string) {
-  return call<RealCalendar[]>('/api/calendars/discover', token)
+export function discoverCalendars(token: string, offset = 0, limit = 50) {
+  return call<RealCalendar[]>(`/api/calendars/discover?limit=${limit}&offset=${offset}`, token)
 }
 
 export function getCalendar(id: string, token?: string) {

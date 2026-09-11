@@ -11,6 +11,7 @@ import {
   getCompletionScore,
   getPromptHistory,
   completePrompt,
+  declinePrompt,
   type ActiveBroadcastItem,
   type OneToOneHistoryItem,
 } from '../lib/realAccountsApi'
@@ -154,6 +155,18 @@ export function Home() {
     }
   }
 
+  async function handleDeclineOneToOne(item: OneToOneHistoryItem) {
+    if (!account) return
+    setOpenNoteId(null)
+    const res = await declinePrompt(item.id, account.token)
+    if (res.ok) {
+      // Declining removes the note from the list entirely rather than
+      // persisting it as a resolved "declined" entry — nothing about a
+      // declined prompt is worth looking back on.
+      setOneToOne((prev) => prev.filter((p) => p.id !== item.id))
+    }
+  }
+
   const [completingOneToOne, setCompletingOneToOne] = useState<OneToOneHistoryItem | null>(null)
   const [completingOneToOneBusy, setCompletingOneToOneBusy] = useState(false)
 
@@ -178,6 +191,7 @@ export function Home() {
       stackLabel: item.senderDisplayName,
       detailSourceLabel: `From ${item.senderDisplayName}`,
       onAccept: item.status === 'pending' ? () => { setOpenNoteId(null); setCompletingOneToOne(item) } : undefined,
+      onDecline: item.status === 'pending' ? () => handleDeclineOneToOne(item) : undefined,
       completion:
         item.status === 'completed'
           ? { mediaType: item.mediaType ?? 'photo', mediaDataUrl: item.mediaDataUrl, autoCaption: item.autoCaption, userCaption: item.userCaption }

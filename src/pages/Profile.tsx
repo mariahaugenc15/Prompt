@@ -18,8 +18,11 @@ import {
   updateMyBio,
   logout,
   deleteMyAccount,
+  getPromptHistory,
+  unsendPrompt,
   type Me,
   type PublicProfile,
+  type OneToOneHistoryItem,
 } from '../lib/realAccountsApi'
 import { getMyCalendars, type RealCalendar } from '../lib/calendarsApi'
 import { getMyBoards, type RealBoard } from '../lib/boardsApi'
@@ -41,22 +44,44 @@ export function Profile() {
   const [myCalendars, setMyCalendars] = useState<RealCalendar[]>([])
   const [myBoards, setMyBoards] = useState<RealBoard[]>([])
   const [score, setScore] = useState<{ score: number | null; completed: number; total: number } | null>(null)
+  const [sentPending, setSentPending] = useState<OneToOneHistoryItem[]>([])
+  const [unsendingId, setUnsendingId] = useState<string | null>(null)
 
   function refreshProfile() {
     if (!account) return
     getProfile(account.username, account.token).then((res) => setProfile(res.ok ? res.data : null))
   }
 
+  function refreshSent() {
+    if (!account) return
+    getPromptHistory(account.token).then((res) => {
+      if (!res.ok) return
+      setSentPending(res.data.oneToOne.filter((p) => p.senderUsername === account.username && p.status === 'pending'))
+    })
+  }
+
   useEffect(() => {
     if (!account) return
     getMe(account.token).then((res) => setMe(res.ok ? res.data : null))
     refreshProfile()
+    refreshSent()
     getFollowing(account.username, account.token).then((res) => setFollowingList(res.ok ? res.data : []))
     getBlockedAccounts(account.token).then((res) => setBlockedList(res.ok ? res.data : []))
     getMyCalendars(account.token).then((res) => setMyCalendars(res.ok ? res.data : []))
     getMyBoards(account.token).then((res) => setMyBoards(res.ok ? res.data : []))
     getCompletionScore(account.token).then((res) => setScore(res.ok ? res.data : null))
   }, [account])
+
+  async function handleUnsend(id: string) {
+    if (!account) return
+    setUnsendingId(id)
+    try {
+      const res = await unsendPrompt(id, account.token)
+      if (res.ok) setSentPending((prev) => prev.filter((p) => p.id !== id))
+    } finally {
+      setUnsendingId(null)
+    }
+  }
 
   async function handleRealPermission(value: PromptPermission) {
     if (!account) return
@@ -291,6 +316,29 @@ export function Profile() {
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {sentPending.length > 0 && (
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Sent, awaiting response</p>
+          <div className="flex flex-col gap-1.5">
+            {sentPending.map((p) => (
+              <div key={p.id} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium leading-tight">{p.promptText}</p>
+                  <p className="text-xs text-ink-faint">To @{p.recipientUsername}</p>
+                </div>
+                <button
+                  onClick={() => handleUnsend(p.id)}
+                  disabled={unsendingId === p.id}
+                  className="shrink-0 text-xs text-ink-faint underline underline-offset-2 disabled:opacity-50"
+                >
+                  {unsendingId === p.id ? 'Unsending…' : 'Unsend'}
+                </button>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 

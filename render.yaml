@@ -17,10 +17,13 @@ services:
         value: /var/data
       - key: CORS_ORIGIN
         sync: false
-      # This server's own public URL — mediaStore.ts uses it to build
-      # absolute URLs for uploaded photos/videos/avatars, since a relative
-      # "/media/x" URL would resolve against the frontend's origin instead
-      # once the two are on different hosts. Set to this service's Render URL.
+      # Optional override only. mediaStore.ts normally derives this
+      # server's own public URL from each request (needed to build absolute
+      # URLs for uploaded photos/videos/avatars, since a relative "/media/x"
+      # URL would resolve against the frontend's origin instead once the two
+      # are on different hosts) — only set this if a CDN or custom domain
+      # sits in front of this service and req.protocol/host wouldn't reflect
+      # its real public address.
       - key: PUBLIC_SERVER_URL
         sync: false
       # The frontend's public URL — used to build the link inside a

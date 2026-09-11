@@ -23,6 +23,14 @@ import {
 
 const app = express()
 
+// Render (and most PaaS hosts) terminate TLS at their own proxy and forward
+// plain HTTP internally, so without this, req.protocol always reports
+// "http" even when the public request was https — which would make
+// mediaStore.ts's publicBaseUrl() build media URLs with the wrong scheme.
+// It also makes express-rate-limit key off the real client IP (X-Forwarded-
+// For) instead of the proxy's own IP for every request.
+app.set('trust proxy', 1)
+
 // The frontend and this API are meant to live on different hosts in
 // production (e.g. the frontend on Vercel, this on Render/Railway/Fly —
 // see README "Deploying"), so requests are cross-origin, not same-origin

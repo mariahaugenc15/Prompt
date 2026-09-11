@@ -15,6 +15,7 @@ import {
 import { getAccountByUsername } from './accountsRepo.js'
 import { notifyAccount } from './pushRepo.js'
 import { reactionCounts } from './reactionsRepo.js'
+import { blockedEitherWayIds } from './blocksRepo.js'
 
 export const boardsRouter = Router()
 
@@ -46,7 +47,8 @@ function validateBoardBody(body: unknown): { name: string; description: string; 
 boardsRouter.get('/api/boards/discover', (req, res) => {
   const viewerId = resolveOptionalAccountId(req)
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100)
-  res.json(listDiscoverable(viewerId, limit).map((b) => publicBoardView(b, viewerId)))
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  res.json(listDiscoverable(viewerId, limit, offset).map((b) => publicBoardView(b, viewerId)))
 })
 
 // GET /api/search/boards?q=foo — public boards only, matching name or
@@ -55,7 +57,9 @@ boardsRouter.get('/api/search/boards', (req, res) => {
   const q = String(req.query.q ?? '').trim()
   if (q.length < 2) return res.json([])
   const viewerId = resolveOptionalAccountId(req)
-  res.json(searchBoards(q, 12).map((b) => publicBoardView(b, viewerId)))
+  const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 50)
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  res.json(searchBoards(q, viewerId, limit, offset).map((b) => publicBoardView(b, viewerId)))
 })
 
 // GET /api/boards/mine — boards you own or have joined.
@@ -187,19 +191,25 @@ const completionsForChallenge = db.prepare(`
 // segment already keeps it from colliding either way.
 const recentPublicChallenges = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.cadence, p.created_at AS createdAt,
-         b.id AS boardId, b.name AS boardName, b.icon AS boardIcon,
+         b.id AS boardId, b.name AS boardName, b.icon AS boardIcon, b.owner_account_id AS ownerAccountId,
          a.username AS ownerUsername, a.first_name AS ownerFirstName, a.organization_name AS ownerOrgName
   FROM prompts p
   JOIN boards b ON b.id = p.board_id
   JOIN accounts a ON a.id = b.owner_account_id
   WHERE p.is_broadcast = 1 AND b.visibility = 'public'
   ORDER BY p.created_at DESC
-  LIMIT ?
+  LIMIT ? OFFSET ?
 `)
 
 boardsRouter.get('/api/boards/discover/challenges', (req, res) => {
+  const viewerId = resolveOptionalAccountId(req)
   const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100)
-  const rows = recentPublicChallenges.all(limit) as Record<string, unknown>[]
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  const overfetch = limit + (viewerId ? blockedEitherWayIds(viewerId).size : 0)
+  const blocked = viewerId ? blockedEitherWayIds(viewerId) : undefined
+  const rows = (recentPublicChallenges.all(overfetch, offset) as Record<string, unknown>[])
+    .filter((r) => !blocked || !blocked.has(r.ownerAccountId as string))
+    .slice(0, limit)
   res.json(
     rows.map((r) => ({
       id: r.id,

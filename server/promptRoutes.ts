@@ -7,7 +7,7 @@ import { displayName, getAccountById, getAccountByUsername, isFollowing } from '
 import { isSubscribed } from './boardsRepo.js'
 import { reactionCounts, toggleReaction } from './reactionsRepo.js'
 import { notifyAccount } from './pushRepo.js'
-import { saveDataUrlAsFile } from './mediaStore.js'
+import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
 
 export const promptRouter = Router()
@@ -146,6 +146,7 @@ const activeBoardBroadcastsFromSubscribed = db.prepare(`
   JOIN boards b ON b.id = p.board_id
   JOIN board_subscribers s ON s.board_id = p.board_id AND s.account_id = ?
   WHERE p.is_broadcast = 1 AND p.board_id IS NOT NULL AND p.status = 'active'
+    AND p.sender_account_id != ?
     AND NOT EXISTS (SELECT 1 FROM prompt_completions c WHERE c.prompt_id = p.id AND c.completer_account_id = ?)
   ORDER BY p.created_at DESC
 `)
@@ -180,7 +181,7 @@ promptRouter.get('/api/prompts/inbox', requireAuth, (req, res) => {
   const me = req.account!
   const oneToOne = (pendingOneToOne.all(me.id) as InboxRow[]).map((row) => inboxItem(row, false))
   const orgBroadcasts = (activeOrgBroadcastsFromFollowed.all(me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
-  const boardBroadcasts = (activeBoardBroadcastsFromSubscribed.all(me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
+  const boardBroadcasts = (activeBoardBroadcastsFromSubscribed.all(me.id, me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
 
   res.json([...oneToOne, ...orgBroadcasts, ...boardBroadcasts].sort((a, b) => b.createdAt - a.createdAt))
 })
@@ -244,7 +245,7 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   // completer's own added text is theirs to author.
   const userCaption = typeof req.body?.caption === 'string' ? req.body.caption.trim() || undefined : undefined
   if (!rawMediaDataUrl) return res.status(422).json({ errors: { media: 'Photo or video proof is required.' } })
-  const mediaDataUrl = saveDataUrlAsFile(rawMediaDataUrl)!
+  const mediaDataUrl = saveDataUrlAsFile(rawMediaDataUrl, publicBaseUrl(req))!
 
   const sender = getAccountById(prompt.sender_account_id as string)!
   const autoCaption = autoCaptionFor(displayName(sender), prompt.prompt_text as string)
@@ -252,7 +253,7 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   if (prompt.is_broadcast) {
     const boardId = prompt.board_id as string | null
     const eligible = boardId ? isSubscribed(boardId, me.id) : isFollowing(me.id, prompt.sender_account_id as string)
-    const check = canCompleteBroadcast(me, prompt.sender_account_id as string, eligible, { allowSelf: Boolean(boardId) })
+    const check = canCompleteBroadcast(me, prompt.sender_account_id as string, eligible)
     if (!check.ok) return res.status(403).json({ errors: { form: check.reason } })
 
     const id = crypto.randomUUID()

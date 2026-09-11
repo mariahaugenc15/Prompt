@@ -19,6 +19,8 @@ function shuffled<T>(arr: T[]): T[] {
   return copy
 }
 
+const FEED_PAGE_SIZE = 20
+
 export function Feed() {
   const [tab, setTab] = useState<'following' | 'community' | 'explore'>('following')
   const [query, setQuery] = useState('')
@@ -26,11 +28,22 @@ export function Feed() {
 
   const [following, setFollowing] = useState<CompletionView[]>([])
   const [community, setCommunity] = useState<CompletionView[]>([])
+  const [followingHasMore, setFollowingHasMore] = useState(false)
+  const [communityHasMore, setCommunityHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     if (!account) return
-    getFollowingFeed(account.token).then((res) => setFollowing(res.ok ? res.data : []))
-    getCommunityFeed(account.token).then((res) => setCommunity(res.ok ? res.data : []))
+    getFollowingFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
+      if (!res.ok) return
+      setFollowing(res.data)
+      setFollowingHasMore(res.data.length === FEED_PAGE_SIZE)
+    })
+    getCommunityFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
+      if (!res.ok) return
+      setCommunity(res.data)
+      setCommunityHasMore(res.data.length === FEED_PAGE_SIZE)
+    })
   }, [account])
 
   async function handleReact(list: 'following' | 'community', completionId: string, kind: 'upvote' | 'pin') {
@@ -40,6 +53,28 @@ export function Feed() {
     const patch = (items: CompletionView[]) => items.map((c) => (c.id === completionId ? { ...c, ...res.data } : c))
     if (list === 'following') setFollowing(patch)
     else setCommunity(patch)
+  }
+
+  async function handleLoadMore(list: 'following' | 'community') {
+    if (!account) return
+    setLoadingMore(true)
+    try {
+      if (list === 'following') {
+        const res = await getFollowingFeed(account.token, following.length, FEED_PAGE_SIZE)
+        if (res.ok) {
+          setFollowing((prev) => [...prev, ...res.data])
+          setFollowingHasMore(res.data.length === FEED_PAGE_SIZE)
+        }
+      } else {
+        const res = await getCommunityFeed(account.token, community.length, FEED_PAGE_SIZE)
+        if (res.ok) {
+          setCommunity((prev) => [...prev, ...res.data])
+          setCommunityHasMore(res.data.length === FEED_PAGE_SIZE)
+        }
+      }
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
   // Explore's profile grid: real, signed-up accounts, with anyone in your
@@ -220,11 +255,22 @@ export function Feed() {
                 {tab === 'following' ? 'Follow friends to see what they’ve actually done.' : 'Subscribe to a board to see its gallery.'}
               </p>
             ) : (
-              <div className="columns-2 gap-3">
-                {(tab === 'following' ? following : community).map((c) => (
-                  <CompletionFeedCard key={c.id} completion={c} onReact={(kind) => handleReact(tab, c.id, kind)} />
-                ))}
-              </div>
+              <>
+                <div className="columns-2 gap-3">
+                  {(tab === 'following' ? following : community).map((c) => (
+                    <CompletionFeedCard key={c.id} completion={c} onReact={(kind) => handleReact(tab, c.id, kind)} />
+                  ))}
+                </div>
+                {(tab === 'following' ? followingHasMore : communityHasMore) && (
+                  <button
+                    onClick={() => handleLoadMore(tab)}
+                    disabled={loadingMore}
+                    className="mt-1 w-full rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </>

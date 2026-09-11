@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import type { Request } from 'express'
 
 // Proof photos/videos and avatars used to ride as base64 data: URLs stored
 // directly in SQLite TEXT columns — simple, but every row drags its full
@@ -16,10 +17,19 @@ fs.mkdirSync(mediaDir, { recursive: true })
 // The frontend and this API are meant to live on different hosts in
 // production (see server/index.ts's CORS comment) — a relative "/media/x"
 // URL in an API response would resolve against the *frontend's* origin
-// when the browser renders it, not this server's. PUBLIC_SERVER_URL is
-// this server's own public URL, the same way VITE_API_BASE_URL is the
-// frontend's pointer back to it.
-const PUBLIC_SERVER_URL = (process.env.PUBLIC_SERVER_URL ?? `http://localhost:${process.env.PORT ?? 8787}`).replace(/\/$/, '')
+// when the browser renders it, not this server's. Previously this fell
+// back to a hardcoded localhost URL whenever PUBLIC_SERVER_URL wasn't set,
+// which silently produced unreachable media URLs in production (nobody's
+// browser can resolve "localhost" to this server) — every photo/video/
+// avatar looked broken even though the upload itself succeeded. Deriving
+// it from the incoming request instead means it always matches wherever
+// this server is actually reachable, no manual env var required. Set
+// PUBLIC_SERVER_URL only as an override (e.g. a CDN/custom domain in front
+// of this server that isn't what req.protocol/host would report).
+export function publicBaseUrl(req: Request): string {
+  if (process.env.PUBLIC_SERVER_URL) return process.env.PUBLIC_SERVER_URL.replace(/\/$/, '')
+  return `${req.protocol}://${req.get('host')}`
+}
 
 const EXTENSION_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -35,10 +45,11 @@ const EXTENSION_BY_MIME: Record<string, string> = {
 const DATA_URL_RE = /^data:([^;,]+)(;charset=[^;,]+)?;base64,(.+)$/s
 
 // Decodes a `data:<mime>;base64,<payload>` string, writes it to a file
-// under mediaDir, and returns its public URL. A value that isn't a data:
-// URL (already a saved URL, or missing) passes through unchanged — that
-// covers both a defensive re-save and simply having no media at all.
-export function saveDataUrlAsFile(dataUrl: string | undefined): string | undefined {
+// under mediaDir, and returns its public URL (built from `baseUrl` — see
+// publicBaseUrl above). A value that isn't a data: URL (already a saved
+// URL, or missing) passes through unchanged — that covers both a
+// defensive re-save and simply having no media at all.
+export function saveDataUrlAsFile(dataUrl: string | undefined, baseUrl: string): string | undefined {
   if (!dataUrl) return undefined
   const match = DATA_URL_RE.exec(dataUrl)
   if (!match) return dataUrl
@@ -47,5 +58,5 @@ export function saveDataUrlAsFile(dataUrl: string | undefined): string | undefin
   const ext = EXTENSION_BY_MIME[mime.toLowerCase()] ?? 'bin'
   const filename = `${crypto.randomUUID()}.${ext}`
   fs.writeFileSync(path.join(mediaDir, filename), Buffer.from(base64, 'base64'))
-  return `${PUBLIC_SERVER_URL}/media/${filename}`
+  return `${baseUrl}/media/${filename}`
 }

@@ -4,7 +4,7 @@ import { requireAuth, resolveOptionalAccountId } from './auth.js'
 import { canFollow, type PromptPermission } from './permissions.js'
 import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicProfile, searchAccounts, suggestedAccounts } from './accountsRepo.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
-import { saveDataUrlAsFile } from './mediaStore.js'
+import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 
 function parsePaging(req: Request, defaultLimit: number, maxLimit: number) {
   const limit = Math.min(Math.max(Number(req.query.limit) || defaultLimit, 1), maxLimit)
@@ -44,7 +44,7 @@ socialRouter.patch('/api/me/avatar', requireAuth, (req, res) => {
     setAvatarPath.run(null, actor.id)
     return res.json({ avatarUrl: undefined })
   }
-  const avatarUrl = saveDataUrlAsFile(dataUrl)
+  const avatarUrl = saveDataUrlAsFile(dataUrl, publicBaseUrl(req))
   setAvatarPath.run(avatarUrl, actor.id)
   res.json({ avatarUrl })
 })

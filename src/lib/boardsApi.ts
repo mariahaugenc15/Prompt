@@ -66,8 +66,8 @@ export function createBoard(
   return call<RealBoard>('/api/boards', token, { method: 'POST', body: JSON.stringify(input) })
 }
 
-export function discoverBoards(token?: string) {
-  return call<RealBoard[]>('/api/boards/discover', token)
+export function discoverBoards(token?: string, offset = 0, limit = 50) {
+  return call<RealBoard[]>(`/api/boards/discover?limit=${limit}&offset=${offset}`, token)
 }
 
 export function searchBoards(query: string, token?: string) {

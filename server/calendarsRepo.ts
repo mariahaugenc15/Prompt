@@ -1,4 +1,5 @@
 import { db } from './db.js'
+import { blockedEitherWayIds } from './blocksRepo.js'
 
 export interface CalendarRow {
   id: string
@@ -23,7 +24,7 @@ const discoverStmt = db.prepare(`
   WHERE c.visibility = 'public'
     AND NOT EXISTS (SELECT 1 FROM calendar_members m WHERE m.calendar_id = c.id AND m.account_id = ?)
   ORDER BY c.created_at DESC
-  LIMIT ?
+  LIMIT ? OFFSET ?
 `)
 
 const mineStmt = db.prepare(`
@@ -68,8 +69,13 @@ export function setVisibility(calendarId: string, ownerAccountId: string, visibi
   return setVisibilityStmt.run(visibility, calendarId, ownerAccountId).changes > 0
 }
 
-export function listDiscoverable(excludeAccountId: string, limit: number): CalendarRow[] {
-  return discoverStmt.all(excludeAccountId, limit) as CalendarRow[]
+// Fetches a little past the page so filtering out calendars owned by a
+// blocked-either-way account afterward doesn't leave the page short.
+export function listDiscoverable(viewerId: string, limit: number, offset = 0): CalendarRow[] {
+  const blocked = blockedEitherWayIds(viewerId)
+  const overfetch = limit + blocked.size
+  const rows = discoverStmt.all(viewerId, overfetch, offset) as CalendarRow[]
+  return (blocked.size === 0 ? rows : rows.filter((c) => !blocked.has(c.owner_account_id))).slice(0, limit)
 }
 
 export function listMine(accountId: string): CalendarRow[] {

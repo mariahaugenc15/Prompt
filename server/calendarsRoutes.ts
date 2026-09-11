@@ -38,7 +38,8 @@ calendarsRouter.get('/api/calendars/mine', requireAuth, (req, res) => {
 calendarsRouter.get('/api/calendars/discover', requireAuth, (req, res) => {
   const me = req.account!
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100)
-  res.json(listDiscoverable(me.id, limit).map((c) => publicCalendarView(c, me.id)))
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  res.json(listDiscoverable(me.id, limit, offset).map((c) => publicCalendarView(c, me.id)))
 })
 
 calendarsRouter.get('/api/calendars/:id', (req, res) => {
@@ -65,7 +66,9 @@ calendarsRouter.get('/api/calendars/:id/feed', (req, res) => {
   if (calendar.visibility === 'private' && (!viewerId || !isMember(calendar.id, viewerId))) {
     return res.status(404).json({ errors: { form: 'No calendar with that id.' } })
   }
-  res.json(calendarFeed(calendar.id, viewerId))
+  const limit = Math.min(Math.max(Number(req.query.limit) || 500, 1), 1000)
+  const offset = Math.max(Number(req.query.offset) || 0, 0)
+  res.json(calendarFeed(calendar.id, viewerId, limit, offset))
 })
 
 calendarsRouter.post('/api/calendars/:id/join', requireAuth, (req, res) => {

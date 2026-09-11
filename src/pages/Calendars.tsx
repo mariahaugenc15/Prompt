@@ -5,15 +5,23 @@ import { IndexCard } from '../components/IndexCard'
 import { CalendarIcon, PlusIcon, LockIcon } from '../components/Icons'
 import { discoverCalendars, getMyCalendars, joinCalendar, type RealCalendar } from '../lib/calendarsApi'
 
+const DISCOVER_PAGE_SIZE = 20
+
 export function Calendars() {
   const account = useStore((s) => s.account)
   const [mine, setMine] = useState<RealCalendar[]>([])
   const [discover, setDiscover] = useState<RealCalendar[]>([])
+  const [discoverHasMore, setDiscoverHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   function refresh() {
     if (!account) return
     getMyCalendars(account.token).then((res) => setMine(res.ok ? res.data : []))
-    discoverCalendars(account.token).then((res) => setDiscover(res.ok ? res.data : []))
+    discoverCalendars(account.token, 0, DISCOVER_PAGE_SIZE).then((res) => {
+      if (!res.ok) return
+      setDiscover(res.data)
+      setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
+    })
   }
 
   useEffect(refresh, [account])
@@ -25,6 +33,20 @@ export function Calendars() {
     if (!account) return
     const res = await joinCalendar(id, account.token)
     if (res.ok) refresh()
+  }
+
+  async function handleLoadMore() {
+    if (!account) return
+    setLoadingMore(true)
+    try {
+      const res = await discoverCalendars(account.token, discover.length, DISCOVER_PAGE_SIZE)
+      if (res.ok) {
+        setDiscover((prev) => [...prev, ...res.data])
+        setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
+      }
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
   return (
@@ -93,6 +115,15 @@ export function Calendars() {
             <p className="text-sm text-ink-faint">
               {mine.length === 0 ? 'No public calendars yet — be the first to create one.' : 'No public calendars left to join right now.'}
             </p>
+          )}
+          {discoverHasMore && (
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
           )}
         </div>
       </section>

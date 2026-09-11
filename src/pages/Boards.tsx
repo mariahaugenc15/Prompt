@@ -13,15 +13,23 @@ const CATEGORY_LABEL: Record<string, string> = {
   interest: 'Interest',
 }
 
+const DISCOVER_PAGE_SIZE = 20
+
 export function Boards() {
   const account = useStore((s) => s.account)
   const [mine, setMine] = useState<RealBoard[]>([])
   const [discover, setDiscover] = useState<RealBoard[]>([])
+  const [discoverHasMore, setDiscoverHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   function refresh() {
     if (!account) return
     getMyBoards(account.token).then((res) => setMine(res.ok ? res.data : []))
-    discoverBoards(account.token).then((res) => setDiscover(res.ok ? res.data : []))
+    discoverBoards(account.token, 0, DISCOVER_PAGE_SIZE).then((res) => {
+      if (!res.ok) return
+      setDiscover(res.data)
+      setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
+    })
   }
 
   useEffect(refresh, [account])
@@ -30,6 +38,20 @@ export function Boards() {
     if (!account) return
     const res = await subscribeBoard(id, account.token)
     if (res.ok) refresh()
+  }
+
+  async function handleLoadMore() {
+    if (!account) return
+    setLoadingMore(true)
+    try {
+      const res = await discoverBoards(account.token, discover.length, DISCOVER_PAGE_SIZE)
+      if (res.ok) {
+        setDiscover((prev) => [...prev, ...res.data])
+        setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
+      }
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
   return (
@@ -65,6 +87,15 @@ export function Boards() {
             <p className="text-sm text-ink-faint">
               {mine.length === 0 ? 'No boards yet — be the first to create one.' : 'You’re subscribed to everything for now.'}
             </p>
+          )}
+          {discoverHasMore && (
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
           )}
         </div>
       </section>

@@ -1,6 +1,7 @@
 import { db } from './db.js'
 import { reactionCounts } from './reactionsRepo.js'
 import { calendarsForCompletion, isCompletionPublic } from './calendarsRepo.js'
+import { blockedEitherWayIds } from './blocksRepo.js'
 
 export interface CompletionView {
   id: string
@@ -48,6 +49,8 @@ interface OneToOneRow {
 interface BroadcastRow extends OneToOneRow {
   boardId: string | null
   boardName: string | null
+  senderAccountId?: string
+  completerAccountId?: string
 }
 
 const oneToOneByRecipient = db.prepare(`
@@ -93,7 +96,8 @@ const broadcastByBoardIds = db.prepare(`
   SELECT c.id, p.category, p.prompt_text AS text, c.auto_caption AS autoCaption, c.user_caption AS userCaption,
          c.media_type AS mediaType, c.media_data_url AS mediaDataUrl, c.created_at AS createdAt, p.board_id AS boardId, b.name AS boardName,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
-         completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
+         completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName,
+         p.sender_account_id AS senderAccountId, c.completer_account_id AS completerAccountId
   FROM prompt_completions c
   JOIN prompts p ON p.id = c.prompt_id
   JOIN accounts sender ON sender.id = p.sender_account_id
@@ -159,42 +163,65 @@ function normalizeBroadcast(row: BroadcastRow, viewerId?: string): CompletionVie
   }
 }
 
-// Every one of my own resolved completions — 1:1 sent to me plus any
-// broadcast (organization or board) I've completed. This is "All Activity":
-// my own calendar, private to me by default regardless of source.
-export function myActivity(accountId: string): CompletionView[] {
-  const oneToOne = (oneToOneByRecipient.all(accountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, accountId))
-  const broadcasts = (broadcastByCompleter.all(accountId) as BroadcastRow[]).map((r) => normalizeBroadcast(r, accountId))
-  return [...oneToOne, ...broadcasts].sort((a, b) => b.createdAt - a.createdAt)
+function paginate<T>(items: T[], limit: number, offset: number): T[] {
+  return items.slice(offset, offset + limit)
 }
 
-// 1:1 completions by accounts I follow — "Following" tab.
-export function followingFeed(accountId: string): CompletionView[] {
-  return (oneToOneByFollowedRecipients.all(accountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, accountId))
+// Every one of my own resolved completions — 1:1 sent to me plus any
+// broadcast (organization or board) I've completed. This is "All Activity":
+// my own calendar, private to me by default regardless of source. Not
+// filtered by blocks — it's your own history and stays yours regardless of
+// who you've since blocked. Defaults to a generous cap rather than a small
+// page size since it backs a calendar view that expects a full month at a
+// time, not a "load more" feed.
+export function myActivity(accountId: string, limit = 500, offset = 0): CompletionView[] {
+  const oneToOne = (oneToOneByRecipient.all(accountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, accountId))
+  const broadcasts = (broadcastByCompleter.all(accountId) as BroadcastRow[]).map((r) => normalizeBroadcast(r, accountId))
+  return paginate([...oneToOne, ...broadcasts].sort((a, b) => b.createdAt - a.createdAt), limit, offset)
+}
+
+// 1:1 completions by accounts I follow — "Following" tab. No separate
+// block filtering needed: blocking someone always severs any follow
+// between the two of you (blocksRepo.ts), so a blocked account's
+// completions can't reach here via the follows join this already depends on.
+export function followingFeed(accountId: string, limit = 50, offset = 0): CompletionView[] {
+  const rows = (oneToOneByFollowedRecipients.all(accountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, accountId))
+  return paginate(rows, limit, offset)
 }
 
 // Board-broadcast completions from boards I subscribe to — "Community" tab.
-export function communityFeed(accountId: string): CompletionView[] {
-  return (broadcastByBoardIds.all(accountId) as BroadcastRow[])
-    .filter((r) => r.boardId)
-    .map((r) => normalizeBroadcast(r, accountId))
+// Unlike Following, a block doesn't touch board subscriptions, so a
+// completion from a blocked fellow-subscriber (or the board's own blocked
+// owner) needs an explicit filter here.
+export function communityFeed(accountId: string, limit = 50, offset = 0): CompletionView[] {
+  const blocked = blockedEitherWayIds(accountId)
+  const rows = (broadcastByBoardIds.all(accountId) as BroadcastRow[]).filter(
+    (r) => r.boardId && (blocked.size === 0 || (!blocked.has(r.senderAccountId!) && !blocked.has(r.completerAccountId!))),
+  )
+  return paginate(rows.map((r) => normalizeBroadcast(r, accountId)), limit, offset)
 }
 
 // What shows on someone else's public profile: any broadcast (org or board)
 // they've completed is inherently public (they opted into a public
 // challenge), plus any 1:1 completion they've tagged into a public
 // calendar — a private calendar can organize it for them, but it can't
-// make it private once a board already made it public.
-export function publicActivity(targetAccountId: string, viewerId?: string): CompletionView[] {
+// make it private once a board already made it public. If the viewer has
+// blocked (or is blocked by) the profile's owner, none of it shows —
+// there's nothing to negotiate part-way when the two of you can't interact
+// at all.
+export function publicActivity(targetAccountId: string, viewerId?: string, limit = 100, offset = 0): CompletionView[] {
+  if (viewerId && blockedEitherWayIds(viewerId).has(targetAccountId)) return []
   const broadcasts = (broadcastByCompleter.all(targetAccountId) as BroadcastRow[]).map((r) => normalizeBroadcast(r, viewerId))
   const oneToOne = (oneToOneByRecipient.all(targetAccountId) as OneToOneRow[])
     .filter((r) => isCompletionPublic(r.id))
     .map((r) => normalizeOneToOne(r, viewerId))
-  return [...broadcasts, ...oneToOne].sort((a, b) => b.createdAt - a.createdAt)
+  return paginate([...broadcasts, ...oneToOne].sort((a, b) => b.createdAt - a.createdAt), limit, offset)
 }
 
-// Everything (from any member) tagged into a specific calendar.
-export function calendarFeed(calendarId: string, viewerId?: string): CompletionView[] {
+// Everything (from any member) tagged into a specific calendar. Backs a
+// calendar's own month-grid view, so this defaults to a generous cap
+// rather than a small page size, same reasoning as myActivity above.
+export function calendarFeed(calendarId: string, viewerId?: string, limit = 500, offset = 0): CompletionView[] {
   const oneToOne = (
     db
       .prepare(
@@ -233,7 +260,7 @@ export function calendarFeed(calendarId: string, viewerId?: string): CompletionV
       .all(calendarId) as BroadcastRow[]
   ).map((r) => normalizeBroadcast(r, viewerId))
 
-  return [...oneToOne, ...broadcasts].sort((a, b) => b.createdAt - a.createdAt)
+  return paginate([...oneToOne, ...broadcasts].sort((a, b) => b.createdAt - a.createdAt), limit, offset)
 }
 
 // A completion the caller owns, resolved to its kind + the account that

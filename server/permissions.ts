@@ -67,22 +67,19 @@ export function canReceiveOneToOne(
 
 // A follower may complete a given org's broadcast — subscribing (following)
 // is the opt-in, per Section 2.2/3.5. Anyone else, including the org's own
-// account, cannot. A board broadcast reuses this same check but with
-// `allowSelf: true`: the sender_account_id on a board broadcast is the
-// board's owner, who is also always a normal subscriber of their own board
-// (unlike an organization, which has no separate "individual" identity to
-// complete as) — so the owner completing their own board's challenge is
-// expected, not a self-broadcast loophole.
+// account, cannot. A board broadcast reuses this same check: the board
+// owner is also always a normal subscriber of their own board, but they
+// still can't complete their own challenge — a board is meant to prompt
+// its subscribers, not double as the owner's own personal prompt to self.
 export function canCompleteBroadcast(
   completer: { accountType: AccountType; id: string },
   broadcastSenderId: string,
   isEligible: boolean,
-  opts: { allowSelf?: boolean } = {},
 ): PermissionResult {
   if (completer.accountType === 'organization') {
     return deny('Organization accounts cannot complete prompts.')
   }
-  if (!opts.allowSelf && completer.id === broadcastSenderId) {
+  if (completer.id === broadcastSenderId) {
     return deny('You cannot complete your own broadcast.')
   }
   return isEligible ? ALLOW : deny('You need access to this broadcast to complete it.')

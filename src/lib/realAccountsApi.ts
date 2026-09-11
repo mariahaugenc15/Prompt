@@ -184,6 +184,10 @@ export function unsendPrompt(id: string, token: string) {
   return call<{ id: string }>(`/api/prompts/${id}`, token, { method: 'DELETE' })
 }
 
+export function declinePrompt(id: string, token: string) {
+  return call<{ id: string; status: string }>(`/api/prompts/${id}/decline`, token, { method: 'POST' })
+}
+
 export function setMyPromptPermission(promptPermission: 'everyone' | 'followers' | 'mutuals', token: string) {
   return call<{ promptPermission: string }>('/api/me/prompt-permission', token, {
     method: 'PATCH',

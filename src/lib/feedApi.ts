@@ -21,13 +21,13 @@ export function getMyActivity(token: string) {
 }
 
 // 1:1 completions by accounts I follow.
-export function getFollowingFeed(token: string) {
-  return call<CompletionView[]>('/api/feed/following', token)
+export function getFollowingFeed(token: string, offset = 0, limit = 50) {
+  return call<CompletionView[]>(`/api/feed/following?limit=${limit}&offset=${offset}`, token)
 }
 
 // Board-broadcast completions from boards I subscribe to.
-export function getCommunityFeed(token: string) {
-  return call<CompletionView[]>('/api/feed/community', token)
+export function getCommunityFeed(token: string, offset = 0, limit = 50) {
+  return call<CompletionView[]>(`/api/feed/community?limit=${limit}&offset=${offset}`, token)
 }
 
 // What shows on someone else's public profile.

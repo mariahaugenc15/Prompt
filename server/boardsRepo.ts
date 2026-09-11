@@ -1,5 +1,6 @@
 import { db } from './db.js'
 import { getAccountById, displayName } from './accountsRepo.js'
+import { blockedEitherWayIds } from './blocksRepo.js'
 
 export interface BoardRow {
   id: string
@@ -32,7 +33,7 @@ const discoverStmt = db.prepare(`
   WHERE b.visibility = 'public'
     AND NOT EXISTS (SELECT 1 FROM board_subscribers s WHERE s.board_id = b.id AND s.account_id = ?)
   ORDER BY b.created_at DESC
-  LIMIT ?
+  LIMIT ? OFFSET ?
 `)
 
 function escapeLike(value: string): string {
@@ -43,7 +44,7 @@ const searchStmt = db.prepare(`
   SELECT * FROM boards
   WHERE visibility = 'public' AND (LOWER(name) LIKE ? ESCAPE '\\' OR LOWER(description) LIKE ? ESCAPE '\\')
   ORDER BY created_at DESC
-  LIMIT ?
+  LIMIT ? OFFSET ?
 `)
 
 // Boards you own or have joined — "Your boards".
@@ -53,6 +54,16 @@ const mineStmt = db.prepare(`
   WHERE s.account_id = ?
   ORDER BY b.created_at DESC
 `)
+
+// Discover/search results are fetched a little deep past the requested
+// page before filtering, so a blocked owner's boards being skipped doesn't
+// shrink the page below what was asked for.
+function filterBlockedOwners(boards: BoardRow[], viewerId: string | undefined, limit: number): BoardRow[] {
+  if (!viewerId) return boards.slice(0, limit)
+  const blocked = blockedEitherWayIds(viewerId)
+  if (blocked.size === 0) return boards.slice(0, limit)
+  return boards.filter((b) => !blocked.has(b.owner_account_id)).slice(0, limit)
+}
 
 export function createBoard(input: {
   id: string
@@ -89,13 +100,19 @@ export function subscribe(boardId: string, accountId: string): void {
   insertSubscriber.run(boardId, accountId, Date.now())
 }
 
-export function listDiscoverable(excludeAccountId: string | undefined, limit: number): BoardRow[] {
-  return discoverStmt.all(excludeAccountId ?? '', limit) as BoardRow[]
+// Fetches a bit past the page (limit + blocked.size) so filtering blocked
+// owners out afterward doesn't leave the page short.
+export function listDiscoverable(viewerId: string | undefined, limit: number, offset = 0): BoardRow[] {
+  const overfetch = limit + (viewerId ? blockedEitherWayIds(viewerId).size : 0)
+  const rows = discoverStmt.all(viewerId ?? '', overfetch, offset) as BoardRow[]
+  return filterBlockedOwners(rows, viewerId, limit)
 }
 
-export function searchBoards(query: string, limit: number): BoardRow[] {
+export function searchBoards(query: string, viewerId: string | undefined, limit: number, offset = 0): BoardRow[] {
   const like = `%${escapeLike(query.trim().toLowerCase())}%`
-  return searchStmt.all(like, like, limit) as BoardRow[]
+  const overfetch = limit + (viewerId ? blockedEitherWayIds(viewerId).size : 0)
+  const rows = searchStmt.all(like, like, overfetch, offset) as BoardRow[]
+  return filterBlockedOwners(rows, viewerId, limit)
 }
 
 export function getBoardsForAccount(accountId: string): BoardRow[] {

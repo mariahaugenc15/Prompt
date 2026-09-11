@@ -46,6 +46,26 @@ const findByToken = db.prepare(
    FROM accounts WHERE auth_token = ?`,
 )
 
+// Read fresh on every call rather than cached once at import time: on a
+// deployment with no persistent disk, every restart wipes accounts.is_admin
+// along with everything else, so granting admin access by only writing that
+// column at boot (see db.ts's ADMIN_USERNAMES bootstrap) creates a
+// chicken-and-egg problem — the account has to exist before the restart
+// that would flag it, and a restart on such a deployment deletes the
+// account itself. Checking the env var live sidesteps that entirely: it
+// takes effect immediately for any matching account, no restart required,
+// with or without a disk. The persisted column still matters wherever a
+// disk exists and an admin is later granted through means other than this
+// env var (e.g. a future "make admin" dashboard action).
+function isAdminByEnv(username: string): boolean {
+  const normalized = username.trim().toLowerCase()
+  return (process.env.ADMIN_USERNAMES ?? '')
+    .split(',')
+    .map((u) => u.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(normalized)
+}
+
 // A token never had an expiry until this pass — sessions are otherwise
 // valid forever, which is fine for a one-token-per-account model where
 // logging in elsewhere already invalidates the old one, but a lost/leaked
@@ -61,7 +81,7 @@ export function toAuthedAccount(row: AccountRow): AuthedAccount {
     email: row.email,
     promptPermission: row.prompt_permission,
     displayName: row.first_name ?? row.organization_name ?? row.username,
-    isAdmin: Boolean(row.is_admin),
+    isAdmin: Boolean(row.is_admin) || isAdminByEnv(row.username),
     isVerified: Boolean(row.is_verified),
     totpEnabled: Boolean(row.totp_enabled),
   }

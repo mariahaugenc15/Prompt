@@ -62,6 +62,7 @@ interface AppState {
   setDayCover: (dayKey: string, promptId: string) => void
 
   createBoard: (opts: {
+    id?: string
     name: string
     description: string
     category: BoardCategory
@@ -190,7 +191,7 @@ export const useStore = create<AppState>()(
         }),
 
       createBoard: (opts) => {
-        const id = uid('b')
+        const id = opts.id ?? uid('b')
         const board: Board = {
           id,
           name: opts.name,

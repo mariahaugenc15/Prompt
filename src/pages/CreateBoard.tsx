@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import type { BoardCategory } from '../lib/types'
+import { createBoard as createRealBoard } from '../lib/boardsApi'
 
 const CATEGORIES: { id: BoardCategory; label: string }[] = [
   { id: 'brand', label: 'Brand' },
@@ -14,6 +15,7 @@ const CATEGORIES: { id: BoardCategory; label: string }[] = [
 
 export function CreateBoard() {
   const navigate = useNavigate()
+  const account = useStore((s) => s.account)
   const createBoard = useStore((s) => s.createBoard)
 
   const [name, setName] = useState('')
@@ -21,17 +23,39 @@ export function CreateBoard() {
   const [category, setCategory] = useState<BoardCategory>('interest')
   const [visibility, setVisibility] = useState<'public' | 'invite'>('public')
   const [locationTag, setLocationTag] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleCreate() {
-    if (!name.trim()) return
-    const id = createBoard({
-      name: name.trim(),
-      description: description.trim(),
-      category,
-      visibility,
-      locationTag: locationTag.trim() || undefined,
-    })
-    navigate(`/boards/${id}`)
+  async function handleCreate() {
+    if (!name.trim() || !account) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      // The real board record is what makes it findable and joinable by
+      // anyone else on the app — created first so the mock-layer board
+      // below (which drives this device's own challenge/submission
+      // machinery) shares its id, rather than risking a board that only
+      // ever exists locally.
+      const res = await createRealBoard(
+        { name: name.trim(), description: description.trim(), category, visibility, locationTag: locationTag.trim() || undefined },
+        account.token,
+      )
+      if (!res.ok) {
+        setError(res.errors.form ?? res.errors.name ?? 'Could not create that board. Please try again.')
+        return
+      }
+      createBoard({
+        id: res.data.id,
+        name: name.trim(),
+        description: description.trim(),
+        category,
+        visibility,
+        locationTag: locationTag.trim() || undefined,
+      })
+      navigate(`/boards/${res.data.id}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -110,12 +134,14 @@ export function CreateBoard() {
         />
       </label>
 
+      {error && <p className="text-sm text-danger">{error}</p>}
+
       <button
         onClick={handleCreate}
-        disabled={!name.trim()}
+        disabled={!name.trim() || submitting}
         className="mt-2 rounded-sm bg-ink py-3 text-sm font-medium text-paper disabled:bg-line disabled:text-ink-faint"
       >
-        Create board
+        {submitting ? 'Creating…' : 'Create board'}
       </button>
     </div>
   )

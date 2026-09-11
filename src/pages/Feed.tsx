@@ -7,6 +7,7 @@ import { SubmissionCard } from '../components/SubmissionCard'
 import { ExploreChallengesList } from '../components/ExploreChallengesList'
 import { SearchIcon, ShuffleIcon, CloseIcon } from '../components/Icons'
 import { listAccounts, searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
+import { searchBoards, type RealBoard } from '../lib/boardsApi'
 
 function shuffled<T>(arr: T[]): T[] {
   const copy = [...arr]
@@ -81,6 +82,28 @@ export function Feed() {
     }
   }, [q, account?.token])
 
+  // Real, server-backed public boards — a board made public on someone
+  // else's device is otherwise invisible here entirely, not just harder to
+  // find, since the mock roster above only ever knows about boards created
+  // on this exact device.
+  const [realBoardMatches, setRealBoardMatches] = useState<RealBoard[]>([])
+  useEffect(() => {
+    if (q.length < 2) {
+      setRealBoardMatches([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      searchBoards(q, account?.token).then((res) => {
+        if (!cancelled) setRealBoardMatches(res.ok ? res.data : [])
+      })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [q, account?.token])
+
   return (
     <div className="flex flex-col gap-3">
       <div className="px-4 pt-3">
@@ -139,18 +162,29 @@ export function Feed() {
           </section>
           <section>
             <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Communities</p>
-            {matchingBoards.length === 0 ? (
-              <p className="text-sm text-ink-faint">No communities found.</p>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {matchingBoards.map((b) => (
-                  <Link key={b.id} to={`/boards/${b.id}`} className="rounded-sm border border-line bg-card px-3 py-2">
-                    <p className="text-sm font-medium leading-tight">{b.name}</p>
-                    <p className="line-clamp-1 text-xs text-ink-faint">{b.description}</p>
-                  </Link>
-                ))}
-              </div>
-            )}
+            {(() => {
+              const mockIds = new Set(matchingBoards.map((b) => b.id))
+              const realOnly = realBoardMatches.filter((b) => !mockIds.has(b.id))
+              if (matchingBoards.length === 0 && realOnly.length === 0) {
+                return <p className="text-sm text-ink-faint">No communities found.</p>
+              }
+              return (
+                <div className="flex flex-col gap-1.5">
+                  {matchingBoards.map((b) => (
+                    <Link key={b.id} to={`/boards/${b.id}`} className="rounded-sm border border-line bg-card px-3 py-2">
+                      <p className="text-sm font-medium leading-tight">{b.name}</p>
+                      <p className="line-clamp-1 text-xs text-ink-faint">{b.description}</p>
+                    </Link>
+                  ))}
+                  {realOnly.map((b) => (
+                    <Link key={b.id} to={`/boards/${b.id}`} className="rounded-sm border border-line bg-card px-3 py-2">
+                      <p className="text-sm font-medium leading-tight">{b.name}</p>
+                      <p className="line-clamp-1 text-xs text-ink-faint">{b.description}</p>
+                    </Link>
+                  ))}
+                </div>
+              )
+            })()}
           </section>
         </div>
       ) : (

@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import { db } from './db.js'
 import { socialRouter } from './socialRoutes.js'
 import { promptRouter } from './promptRoutes.js'
+import { boardsRouter } from './boardsRoutes.js'
 import {
   normalizeEmail,
   normalizeUsername,
@@ -37,6 +38,7 @@ app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : true }))
 app.use(express.json({ limit: '12mb' }))
 app.use(socialRouter)
 app.use(promptRouter)
+app.use(boardsRouter)
 
 const PORT = Number(process.env.PORT ?? 8787)
 

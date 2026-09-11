@@ -49,6 +49,19 @@ export function toAuthedAccount(row: AccountRow): AuthedAccount {
   }
 }
 
+const findIdByToken = db.prepare('SELECT id FROM accounts WHERE auth_token = ?')
+
+// Same bearer-token lookup as requireAuth, but tolerant of a missing or
+// invalid token — several read-only routes show public data to anyone,
+// just personalized (an isFollowing/isSubscribed flag) when the caller
+// happens to be signed in.
+export function resolveOptionalAccountId(req: Request): string | undefined {
+  const header = req.header('authorization') ?? ''
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+  if (!token) return undefined
+  return (findIdByToken.get(token) as { id: string } | undefined)?.id
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.header('authorization') ?? ''
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''

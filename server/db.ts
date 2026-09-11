@@ -101,3 +101,30 @@ db.exec(`
   -- A follower can only complete a given broadcast once.
   CREATE UNIQUE INDEX IF NOT EXISTS idx_completions_prompt_completer ON prompt_completions(prompt_id, completer_account_id);
 `)
+
+// Boards: a named public/private group any real account can create, find,
+// and join — the server-backed record of a board's existence and
+// membership so a public one is genuinely discoverable by anyone on the
+// app, not just visible on the creator's own device.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS boards (
+    id TEXT PRIMARY KEY,
+    owner_account_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL,
+    visibility TEXT NOT NULL CHECK (visibility IN ('public', 'invite')),
+    location_tag TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_boards_visibility ON boards(visibility);
+  CREATE INDEX IF NOT EXISTS idx_boards_owner ON boards(owner_account_id);
+
+  CREATE TABLE IF NOT EXISTS board_subscribers (
+    board_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (board_id, account_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_subscribers_account ON board_subscribers(account_id);
+`)

@@ -7,12 +7,72 @@ import type { BoardChallenge, Category } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
 import { CATEGORY_ICON, LockIcon } from '../components/Icons'
 import { SubmissionCard } from '../components/SubmissionCard'
+import { getBoard, inviteToBoard as inviteToRealBoard, subscribeBoard, type RealBoard } from '../lib/boardsApi'
 
 const CADENCES: BoardChallenge['cadence'][] = ['one-off', 'daily', 'weekly']
+const CATEGORY_LABEL: Record<string, string> = {
+  brand: 'Brand',
+  nonprofit: 'Nonprofit',
+  creator: 'Creator',
+  local: 'Local',
+  interest: 'Interest',
+}
+
+// A small, real "invite by username" box — the actual way to add a real
+// person to a board (mirrored for both the full mock-board view below and
+// the simpler real-only fallback), distinct from the mock invite list
+// which only ever offers this device's five demo profiles.
+function RealInviteBox({ boardId, onInvited }: { boardId: string; onInvited?: () => void }) {
+  const account = useStore((s) => s.account)
+  const [username, setUsername] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function handleInvite() {
+    if (!username.trim() || !account) return
+    setBusy(true)
+    setMessage(null)
+    try {
+      const res = await inviteToRealBoard(boardId, username.trim(), account.token)
+      if (res.ok) {
+        setMessage(`Added @${username.trim()}.`)
+        setUsername('')
+        onInvited?.()
+      } else {
+        setMessage(res.errors.username ?? res.errors.form ?? 'Could not add that user.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rounded-sm border border-line bg-card p-3">
+      <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Invite a real user by username</p>
+      <div className="flex gap-1.5">
+        <input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="username"
+          className="flex-1 rounded-sm border border-line bg-paper p-2 text-base outline-none focus:border-line-strong"
+        />
+        <button
+          onClick={handleInvite}
+          disabled={!username.trim() || busy}
+          className="shrink-0 rounded-sm border border-ink px-3 py-2 text-xs font-medium disabled:opacity-50"
+        >
+          {busy ? 'Adding…' : 'Add'}
+        </button>
+      </div>
+      {message && <p className="mt-1.5 text-xs text-ink-faint">{message}</p>}
+    </section>
+  )
+}
 
 export function BoardDetail() {
   const { boardId } = useParams()
   const navigate = useNavigate()
+  const account = useStore((s) => s.account)
   const board = useStore((s) => s.boards.find((b) => b.id === boardId))
   const allBoardChallenges = useStore((s) => s.boardChallenges)
   const allSubmissions = useStore((s) => s.submissions)
@@ -28,11 +88,73 @@ export function BoardDetail() {
   const [text, setText] = useState('')
   const [cadence, setCadence] = useState<BoardChallenge['cadence']>('one-off')
 
-  useEffect(() => {
-    if (!board) navigate('/boards')
-  }, [board, navigate])
+  // Only reached for a board this device doesn't have locally — someone
+  // else's real board found via search, Discover, or a shared link.
+  const [realBoard, setRealBoard] = useState<RealBoard | null | 'not-found'>(null)
+  const [realBusy, setRealBusy] = useState(false)
 
-  if (!board) return null
+  function refreshReal() {
+    if (!boardId || board) return
+    getBoard(boardId, account?.token).then((res) => setRealBoard(res.ok ? res.data : 'not-found'))
+  }
+
+  useEffect(refreshReal, [boardId, board, account?.token])
+
+  useEffect(() => {
+    if (!board && realBoard === 'not-found') navigate('/boards')
+  }, [board, realBoard, navigate])
+
+  if (!board) {
+    if (realBoard === null) return null
+    if (realBoard === 'not-found') return null
+
+    const rb = realBoard
+    const isPrivate = rb.visibility === 'invite'
+
+    async function handleSubscribeReal() {
+      if (!account || board) return
+      setRealBusy(true)
+      try {
+        const res = await subscribeBoard(rb.id, account.token)
+        if (res.ok) setRealBoard(res.data)
+      } finally {
+        setRealBusy(false)
+      }
+    }
+
+    return (
+      <div className="flex flex-col gap-5 p-4">
+        <div>
+          <div className="flex items-center gap-1.5">
+            {isPrivate && <LockIcon size={14} className="text-ink-soft" />}
+            <h1 className="font-serif text-2xl">{rb.name}</h1>
+          </div>
+          <p className="mt-1 text-sm text-ink-soft">{rb.description}</p>
+          <p className="mt-2 text-xs uppercase tracking-wide text-ink-faint">
+            {CATEGORY_LABEL[rb.category] ?? rb.category} · {isPrivate ? 'Private group' : 'Public board'} ·{' '}
+            {rb.subscriberCount} {rb.subscriberCount === 1 ? 'member' : 'members'}
+            {rb.locationTag ? ` · ${rb.locationTag}` : ''}
+          </p>
+          <p className="mt-1 text-xs text-ink-faint">Made by @{rb.ownerUsername}</p>
+          {!rb.isOwner && !rb.isSubscribed && !isPrivate && (
+            <button
+              onClick={handleSubscribeReal}
+              disabled={realBusy}
+              className="mt-3 rounded-sm border border-ink px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {realBusy ? 'Subscribing…' : 'Subscribe'}
+            </button>
+          )}
+          {!rb.isOwner && !rb.isSubscribed && isPrivate && (
+            <p className="mt-3 text-xs text-ink-faint">This is a private group — ask the owner to invite you.</p>
+          )}
+          {rb.isSubscribed && !rb.isOwner && <p className="mt-3 text-xs text-success">You're subscribed.</p>}
+        </div>
+
+        {rb.isOwner && <RealInviteBox boardId={rb.id} onInvited={refreshReal} />}
+      </div>
+    )
+  }
 
   const isOwner = board.ownerId === CURRENT_USER_ID
   const isSubscribed = board.subscriberIds.includes(CURRENT_USER_ID)
@@ -68,9 +190,11 @@ export function BoardDetail() {
         )}
       </div>
 
+      {isOwner && <RealInviteBox boardId={board.id} />}
+
       {isOwner && isPrivate && (
         <section className="rounded-sm border border-line bg-card p-3">
-          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Invite people</p>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Invite one of this device's demo profiles</p>
           {invitableUsers.length === 0 ? (
             <p className="text-sm text-ink-faint">Everyone's already in.</p>
           ) : (

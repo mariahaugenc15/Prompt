@@ -307,7 +307,8 @@ const oneToOneHistory = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS promptText, p.status, p.completion_auto_caption AS autoCaption,
          p.completion_user_caption AS userCaption, p.completion_media_type AS mediaType,
          p.completion_media_data_url AS mediaDataUrl, p.created_at AS createdAt, p.completed_at AS completedAt,
-         sender.username AS senderUsername, recipient.username AS recipientUsername
+         sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
+         recipient.username AS recipientUsername
   FROM prompts p
   JOIN accounts sender ON sender.id = p.sender_account_id
   JOIN accounts recipient ON recipient.id = p.recipient_account_id
@@ -327,9 +328,40 @@ const broadcastHistory = db.prepare(`
   ORDER BY c.created_at DESC
 `)
 
+interface OneToOneHistoryRow {
+  id: string
+  category: string
+  promptText: string
+  status: string
+  autoCaption: string | null
+  userCaption: string | null
+  mediaType: string | null
+  mediaDataUrl: string | null
+  createdAt: number
+  completedAt: number | null
+  senderUsername: string
+  senderFirstName: string | null
+  senderOrgName: string | null
+  recipientUsername: string
+}
+
 promptRouter.get('/api/prompts/history', requireAuth, (req, res) => {
   const me = req.account!
-  const oneToOne = oneToOneHistory.all(me.id, me.id)
+  const oneToOne = (oneToOneHistory.all(me.id, me.id) as OneToOneHistoryRow[]).map((row) => ({
+    id: row.id,
+    category: row.category,
+    promptText: row.promptText,
+    status: row.status,
+    autoCaption: row.autoCaption ?? undefined,
+    userCaption: row.userCaption ?? undefined,
+    mediaType: row.mediaType ?? undefined,
+    mediaDataUrl: row.mediaDataUrl ?? undefined,
+    createdAt: row.createdAt,
+    completedAt: row.completedAt ?? undefined,
+    senderUsername: row.senderUsername,
+    senderDisplayName: row.senderFirstName ?? row.senderOrgName ?? row.senderUsername,
+    recipientUsername: row.recipientUsername,
+  }))
   const broadcasts = broadcastHistory.all(me.id, me.id)
   res.json({ oneToOne, broadcasts })
 })

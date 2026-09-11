@@ -19,14 +19,41 @@ export interface PublicProfile {
   isFollowing?: boolean
 }
 
-export interface InboxItem {
+export type PromptStatus = 'pending' | 'completed' | 'declined' | 'expired'
+
+// A single real, 1:1 prompt from your point of view — whichever side of it
+// you're on. Backs the fridge-note strip on Home: every prompt anyone sent
+// you (any status) shows there so there's nowhere else to go dig one up.
+export interface OneToOneHistoryItem {
   id: string
-  isBroadcast: boolean
   category: Category
-  text: string
+  promptText: string
+  status: PromptStatus
+  autoCaption?: string
+  userCaption?: string
+  mediaType?: string
+  mediaDataUrl?: string
   createdAt: number
+  completedAt?: number
   senderUsername: string
   senderDisplayName: string
+  recipientUsername: string
+}
+
+export interface PromptHistory {
+  oneToOne: OneToOneHistoryItem[]
+  broadcasts: {
+    id: string
+    category: Category
+    promptText: string
+    autoCaption: string
+    userCaption?: string
+    mediaType: string
+    mediaDataUrl: string
+    completedAt: number
+    senderUsername: string
+    completerUsername: string
+  }[]
 }
 
 export interface CompletionResult {
@@ -139,12 +166,8 @@ export function sendBroadcast(input: { category: Category; text: string }, token
   })
 }
 
-export function getInbox(token: string) {
-  return call<InboxItem[]>('/api/prompts/inbox', token)
-}
-
-export function declinePrompt(id: string, token: string) {
-  return call<{ id: string; status: string }>(`/api/prompts/${id}/decline`, token, { method: 'POST' })
+export function getPromptHistory(token: string) {
+  return call<PromptHistory>('/api/prompts/history', token)
 }
 
 export function completePrompt(

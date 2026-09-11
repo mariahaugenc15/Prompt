@@ -39,7 +39,7 @@ export function RealSend() {
         return
       }
       setSent(true)
-      setTimeout(() => navigate('/real/inbox'), 900)
+      setTimeout(() => navigate('/'), 900)
     } finally {
       setSubmitting(false)
     }

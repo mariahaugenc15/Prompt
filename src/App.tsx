@@ -21,7 +21,6 @@ import { SendPrompt } from './pages/SendPrompt'
 import { SignUp } from './pages/SignUp'
 import { Login } from './pages/Login'
 import { OrgPage } from './pages/OrgPage'
-import { RealInbox } from './pages/RealInbox'
 import { RealSend } from './pages/RealSend'
 
 function Shell({ children }: { children: ReactNode }) {
@@ -53,14 +52,6 @@ export default function App() {
         element={
           <RealShell>
             <OrgPage />
-          </RealShell>
-        }
-      />
-      <Route
-        path="/real/inbox"
-        element={
-          <RealShell>
-            <RealInbox />
           </RealShell>
         }
       />

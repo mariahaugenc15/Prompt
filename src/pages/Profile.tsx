@@ -188,14 +188,9 @@ export function Profile() {
           <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">
             Account — @{me.username} ({me.accountType})
           </p>
-          <div className="flex gap-2">
-            <Link to="/real/inbox" className="flex-1 rounded-sm border border-ink py-2 text-center text-sm font-medium">
-              Inbox
-            </Link>
-            <Link to={`/o/${me.username}`} className="flex-1 rounded-sm border border-line py-2 text-center text-sm text-ink-soft">
-              My page
-            </Link>
-          </div>
+          <Link to={`/o/${me.username}`} className="block rounded-sm border border-ink py-2 text-center text-sm font-medium">
+            My page
+          </Link>
           {me.accountType === 'individual' && (
             <Link
               to="/real/send"

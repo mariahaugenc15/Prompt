@@ -9,9 +9,9 @@ import { DayDetailSheet } from '../components/DayDetailSheet'
 import { RealCompleteForm } from '../components/RealCompleteForm'
 import type { Prompt } from '../lib/types'
 import { PlusIcon, CloseIcon } from '../components/Icons'
-import { getInbox, completePrompt, type InboxItem } from '../lib/realAccountsApi'
+import { getPromptHistory, completePrompt, type OneToOneHistoryItem } from '../lib/realAccountsApi'
 
-const REAL_INBOX_POLL_MS = 15000
+const REAL_PROMPTS_POLL_MS = 15000
 
 async function notifyNewPrompt(title: string, body: string) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
@@ -50,13 +50,16 @@ export function Home() {
     return users.find((u) => u.id === p.fromUserId)
   }
 
-  // Real, server-backed 1:1 prompts sent directly to this account — polled
-  // regularly so a prompt someone just sent shows up as a fridge note (and
-  // triggers a notification) without needing a manual refresh.
-  const [realItems, setRealItems] = useState<InboxItem[]>([])
-  const [completingReal, setCompletingReal] = useState<InboxItem | null>(null)
+  // Real, server-backed 1:1 prompts sent directly to this account — every
+  // one of them (not just still-pending ones), so there's a single
+  // permanent place to find any prompt again instead of a separate inbox
+  // that empties out once you've acted on something. Polled regularly so a
+  // prompt someone just sent shows up (and triggers a notification)
+  // without needing a manual refresh.
+  const [realItems, setRealItems] = useState<OneToOneHistoryItem[]>([])
+  const [completingReal, setCompletingReal] = useState<OneToOneHistoryItem | null>(null)
   const [completingBusy, setCompletingBusy] = useState(false)
-  const seenRealIds = useRef<Set<string> | null>(null)
+  const seenPendingIds = useRef<Set<string> | null>(null)
 
   useEffect(() => {
     if (!account) return
@@ -66,27 +69,28 @@ export function Home() {
 
     let cancelled = false
     async function poll() {
-      const res = await getInbox(account!.token)
+      const res = await getPromptHistory(account!.token)
       if (cancelled || !res.ok) return
-      const oneToOne = res.data.filter((item) => !item.isBroadcast)
-      if (seenRealIds.current === null) {
-        // The first fetch after landing on this page — these prompts were
-        // already sitting there, so treat them as "already seen" rather
-        // than firing a notification for every one of them at once.
-        seenRealIds.current = new Set(oneToOne.map((i) => i.id))
+      const received = res.data.oneToOne.filter((item) => item.recipientUsername === account!.username)
+      const pendingIds = received.filter((item) => item.status === 'pending').map((item) => item.id)
+      if (seenPendingIds.current === null) {
+        // The first fetch after landing on this page — these were already
+        // sitting there, so treat them as "already seen" rather than
+        // firing a notification for every one of them at once.
+        seenPendingIds.current = new Set(pendingIds)
       } else {
-        for (const item of oneToOne) {
-          if (!seenRealIds.current.has(item.id)) {
-            seenRealIds.current.add(item.id)
-            notifyNewPrompt(`${item.senderDisplayName} sent you a prompt`, item.text)
+        for (const item of received) {
+          if (item.status === 'pending' && !seenPendingIds.current.has(item.id)) {
+            seenPendingIds.current.add(item.id)
+            notifyNewPrompt(`${item.senderDisplayName} sent you a prompt`, item.promptText)
           }
         }
       }
-      setRealItems(oneToOne)
+      setRealItems(received)
     }
 
     poll()
-    const interval = setInterval(poll, REAL_INBOX_POLL_MS)
+    const interval = setInterval(poll, REAL_PROMPTS_POLL_MS)
     return () => {
       cancelled = true
       clearInterval(interval)
@@ -99,7 +103,20 @@ export function Home() {
     try {
       const res = await completePrompt(completingReal.id, input, account.token)
       if (res.ok) {
-        setRealItems((prev) => prev.filter((i) => i.id !== completingReal.id))
+        setRealItems((prev) =>
+          prev.map((item) =>
+            item.id === completingReal.id
+              ? {
+                  ...item,
+                  status: 'completed',
+                  mediaType: res.data.mediaType,
+                  mediaDataUrl: res.data.mediaDataUrl,
+                  autoCaption: res.data.autoCaption,
+                  userCaption: res.data.userCaption,
+                }
+              : item,
+          ),
+        )
         setCompletingReal(null)
       }
     } finally {
@@ -116,6 +133,7 @@ export function Home() {
         category: p.category,
         text: p.text,
         selfSent,
+        status: 'pending',
         stackLabel: p.boardId ? (selfSent ? 'Your board' : 'Board prompt') : from ? from.name : 'Someone sent you a prompt',
         detailSourceLabel: p.boardId
           ? selfSent
@@ -134,14 +152,22 @@ export function Home() {
     const realNotes: FridgeNoteViewModel[] = realItems.map((item) => ({
       id: item.id,
       category: item.category,
-      text: item.text,
+      text: item.promptText,
       selfSent: false,
+      status: item.status === 'pending' || item.status === 'completed' || item.status === 'declined' ? item.status : 'declined',
       stackLabel: item.senderDisplayName,
       detailSourceLabel: `From ${item.senderDisplayName}`,
-      onAccept: () => {
-        setOpenNoteId(null)
-        setCompletingReal(item)
-      },
+      onAccept:
+        item.status === 'pending'
+          ? () => {
+              setOpenNoteId(null)
+              setCompletingReal(item)
+            }
+          : undefined,
+      completion:
+        item.status === 'completed'
+          ? { mediaType: item.mediaType ?? 'photo', mediaDataUrl: item.mediaDataUrl, autoCaption: item.autoCaption, userCaption: item.userCaption }
+          : undefined,
     }))
     // Real prompts first — an actual person is waiting on these.
     return [...realNotes, ...mockNotes]
@@ -153,8 +179,9 @@ export function Home() {
   // accepted for today — and only once there's genuinely nothing waiting
   // does this send you off to find something new.
   function handleCompletePrompt() {
-    if (notes.length > 0) {
-      setOpenNoteId(notes[0].id)
+    const actionable = notes.find((n) => n.status === 'pending')
+    if (actionable) {
+      setOpenNoteId(actionable.id)
       return
     }
     const acceptedToday = prompts.find((p) => p.toUserId === CURRENT_USER_ID && p.status === 'accepted' && p.dayKey === todayKey())
@@ -218,7 +245,7 @@ export function Home() {
             <p className="mb-3 font-serif text-lg leading-snug text-ink">Complete this prompt</p>
             <RealCompleteForm
               senderDisplayName={completingReal.senderDisplayName}
-              promptText={completingReal.text}
+              promptText={completingReal.promptText}
               submitting={completingBusy}
               onSubmit={handleCompleteReal}
             />

@@ -2,33 +2,26 @@ services:
   - type: web
     name: prompt-api
     runtime: node
-    plan: free
+    plan: pro
     buildCommand: npm install
     # Not `npm run server` — that runs tsx in --watch mode, a dev-only file
     # watcher with no place in a production container (extra overhead, and
     # one more thing that can go wrong before the app ever binds a port).
     # `npm start` runs the server once, plainly.
     startCommand: npm start
-    # No persistent disk while running on a plan that can't attach one
-    # (Render's free/Hobby tier — disks need a paid plan, "Pro" on this
-    # account since there's no separate "Starter" tier available here).
-    # Without it, every redeploy or restart wipes every account and upload —
-    # fine for testing the app is actually live, not for real users. Once
-    # upgraded, uncomment this block AND set DATA_DIR back to /var/data below
-    # (or just let a Blueprint sync do both, if this service is ever
-    # recreated from this file rather than managed by hand in the dashboard).
-    # disk:
-    #   name: prompt-data
-    #   mountPath: /var/data
-    #   sizeGB: 1
+    # Pro (this account's paid tier) supports a persistent disk — this is
+    # what makes accounts, prompts, comments, reports, and uploaded
+    # photos/videos actually survive a restart, redeploy, or the free-tier
+    # idle spin-down that used to wipe all of it. Both the SQLite database
+    # (server/db.ts) and uploaded media (server/mediaStore.ts) live under
+    # this same mount, so one disk covers everything at once.
+    disk:
+      name: prompt-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
-      # Deliberately omitted for now: leaving DATA_DIR unset makes the app
-      # fall back to a directory inside its own (ephemeral) container
-      # filesystem — see server/db.ts — which always exists and is always
-      # writable, unlike /var/data without a disk mounted there. Add this
-      # back with value /var/data once the disk above is uncommented.
-      # - key: DATA_DIR
-      #   value: /var/data
+      - key: DATA_DIR
+        value: /var/data
       - key: CORS_ORIGIN
         sync: false
       # Comma-separated usernames to grant admin access (the trust & safety

@@ -32,7 +32,7 @@ Vercel is a good fit for the frontend, but **not** for `server/` as it stands �
    - `server/db.ts` reads the disk path from the `DATA_DIR` env var, which `render.yaml` sets to `/var/data` for you.
    - After creating it, set the **`CORS_ORIGIN`** env var (the blueprint declares it but leaves the value to you) to your Vercel URL once you have it from step 2 — e.g. `https://your-app.vercel.app`. Multiple origins can be comma-separated. Until it's set, CORS is wide open (fine for a first test, not for leaving running indefinitely — see `server/index.ts`).
    - Note the service's public URL (e.g. `https://prompt-api.onrender.com`) — you need it in step 2.
-   - Prefer Railway or Fly.io instead? Same two things matter wherever you deploy: run `npm install` / `npm run server`, and set `DATA_DIR` to a path on a volume that actually persists — both platforms support mounting one similarly to Render's disk above.
+   - Prefer Railway or Fly.io instead? Same two things matter wherever you deploy: run `npm install` / `npm start` (not `npm run server` — that's the file-watching dev command), and set `DATA_DIR` to a path on a volume that actually persists — both platforms support mounting one similarly to Render's disk above.
 
 2. **Deploy the frontend to Vercel**:
    - Import this repo at [vercel.com/new](https://vercel.com/new). It should auto-detect Vite; `vercel.json` in this repo pins the build command/output dir and adds the SPA fallback rewrite React Router needs (without it, refreshing on `/profile` or opening `/o/:username` directly 404s on static hosting).

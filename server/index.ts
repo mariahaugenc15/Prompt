@@ -324,6 +324,11 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(500).json({ errors: { form: 'Something went wrong. Please try again.' } })
 })
 
-app.listen(PORT, () => {
-  console.log(`Signup API listening on http://localhost:${PORT}`)
+// Explicit 0.0.0.0 rather than the implicit default — this is what actually
+// makes the process reachable from outside the container on hosts like
+// Render, which detect a live service by scanning for an open port from
+// outside; binding to a loopback-only address would leave the app running
+// but permanently invisible to that scan, timing the deploy out.
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Signup API listening on http://0.0.0.0:${PORT}`)
 })

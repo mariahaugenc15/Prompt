@@ -4,7 +4,11 @@ services:
     runtime: node
     plan: starter
     buildCommand: npm install
-    startCommand: npm run server
+    # Not `npm run server` — that runs tsx in --watch mode, a dev-only file
+    # watcher with no place in a production container (extra overhead, and
+    # one more thing that can go wrong before the app ever binds a port).
+    # `npm start` runs the server once, plainly.
+    startCommand: npm start
     # A persistent disk is what makes this "live" rather than a demo: without
     # it, every redeploy or restart wipes every account. Disks require a paid
     # plan (Starter or above) — Render's free web services can't attach one.

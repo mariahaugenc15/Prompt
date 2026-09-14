@@ -47,7 +47,29 @@ Vercel is a good fit for the frontend, but **not** for `server/` as it stands �
 - The app shell (HTML/JS/CSS/fonts/icons) is precached, so the app still opens — flip screen and all — with zero network connection. API calls (`/api/*`) are deliberately excluded from precaching and go network-first instead: real data is never silently served stale when a connection actually exists, and the cache only kicks in as a fallback if a request would otherwise fail outright offline.
 - `registerType: 'autoUpdate'` means a new deploy's service worker takes over silently on next load — no "update available" prompt to build or wire up.
 - Icons live in `public/icons/` (`icon-192.png`, `icon-512.png`, a dedicated `icon-maskable-512.png` sized to Android's adaptive-icon safe zone, and `apple-touch-icon.png`) plus the iOS-specific meta tags in `index.html` — iOS ignores the web manifest for home-screen behavior and needs those separately.
-- This is genuinely installable today (verified: service worker registers and activates, and a fully offline reload still renders the app) — but it is not, and can't become, an App Store / Play Store listing. That requires either a native wrapper (Capacitor) with a Mac in the loop for the iOS build, or a native rewrite — a separate, much larger project than a PWA manifest.
+- This is genuinely installable today (verified: service worker registers and activates, and a fully offline reload still renders the app) — but it is not, by itself, an App Store listing. The `ios/` project below is that native wrapper.
+
+### Native iOS app (Xcode via Capacitor)
+
+`ios/` is a real Xcode project, generated with [Capacitor](https://capacitorjs.com), that loads this same web app as its content — not a from-scratch native rewrite. **Requires a Mac with Xcode installed**; none of the commands below can run in this repo's own dev environment (this app was built and the `ios/` project generated from a Linux container, which can produce the project files but can't open or build them).
+
+To open and run it:
+
+1. `npm install` (pulls in `@capacitor/core`, `@capacitor/ios`, `@capacitor/cli` alongside everything else).
+2. Point the build at your deployed backend, the same way the Vercel deploy does — set `VITE_API_BASE_URL` to your Render (or other) backend's public URL before building, e.g. in a local `.env.production`:
+   ```
+   VITE_API_BASE_URL=https://your-backend.onrender.com
+   ```
+   Skipping this makes the packaged app try to call itself for `/api/...`, the same failure mode as skipping it on Vercel (see above).
+3. `npm run ios:sync` — builds the web app and copies it into `ios/App/App/public` (`npx cap sync ios` under the hood; re-run this after any change to `src/` or `public/` you want reflected in the app).
+4. `npm run ios:open` — opens `ios/App/App.xcodeproj` in Xcode (`npx cap open ios`). From there, pick a simulator or a connected device and hit Run, same as any other Xcode project.
+
+A few things worth knowing before going further:
+
+- **`appId` in `capacitor.config.ts`** (`com.promptsocial.app`) is a placeholder — change it to a bundle identifier registered under your own Apple Developer account before attempting a real App Store submission. Safe to leave as-is just to build and run locally first.
+- **No CocoaPods needed** — this Capacitor version links its (currently zero) native plugins via Swift Package Manager, so there's no `pod install` step and no `Podfile` to keep in sync.
+- **The app icon and launch screen are still Capacitor's defaults** (`ios/App/App/Assets.xcassets`) — swapping in this app's own icon (`public/icons/`) is a manual step in Xcode's asset catalog editor, not something `cap sync` does for you.
+- Push notifications, camera access, and anything else genuinely native would go through Capacitor plugins (e.g. `@capacitor/push-notifications`) added later — none are wired up yet, so today this is a web app in a native shell, not a fully native rebuild.
 
 **What "live" does and doesn't mean here.** The real, server-backed account system (sign-up, login, 1:1 prompts, org broadcasts — "Accounts & real prompts" below) is genuinely multi-user once deployed this way: two different phones, two different accounts, real interaction, durable data. The calendar/feed/boards mock layer is still local-only per device (see "Known simplifications") — deploying it doesn't change that; it's a separate, deliberate scope decision, not a limitation of the hosting.
 

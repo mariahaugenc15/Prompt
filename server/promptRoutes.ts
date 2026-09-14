@@ -238,14 +238,19 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   const prompt = getPromptById.get(String(req.params.id)) as Record<string, unknown> | undefined
   if (!prompt) return res.status(404).json({ errors: { form: 'Prompt not found.' } })
 
-  const mediaType = typeof req.body?.mediaType === 'string' ? req.body.mediaType : 'photo'
   const rawMediaDataUrl = typeof req.body?.mediaDataUrl === 'string' ? req.body.mediaDataUrl : undefined
   // The lead-in caption is server-generated from the sender + original
   // prompt text and is never accepted from the client — only the
   // completer's own added text is theirs to author.
   const userCaption = typeof req.body?.caption === 'string' ? req.body.caption.trim() || undefined : undefined
-  if (!rawMediaDataUrl) return res.status(422).json({ errors: { media: 'Photo or video proof is required.' } })
-  const mediaDataUrl = saveDataUrlAsFile(rawMediaDataUrl, publicBaseUrl(req))!
+  // Every category but "unplug" is proved with a photo/video; unplugging is
+  // proved by the timed duration itself (baked into the caption client-side
+  // — see UnplugCompleteForm.tsx), so there's nothing to attach here.
+  if (!rawMediaDataUrl && prompt.category !== 'unplug') {
+    return res.status(422).json({ errors: { media: 'Photo or video proof is required.' } })
+  }
+  const mediaType = rawMediaDataUrl ? (typeof req.body?.mediaType === 'string' ? req.body.mediaType : 'photo') : undefined
+  const mediaDataUrl = rawMediaDataUrl ? saveDataUrlAsFile(rawMediaDataUrl, publicBaseUrl(req)) : undefined
 
   const sender = getAccountById(prompt.sender_account_id as string)!
   const autoCaption = autoCaptionFor(displayName(sender), prompt.prompt_text as string)

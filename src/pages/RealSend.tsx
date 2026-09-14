@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
 import { CATEGORY_ICON, BackIcon } from '../components/Icons'
 import { sendOneToOnePrompt, searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
+import { SentFlyAway } from '../components/SentFlyAway'
 
 export function RealSend() {
   const account = useStore((s) => s.account)
@@ -63,7 +64,6 @@ export function RealSend() {
         return
       }
       setSent(true)
-      setTimeout(() => navigate('/'), 900)
     } finally {
       setSubmitting(false)
     }
@@ -165,11 +165,13 @@ export function RealSend() {
 
       <button
         onClick={handleSend}
-        disabled={!recipientUsername.trim() || !text.trim() || submitting}
+        disabled={!recipientUsername.trim() || !text.trim() || submitting || sent}
         className="rounded-sm bg-ink py-3 text-sm font-medium text-paper disabled:bg-line disabled:text-ink-faint"
       >
         {sent ? 'Sent!' : submitting ? 'Sending…' : 'Send prompt'}
       </button>
+
+      {sent && <SentFlyAway onComplete={() => navigate('/')} />}
     </div>
   )
 }

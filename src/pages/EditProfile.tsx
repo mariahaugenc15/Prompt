@@ -56,6 +56,7 @@ export function EditProfile() {
   const [score, setScore] = useState<{ score: number | null; completed: number; total: number } | null>(null)
   const [sentPending, setSentPending] = useState<OneToOneHistoryItem[]>([])
   const [unsendingId, setUnsendingId] = useState<string | null>(null)
+  const [declinedReceived, setDeclinedReceived] = useState<OneToOneHistoryItem[]>([])
 
   function refreshProfile() {
     if (!account) return
@@ -67,6 +68,10 @@ export function EditProfile() {
     getPromptHistory(account.token).then((res) => {
       if (!res.ok) return
       setSentPending(res.data.oneToOne.filter((p) => p.senderUsername === account.username && p.status === 'pending'))
+      // A declined prompt is deliberately kept out of Home's fridge-note
+      // stack (see Home.tsx's notes memo) but the record itself isn't
+      // thrown away — this is the one place you can still find it.
+      setDeclinedReceived(res.data.oneToOne.filter((p) => p.recipientUsername === account.username && p.status === 'declined'))
     })
   }
 
@@ -406,6 +411,22 @@ export function EditProfile() {
                 >
                   {unsendingId === p.id ? 'Unsending…' : 'Unsend'}
                 </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {declinedReceived.length > 0 && (
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Declined prompts</p>
+          <div className="flex flex-col gap-1.5">
+            {declinedReceived.map((p) => (
+              <div key={p.id} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2 opacity-70">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium leading-tight">{p.promptText}</p>
+                  <p className="text-xs text-ink-faint">From @{p.senderUsername}</p>
+                </div>
               </div>
             ))}
           </div>

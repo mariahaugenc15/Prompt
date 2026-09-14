@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
+import type { Category } from '../lib/types'
 import { CalendarGrid } from '../components/CalendarGrid'
 import { FridgeNoteStack, FridgeNoteDetail, type FridgeNoteViewModel } from '../components/FridgeNote'
 import { DayDetailSheet } from '../components/DayDetailSheet'
 import { RealCompleteForm } from '../components/RealCompleteForm'
+import { UnplugCompleteForm } from '../components/UnplugCompleteForm'
 import { CompletionFeedCard } from '../components/CompletionFeedCard'
 import { PlusIcon, CloseIcon, BoardsIcon } from '../components/Icons'
 import {
@@ -183,7 +185,7 @@ export function Home() {
     }
   }, [oneToOne])
 
-  async function handleCompleteBroadcast(input: { mediaType: string; mediaDataUrl: string; caption?: string }) {
+  async function handleCompleteBroadcast(input: { mediaType?: string; mediaDataUrl?: string; caption?: string }) {
     if (!completingBroadcast || !account) return
     setCompletingBusy(true)
     try {
@@ -198,7 +200,7 @@ export function Home() {
     }
   }
 
-  async function handleCompleteOneToOne(item: OneToOneHistoryItem, input: { mediaType: string; mediaDataUrl: string; caption?: string }) {
+  async function handleCompleteOneToOne(item: OneToOneHistoryItem, input: { mediaType?: string; mediaDataUrl?: string; caption?: string }) {
     if (!account) return
     const res = await completePrompt(item.id, input, account.token)
     if (res.ok) {
@@ -218,9 +220,10 @@ export function Home() {
     setOpenNoteId(null)
     const res = await declinePrompt(item.id, account.token)
     if (res.ok) {
-      // Declining removes the note from the list entirely rather than
-      // persisting it as a resolved "declined" entry — nothing about a
-      // declined prompt is worth looking back on.
+      // The record itself stays (viewable later in Edit Profile's Declined
+      // prompts section) — this just clears it from the fridge-note stack
+      // immediately rather than waiting out the next 15s poll, which would
+      // otherwise still filter it out anyway (see the notes memo below).
       setOneToOne((prev) => prev.filter((p) => p.id !== item.id))
     }
   }
@@ -228,7 +231,7 @@ export function Home() {
   const [completingOneToOne, setCompletingOneToOne] = useState<OneToOneHistoryItem | null>(null)
   const [completingOneToOneBusy, setCompletingOneToOneBusy] = useState(false)
 
-  async function submitOneToOneCompletion(input: { mediaType: string; mediaDataUrl: string; caption?: string }) {
+  async function submitOneToOneCompletion(input: { mediaType?: string; mediaDataUrl?: string; caption?: string }) {
     if (!completingOneToOne) return
     setCompletingOneToOneBusy(true)
     try {
@@ -240,21 +243,27 @@ export function Home() {
   }
 
   const notes: FridgeNoteViewModel[] = useMemo(() => {
-    const oneToOneNotes: FridgeNoteViewModel[] = oneToOne.map((item) => ({
-      id: item.id,
-      category: item.category,
-      text: item.promptText,
-      selfSent: false,
-      status: item.status === 'pending' || item.status === 'completed' ? item.status : 'declined',
-      stackLabel: item.senderDisplayName,
-      detailSourceLabel: `From ${item.senderDisplayName}`,
-      onAccept: item.status === 'pending' ? () => { setOpenNoteId(null); setCompletingOneToOne(item) } : undefined,
-      onDecline: item.status === 'pending' ? () => handleDeclineOneToOne(item) : undefined,
-      completion:
-        item.status === 'completed'
-          ? { mediaType: item.mediaType ?? 'photo', mediaDataUrl: item.mediaDataUrl, autoCaption: item.autoCaption, userCaption: item.userCaption }
-          : undefined,
-    }))
+    // A declined prompt never belongs in the stack — not even briefly with
+    // a "declined" badge — so it's filtered out here rather than mapped to
+    // one, which also means a later poll re-fetching the full history
+    // can't accidentally bring it back.
+    const oneToOneNotes: FridgeNoteViewModel[] = oneToOne
+      .filter((item): item is typeof item & { status: 'pending' | 'completed' } => item.status === 'pending' || item.status === 'completed')
+      .map((item) => ({
+        id: item.id,
+        category: item.category,
+        text: item.promptText,
+        selfSent: false,
+        status: item.status,
+        stackLabel: item.senderDisplayName,
+        detailSourceLabel: `From ${item.senderDisplayName}`,
+        onAccept: item.status === 'pending' ? () => { setOpenNoteId(null); setCompletingOneToOne(item) } : undefined,
+        onDecline: item.status === 'pending' ? () => handleDeclineOneToOne(item) : undefined,
+        completion:
+          item.status === 'completed'
+            ? { mediaType: item.mediaType ?? 'photo', mediaDataUrl: item.mediaDataUrl, autoCaption: item.autoCaption, userCaption: item.userCaption }
+            : undefined,
+      }))
     const broadcastNotes: FridgeNoteViewModel[] = broadcasts.map((item) => ({
       id: item.id,
       category: item.category,
@@ -420,6 +429,7 @@ export function Home() {
 
       {completingBroadcast && (
         <CompleteModal
+          category={completingBroadcast.category}
           senderDisplayName={completingBroadcast.senderDisplayName}
           promptText={completingBroadcast.text}
           submitting={completingBusy}
@@ -430,6 +440,7 @@ export function Home() {
 
       {completingOneToOne && (
         <CompleteModal
+          category={completingOneToOne.category}
           senderDisplayName={completingOneToOne.senderDisplayName}
           promptText={completingOneToOne.promptText}
           submitting={completingOneToOneBusy}
@@ -455,17 +466,19 @@ export function Home() {
 }
 
 function CompleteModal({
+  category,
   senderDisplayName,
   promptText,
   submitting,
   onClose,
   onSubmit,
 }: {
+  category: Category
   senderDisplayName: string
   promptText: string
   submitting: boolean
   onClose: () => void
-  onSubmit: (input: { mediaType: string; mediaDataUrl: string; caption?: string }) => void
+  onSubmit: (input: { mediaType?: string; mediaDataUrl?: string; caption?: string }) => void
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-6" onClick={onClose}>
@@ -474,7 +487,11 @@ function CompleteModal({
           <CloseIcon size={16} />
         </button>
         <p className="mb-3 font-serif text-lg leading-snug text-ink">Complete this prompt</p>
-        <RealCompleteForm senderDisplayName={senderDisplayName} promptText={promptText} submitting={submitting} onSubmit={onSubmit} />
+        {category === 'unplug' ? (
+          <UnplugCompleteForm senderDisplayName={senderDisplayName} promptText={promptText} submitting={submitting} onSubmit={onSubmit} />
+        ) : (
+          <RealCompleteForm senderDisplayName={senderDisplayName} promptText={promptText} submitting={submitting} onSubmit={onSubmit} />
+        )}
       </div>
     </div>
   )

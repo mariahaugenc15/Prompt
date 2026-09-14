@@ -254,7 +254,7 @@ export async function getActiveBroadcasts(token: string): Promise<{ ok: true; da
 
 export function completePrompt(
   id: string,
-  input: { mediaType: string; mediaDataUrl: string; caption?: string },
+  input: { mediaType?: string; mediaDataUrl?: string; caption?: string },
   token: string,
 ) {
   return call<CompletionResult>(`/api/prompts/${id}/complete`, token, { method: 'POST', body: JSON.stringify(input) })

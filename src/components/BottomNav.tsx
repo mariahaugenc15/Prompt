@@ -1,11 +1,10 @@
 import { NavLink } from 'react-router-dom'
 import clsx from 'clsx'
-import { CalendarIcon, GridIcon, BoardsIcon, UserIcon } from './Icons'
+import { CalendarIcon, GridIcon, UserIcon } from './Icons'
 
 const tabs = [
-  { to: '/', label: 'Calendar', icon: CalendarIcon, end: true },
+  { to: '/', label: 'Home', icon: CalendarIcon, end: true },
   { to: '/feed', label: 'Feed', icon: GridIcon },
-  { to: '/boards', label: 'Boards', icon: BoardsIcon },
   { to: '/profile', label: 'Profile', icon: UserIcon },
 ]
 

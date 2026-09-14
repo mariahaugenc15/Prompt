@@ -28,21 +28,26 @@ export function LoginFlip() {
           <motion.div
             className="absolute inset-0 flex flex-col items-center justify-center gap-6 rounded-md border border-[#2b2620] bg-paper-dim p-6 text-center paper-grain"
             style={{ transformOrigin: 'left center', backfaceVisibility: 'hidden' }}
-            animate={{ rotateY: flipping ? -172 : 0 }}
-            transition={{ duration: 1.0, ease: [0.65, 0, 0.35, 1] }}
-            onAnimationComplete={() => {
-              // The flip is the ritual, not the access grant — it always
-              // leads into real Sign Up, never a free credential-less
-              // profile. Already have an account? Use "Log in" below instead.
-              if (flipping) navigate('/signup')
-            }}
+            animate={{ rotateY: flipping ? -100 : 0 }}
+            transition={{ duration: 0.35, ease: [0.65, 0, 0.35, 1] }}
           >
             <div>
               <PromptLogo size={44} className="justify-center" />
               <p className="mt-2 text-sm italic text-ink-soft">Real prompts. Real life.</p>
             </div>
             <button
-              onClick={() => setFlipping(true)}
+              onClick={() => {
+                // The flip is a quick tactile cue, not something to wait
+                // out — it always leads into real Sign Up, never a free
+                // credential-less profile, but the tap has to register as
+                // "taking you to sign up" immediately. Fully finishing the
+                // rotation before navigating used to hold on a real (if
+                // decorative) calendar page for a full second first, which
+                // read as landing on the wrong page rather than a ritual.
+                // Already have an account? Use "Log in" below instead.
+                setFlipping(true)
+                navigate('/signup')
+              }}
               className="mt-4 rounded-sm border border-ink bg-ink px-6 py-2.5 text-sm font-medium text-paper transition hover:bg-ink-soft"
             >
               Open today's page

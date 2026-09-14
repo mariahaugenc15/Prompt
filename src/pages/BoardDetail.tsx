@@ -95,7 +95,7 @@ export function BoardDetail() {
   useEffect(refresh, [boardId, account?.token])
 
   useEffect(() => {
-    if (board === 'not-found') navigate('/boards')
+    if (board === 'not-found') navigate('/feed')
   }, [board, navigate])
 
   if (!board || board === 'not-found') return null

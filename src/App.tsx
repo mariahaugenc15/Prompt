@@ -8,10 +8,9 @@ import { LoginFlip } from './pages/LoginFlip'
 import { InviteLanding } from './pages/InviteLanding'
 import { Home } from './pages/Home'
 import { Feed } from './pages/Feed'
-import { Boards } from './pages/Boards'
 import { BoardDetail } from './pages/BoardDetail'
 import { CreateBoard } from './pages/CreateBoard'
-import { Profile } from './pages/Profile'
+import { EditProfile } from './pages/EditProfile'
 import { Calendars } from './pages/Calendars'
 import { CreateCalendar } from './pages/CreateCalendar'
 import { CalendarDetail } from './pages/CalendarDetail'
@@ -41,6 +40,16 @@ function Protected({ children }: { children: ReactNode }) {
 
   if (!loggedIn) return <LoginFlip />
   return <Shell key={location.pathname.split('/')[1] || 'home'}>{children}</Shell>
+}
+
+// The bottom nav's "Profile" tab is your own public profile — the same page
+// anyone else sees when they find you — not the settings/editing view. This
+// just hands off to the existing public-profile route (OrgPage.tsx handles
+// both individual and organization accounts) rather than duplicating it.
+function MyPublicProfile() {
+  const account = useStore((s) => s.account)
+  if (!account) return null
+  return <Navigate to={`/o/${account.username}`} replace />
 }
 
 export default function App() {
@@ -86,14 +95,6 @@ export default function App() {
         }
       />
       <Route
-        path="/boards"
-        element={
-          <Protected>
-            <Boards />
-          </Protected>
-        }
-      />
-      <Route
         path="/boards/new"
         element={
           <Protected>
@@ -113,7 +114,15 @@ export default function App() {
         path="/profile"
         element={
           <Protected>
-            <Profile />
+            <MyPublicProfile />
+          </Protected>
+        }
+      />
+      <Route
+        path="/profile/edit"
+        element={
+          <Protected>
+            <EditProfile />
           </Protected>
         }
       />

@@ -153,6 +153,12 @@ export function OrgPage() {
         </div>
       </div>
 
+      {isSelf && account?.accountType === 'individual' && (
+        <Link to="/profile/edit" className="rounded-sm border border-ink px-4 py-2 text-center text-sm font-medium">
+          Edit profile
+        </Link>
+      )}
+
       {!isSelf && account?.accountType === 'individual' && profile && !profile.blockedByMe && (
         <div className="flex gap-2">
           <button

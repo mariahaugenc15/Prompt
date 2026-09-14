@@ -5,7 +5,7 @@ import { useStore } from '../lib/store'
 import { fileToCompressedDataUrl } from '../lib/media'
 import { enablePushNotifications, pushSupported } from '../lib/push'
 import type { PromptPermission } from '../lib/types'
-import { CalendarIcon, CameraIcon, LockIcon, BoardsIcon, ShareIcon, BellIcon } from '../components/Icons'
+import { BackIcon, CalendarIcon, CameraIcon, LockIcon, BoardsIcon, ShareIcon, BellIcon } from '../components/Icons'
 import { VerifiedBadge } from '../components/VerifiedBadge'
 import {
   getMe,
@@ -36,7 +36,7 @@ import {
   type VerificationStatus as VerificationStatusData,
 } from '../lib/verificationApi'
 
-export function Profile() {
+export function EditProfile() {
   const navigate = useNavigate()
   const signOut = useStore((s) => s.signOut)
   const account = useStore((s) => s.account)
@@ -208,6 +208,9 @@ export function Profile() {
 
   return (
     <div className="flex flex-col gap-6 p-4">
+      <Link to="/profile" className="-mb-2 flex items-center gap-1 text-xs text-ink-faint">
+        <BackIcon size={13} /> Back to profile
+      </Link>
       <div className="flex items-center gap-3">
         <label className="relative flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-line bg-paper-dim font-serif text-xl">
           {profile?.avatarUrl ? (
@@ -270,11 +273,6 @@ export function Profile() {
         </div>
       </div>
       {avatarBusy && <p className="-mt-4 text-xs text-ink-faint">Updating photo…</p>}
-      {account && (
-        <Link to={`/o/${account.username}`} className="-mt-4 text-xs text-ink-faint underline underline-offset-2">
-          View your public profile — what other users see when they find you
-        </Link>
-      )}
 
       <button
         onClick={handleInvite}
@@ -446,8 +444,8 @@ export function Profile() {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs uppercase tracking-wider text-ink-faint">Your boards</p>
-          <Link to="/boards" className="text-xs font-medium text-ink underline underline-offset-2">
-            Manage
+          <Link to="/feed" className="text-xs font-medium text-ink underline underline-offset-2">
+            Discover more
           </Link>
         </div>
         <div className="flex flex-col gap-1.5">

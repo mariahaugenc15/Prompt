@@ -2,14 +2,20 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
-import { CompletionFeedCard } from '../components/CompletionFeedCard'
+import { IndexCard } from '../components/IndexCard'
 import { ExploreChallengesList } from '../components/ExploreChallengesList'
 import { VerifiedBadge } from '../components/VerifiedBadge'
-import { SearchIcon, ShuffleIcon, CloseIcon } from '../components/Icons'
+import { SearchIcon, ShuffleIcon, CloseIcon, PlusIcon, LockIcon, BoardsIcon } from '../components/Icons'
 import { listAccounts, searchAccounts, suggestedAccounts, type PublicProfile } from '../lib/realAccountsApi'
-import { searchBoards, type RealBoard } from '../lib/boardsApi'
-import { getFollowingFeed, getCommunityFeed } from '../lib/feedApi'
-import { reactToCompletion, type CompletionView } from '../lib/calendarsApi'
+import { discoverBoards, getMyBoards, searchBoards, subscribeBoard, type RealBoard } from '../lib/boardsApi'
+
+const BOARD_CATEGORY_LABEL: Record<string, string> = {
+  brand: 'Brand',
+  nonprofit: 'Nonprofit',
+  creator: 'Creator',
+  local: 'Local',
+  interest: 'Interest',
+}
 
 function shuffled<T>(arr: T[]): T[] {
   const copy = [...arr]
@@ -20,69 +26,19 @@ function shuffled<T>(arr: T[]): T[] {
   return copy
 }
 
-const FEED_PAGE_SIZE = 20
+const DISCOVER_PAGE_SIZE = 20
 
+// Feed is discovery, not activity — finding people and boards to follow.
+// The activity you actually get from what you already follow lives on Home.
 export function Feed() {
-  const [tab, setTab] = useState<'following' | 'community' | 'explore'>('following')
+  const [tab, setTab] = useState<'people' | 'boards' | 'prompts'>('people')
   const [query, setQuery] = useState('')
   const account = useStore((s) => s.account)
 
-  const [following, setFollowing] = useState<CompletionView[]>([])
-  const [community, setCommunity] = useState<CompletionView[]>([])
-  const [followingHasMore, setFollowingHasMore] = useState(false)
-  const [communityHasMore, setCommunityHasMore] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
-
-  useEffect(() => {
-    if (!account) return
-    getFollowingFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
-      if (!res.ok) return
-      setFollowing(res.data)
-      setFollowingHasMore(res.data.length === FEED_PAGE_SIZE)
-    })
-    getCommunityFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
-      if (!res.ok) return
-      setCommunity(res.data)
-      setCommunityHasMore(res.data.length === FEED_PAGE_SIZE)
-    })
-  }, [account])
-
-  async function handleReact(list: 'following' | 'community', completionId: string, kind: 'upvote' | 'pin') {
-    if (!account) return
-    const res = await reactToCompletion(completionId, kind, account.token)
-    if (!res.ok) return
-    const patch = (items: CompletionView[]) => items.map((c) => (c.id === completionId ? { ...c, ...res.data } : c))
-    if (list === 'following') setFollowing(patch)
-    else setCommunity(patch)
-  }
-
-  async function handleLoadMore(list: 'following' | 'community') {
-    if (!account) return
-    setLoadingMore(true)
-    try {
-      if (list === 'following') {
-        const res = await getFollowingFeed(account.token, following.length, FEED_PAGE_SIZE)
-        if (res.ok) {
-          setFollowing((prev) => [...prev, ...res.data])
-          setFollowingHasMore(res.data.length === FEED_PAGE_SIZE)
-        }
-      } else {
-        const res = await getCommunityFeed(account.token, community.length, FEED_PAGE_SIZE)
-        if (res.ok) {
-          setCommunity((prev) => [...prev, ...res.data])
-          setCommunityHasMore(res.data.length === FEED_PAGE_SIZE)
-        }
-      }
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
-  // Explore's profile grid: real, signed-up accounts, with anyone in your
-  // extended network you don't already follow surfaced first.
+  // People tab: real, signed-up accounts, with anyone in your extended
+  // network you don't already follow surfaced first.
   const [allProfiles, setAllProfiles] = useState<PublicProfile[]>([])
   const [suggested, setSuggested] = useState<PublicProfile[]>([])
-  const [exploreMode, setExploreMode] = useState<'profiles' | 'prompts'>('profiles')
 
   useEffect(() => {
     listAccounts(account?.token).then((res) => {
@@ -101,6 +57,44 @@ export function Feed() {
 
   const suggestedIds = new Set(suggested.map((p) => p.id))
   const restProfiles = allProfiles.filter((p) => !suggestedIds.has(p.id) && p.id !== account?.id)
+
+  // Boards tab: your own boards plus everything else there is to discover.
+  const [myBoards, setMyBoards] = useState<RealBoard[]>([])
+  const [discoverBoardsList, setDiscoverBoardsList] = useState<RealBoard[]>([])
+  const [discoverHasMore, setDiscoverHasMore] = useState(false)
+  const [loadingMoreBoards, setLoadingMoreBoards] = useState(false)
+
+  function refreshBoards() {
+    if (!account) return
+    getMyBoards(account.token).then((res) => setMyBoards(res.ok ? res.data : []))
+    discoverBoards(account.token, 0, DISCOVER_PAGE_SIZE).then((res) => {
+      if (!res.ok) return
+      setDiscoverBoardsList(res.data)
+      setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
+    })
+  }
+
+  useEffect(refreshBoards, [account])
+
+  async function handleSubscribeBoard(id: string) {
+    if (!account) return
+    const res = await subscribeBoard(id, account.token)
+    if (res.ok) refreshBoards()
+  }
+
+  async function handleLoadMoreBoards() {
+    if (!account) return
+    setLoadingMoreBoards(true)
+    try {
+      const res = await discoverBoards(account.token, discoverBoardsList.length, DISCOVER_PAGE_SIZE)
+      if (res.ok) {
+        setDiscoverBoardsList((prev) => [...prev, ...res.data])
+        setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
+      }
+    } finally {
+      setLoadingMoreBoards(false)
+    }
+  }
 
   const q = query.trim().toLowerCase()
   const searching = q.length >= 2
@@ -136,7 +130,7 @@ export function Feed() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search people and communities"
+            placeholder="Search people and boards"
             className="w-full rounded-full border border-line bg-card py-2 pl-9 pr-9 text-base outline-none focus:border-line-strong"
           />
           {query && (
@@ -177,9 +171,9 @@ export function Feed() {
             )}
           </section>
           <section>
-            <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Communities</p>
+            <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Boards</p>
             {realBoardMatches.length === 0 ? (
-              <p className="text-sm text-ink-faint">No communities found.</p>
+              <p className="text-sm text-ink-faint">No boards found.</p>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {realBoardMatches.map((b) => (
@@ -195,7 +189,7 @@ export function Feed() {
       ) : (
         <>
           <div className="flex gap-2 px-4">
-            {(['following', 'community', 'explore'] as const).map((t) => (
+            {(['people', 'boards', 'prompts'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -210,72 +204,75 @@ export function Feed() {
           </div>
 
           <div className="px-4">
-            {tab === 'explore' ? (
+            {tab === 'people' && (
               <div>
-                <div className="mb-3 flex gap-2">
-                  {(['profiles', 'prompts'] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setExploreMode(m)}
-                      className={clsx(
-                        'flex-1 rounded-full border py-1.5 text-xs capitalize transition',
-                        exploreMode === m ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
-                      )}
-                    >
-                      {m}
-                    </button>
-                  ))}
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-wider text-ink-faint">Profiles</p>
+                  <button onClick={reshuffleProfiles} className="flex items-center gap-1 text-xs font-medium text-ink">
+                    <ShuffleIcon size={13} /> Shuffle
+                  </button>
                 </div>
-                {exploreMode === 'profiles' ? (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-wider text-ink-faint">Profiles</p>
-                      <button onClick={reshuffleProfiles} className="flex items-center gap-1 text-xs font-medium text-ink">
-                        <ShuffleIcon size={13} /> Shuffle
-                      </button>
-                    </div>
-                    {suggested.length > 0 && (
-                      <div className="mb-4">
-                        <p className="mb-2 text-[11px] uppercase tracking-wider text-ink-faint">People you may know</p>
-                        <div className="grid grid-cols-2 gap-3">
-                          {suggested.map((p) => (
-                            <ProfileTile key={p.id} profile={p} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                {suggested.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-ink-faint">People you may know</p>
                     <div className="grid grid-cols-2 gap-3">
-                      {restProfiles.map((p) => (
+                      {suggested.map((p) => (
                         <ProfileTile key={p.id} profile={p} />
                       ))}
                     </div>
                   </div>
-                ) : (
-                  <ExploreChallengesList />
                 )}
-              </div>
-            ) : (tab === 'following' ? following : community).length === 0 ? (
-              <p className="mt-8 text-center text-sm text-ink-faint">
-                {tab === 'following' ? 'Follow friends to see what they’ve actually done.' : 'Subscribe to a board to see its gallery.'}
-              </p>
-            ) : (
-              <>
-                <div className="columns-2 gap-3">
-                  {(tab === 'following' ? following : community).map((c) => (
-                    <CompletionFeedCard key={c.id} completion={c} token={account?.token} onReact={(kind) => handleReact(tab, c.id, kind)} />
+                <div className="grid grid-cols-2 gap-3">
+                  {restProfiles.map((p) => (
+                    <ProfileTile key={p.id} profile={p} />
                   ))}
                 </div>
-                {(tab === 'following' ? followingHasMore : communityHasMore) && (
-                  <button
-                    onClick={() => handleLoadMore(tab)}
-                    disabled={loadingMore}
-                    className="mt-1 w-full rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
-                  >
-                    {loadingMore ? 'Loading…' : 'Load more'}
-                  </button>
-                )}
-              </>
+              </div>
             )}
+
+            {tab === 'boards' && (
+              <div className="flex flex-col gap-6">
+                {myBoards.length > 0 && (
+                  <section>
+                    <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Your boards</p>
+                    <div className="flex flex-col gap-2">
+                      {myBoards.map((b) => (
+                        <BoardRow key={b.id} board={b} joined />
+                      ))}
+                    </div>
+                  </section>
+                )}
+                <section>
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-wider text-ink-faint">Discover</p>
+                    <Link to="/boards/new" className="flex items-center gap-1 text-xs font-medium text-ink">
+                      <PlusIcon size={13} /> New board
+                    </Link>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {discoverBoardsList.map((b) => (
+                      <BoardRow key={b.id} board={b} onJoin={() => handleSubscribeBoard(b.id)} />
+                    ))}
+                    {discoverBoardsList.length === 0 && (
+                      <p className="text-sm text-ink-faint">
+                        {myBoards.length === 0 ? 'No boards yet — be the first to create one.' : 'You’re subscribed to everything for now.'}
+                      </p>
+                    )}
+                    {discoverHasMore && (
+                      <button
+                        onClick={handleLoadMoreBoards}
+                        disabled={loadingMoreBoards}
+                        className="rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+                      >
+                        {loadingMoreBoards ? 'Loading…' : 'Load more'}
+                      </button>
+                    )}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {tab === 'prompts' && <ExploreChallengesList />}
           </div>
         </>
       )}
@@ -300,5 +297,38 @@ function ProfileTile({ profile }: { profile: PublicProfile }) {
         <p className="text-xs text-ink-faint">@{profile.username}</p>
       </div>
     </Link>
+  )
+}
+
+function BoardRow({ board, joined, onJoin }: { board: RealBoard; joined?: boolean; onJoin?: () => void }) {
+  return (
+    <IndexCard className="p-3">
+      <Link to={`/boards/${board.id}`} className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-line bg-paper-dim text-base text-ink-soft">
+          {board.icon ?? (board.visibility === 'invite' ? <LockIcon size={15} /> : <BoardsIcon size={16} />)}
+        </span>
+        <div className="flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-serif text-base leading-tight">{board.name}</p>
+            {!joined && onJoin && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  onJoin()
+                }}
+                className="shrink-0 rounded-sm border border-ink px-2.5 py-1 text-xs font-medium"
+              >
+                Subscribe
+              </button>
+            )}
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-xs text-ink-soft">{board.description}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-faint">
+            {BOARD_CATEGORY_LABEL[board.category] ?? board.category} · {board.subscriberCount} subscribers
+            {board.locationTag ? ` · ${board.locationTag}` : ''}
+          </p>
+        </div>
+      </Link>
+    </IndexCard>
   )
 }

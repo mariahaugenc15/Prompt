@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CalendarGrid } from '../components/CalendarGrid'
 import { FridgeNoteStack, FridgeNoteDetail, type FridgeNoteViewModel } from '../components/FridgeNote'
 import { DayDetailSheet } from '../components/DayDetailSheet'
 import { RealCompleteForm } from '../components/RealCompleteForm'
-import { PlusIcon, CloseIcon } from '../components/Icons'
+import { CompletionFeedCard } from '../components/CompletionFeedCard'
+import { PlusIcon, CloseIcon, BoardsIcon } from '../components/Icons'
 import {
   getActiveBroadcasts,
   getCompletionScore,
@@ -16,7 +18,10 @@ import {
   type OneToOneHistoryItem,
 } from '../lib/realAccountsApi'
 import { reactToCompletion, tagCompletion, getMyCalendars, type CompletionView, type RealCalendar } from '../lib/calendarsApi'
-import { getMyActivity } from '../lib/feedApi'
+import { getMyActivity, getFollowingFeed, getCommunityFeed } from '../lib/feedApi'
+import { getMyBoards, type RealBoard } from '../lib/boardsApi'
+
+const FEED_PAGE_SIZE = 20
 
 const POLL_MS = 15000
 
@@ -57,6 +62,17 @@ export function Home() {
   const [completingBusy, setCompletingBusy] = useState(false)
   const seenPendingIds = useRef<Set<string> | null>(null)
 
+  // The live feed of calendars and boards you follow — prompts and other
+  // people's completions, kept separate from "activity" above (your own
+  // calendar, used to render the month grid).
+  const [feedTab, setFeedTab] = useState<'following' | 'boards'>('following')
+  const [followingFeed, setFollowingFeed] = useState<CompletionView[]>([])
+  const [communityFeed, setCommunityFeed] = useState<CompletionView[]>([])
+  const [followingHasMore, setFollowingHasMore] = useState(false)
+  const [communityHasMore, setCommunityHasMore] = useState(false)
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false)
+  const [myBoards, setMyBoards] = useState<RealBoard[]>([])
+
   function refreshActivity() {
     if (!account) return
     getMyActivity(account.token).then((res) => { if (res.ok) setActivity(res.data) })
@@ -66,8 +82,50 @@ export function Home() {
   useEffect(() => {
     if (!account) return
     getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
+    getMyBoards(account.token).then((res) => { if (res.ok) setMyBoards(res.data) })
     refreshActivity()
+    getFollowingFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
+      if (!res.ok) return
+      setFollowingFeed(res.data)
+      setFollowingHasMore(res.data.length === FEED_PAGE_SIZE)
+    })
+    getCommunityFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
+      if (!res.ok) return
+      setCommunityFeed(res.data)
+      setCommunityHasMore(res.data.length === FEED_PAGE_SIZE)
+    })
   }, [account])
+
+  async function handleFeedReact(list: 'following' | 'boards', completionId: string, kind: 'upvote' | 'pin') {
+    if (!account) return
+    const res = await reactToCompletion(completionId, kind, account.token)
+    if (!res.ok) return
+    const patch = (items: CompletionView[]) => items.map((c) => (c.id === completionId ? { ...c, ...res.data } : c))
+    if (list === 'following') setFollowingFeed(patch)
+    else setCommunityFeed(patch)
+  }
+
+  async function handleFeedLoadMore(list: 'following' | 'boards') {
+    if (!account) return
+    setFeedLoadingMore(true)
+    try {
+      if (list === 'following') {
+        const res = await getFollowingFeed(account.token, followingFeed.length, FEED_PAGE_SIZE)
+        if (res.ok) {
+          setFollowingFeed((prev) => [...prev, ...res.data])
+          setFollowingHasMore(res.data.length === FEED_PAGE_SIZE)
+        }
+      } else {
+        const res = await getCommunityFeed(account.token, communityFeed.length, FEED_PAGE_SIZE)
+        if (res.ok) {
+          setCommunityFeed((prev) => [...prev, ...res.data])
+          setCommunityHasMore(res.data.length === FEED_PAGE_SIZE)
+        }
+      }
+    } finally {
+      setFeedLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
     if (!account) return
@@ -285,6 +343,77 @@ export function Home() {
         >
           Complete a prompt
         </button>
+      </div>
+
+      <div className="px-4">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs uppercase tracking-wider text-ink-faint">Your boards</p>
+          <Link to="/boards/new" className="text-xs font-medium text-ink underline underline-offset-2">
+            + New
+          </Link>
+        </div>
+        {myBoards.length === 0 ? (
+          <p className="text-sm text-ink-faint">
+            No boards yet —{' '}
+            <Link to="/feed" className="underline">
+              find one to follow
+            </Link>
+            .
+          </p>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {myBoards.map((b) => (
+              <Link
+                key={b.id}
+                to={`/boards/${b.id}`}
+                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-card px-3 py-1.5 text-xs"
+              >
+                {b.icon ? <span>{b.icon}</span> : <BoardsIcon size={13} />}
+                {b.name}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="px-4">
+        <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Your feed</p>
+        <div className="mb-3 flex gap-2">
+          {(['following', 'boards'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setFeedTab(t)}
+              className={clsx(
+                'flex-1 rounded-full border py-1.5 text-xs capitalize transition',
+                feedTab === t ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
+              )}
+            >
+              {t === 'following' ? 'Following' : 'Boards'}
+            </button>
+          ))}
+        </div>
+        {(feedTab === 'following' ? followingFeed : communityFeed).length === 0 ? (
+          <p className="text-sm text-ink-faint">
+            {feedTab === 'following' ? 'Follow friends to see what they’ve actually done.' : 'Subscribe to a board to see its gallery.'}
+          </p>
+        ) : (
+          <>
+            <div className="columns-2 gap-3">
+              {(feedTab === 'following' ? followingFeed : communityFeed).map((c) => (
+                <CompletionFeedCard key={c.id} completion={c} token={account?.token} onReact={(kind) => handleFeedReact(feedTab, c.id, kind)} />
+              ))}
+            </div>
+            {(feedTab === 'following' ? followingHasMore : communityHasMore) && (
+              <button
+                onClick={() => handleFeedLoadMore(feedTab)}
+                disabled={feedLoadingMore}
+                className="mt-1 w-full rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+              >
+                {feedLoadingMore ? 'Loading…' : 'Load more'}
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {openNote && <FridgeNoteDetail note={openNote} onClose={() => setOpenNoteId(null)} />}

@@ -243,12 +243,12 @@ export function Home() {
   }
 
   const notes: FridgeNoteViewModel[] = useMemo(() => {
-    // A declined prompt never belongs in the stack — not even briefly with
-    // a "declined" badge — so it's filtered out here rather than mapped to
-    // one, which also means a later poll re-fetching the full history
-    // can't accidentally bring it back.
+    // The top stack is for prompts still waiting on you — once a 1:1 prompt
+    // is completed it belongs on the calendar, viewable by clicking into
+    // the day it happened, not pinned here forever growing the strip. A
+    // declined prompt is dropped the same way (see handleDeclineOneToOne).
     const oneToOneNotes: FridgeNoteViewModel[] = oneToOne
-      .filter((item): item is typeof item & { status: 'pending' | 'completed' } => item.status === 'pending' || item.status === 'completed')
+      .filter((item): item is typeof item & { status: 'pending' } => item.status === 'pending')
       .map((item) => ({
         id: item.id,
         category: item.category,
@@ -257,12 +257,8 @@ export function Home() {
         status: item.status,
         stackLabel: item.senderDisplayName,
         detailSourceLabel: `From ${item.senderDisplayName}`,
-        onAccept: item.status === 'pending' ? () => { setOpenNoteId(null); setCompletingOneToOne(item) } : undefined,
-        onDecline: item.status === 'pending' ? () => handleDeclineOneToOne(item) : undefined,
-        completion:
-          item.status === 'completed'
-            ? { mediaType: item.mediaType ?? 'photo', mediaDataUrl: item.mediaDataUrl, autoCaption: item.autoCaption, userCaption: item.userCaption }
-            : undefined,
+        onAccept: () => { setOpenNoteId(null); setCompletingOneToOne(item) },
+        onDecline: () => handleDeclineOneToOne(item),
       }))
     const broadcastNotes: FridgeNoteViewModel[] = broadcasts.map((item) => ({
       id: item.id,

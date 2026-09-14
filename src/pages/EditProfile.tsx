@@ -553,7 +553,7 @@ export function EditProfile() {
           onChange={(e) => setFeedbackText(e.target.value)}
           rows={3}
           maxLength={2000}
-          placeholder="What's on your mind?"
+          placeholder="Type feedback here..."
           className="w-full resize-none rounded-sm border border-line bg-paper p-2.5 text-sm outline-none focus:border-line-strong"
         />
         <button

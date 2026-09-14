@@ -33,35 +33,27 @@ export function LoginFlip() {
           >
             <div>
               <PromptLogo size={44} className="justify-center" />
-              <p className="mt-2 text-sm italic text-ink-soft">Real prompts. Real life.</p>
+              <p className="mt-2 text-sm italic text-ink-soft">prompt real life</p>
             </div>
             <button
               onClick={() => {
                 // The flip is a quick tactile cue, not something to wait
-                // out — it always leads into real Sign Up, never a free
-                // credential-less profile, but the tap has to register as
-                // "taking you to sign up" immediately. Fully finishing the
-                // rotation before navigating used to hold on a real (if
-                // decorative) calendar page for a full second first, which
-                // read as landing on the wrong page rather than a ritual.
-                // Already have an account? Use "Log in" below instead.
+                // out — the tap has to register as "taking you to sign in"
+                // immediately. Fully finishing the rotation before
+                // navigating used to hold on a real (if decorative)
+                // calendar page for a full second first, which read as
+                // landing on the wrong page rather than a ritual.
                 setFlipping(true)
-                navigate('/signup')
+                navigate('/login')
               }}
               className="mt-4 rounded-sm border border-ink bg-ink px-6 py-2.5 text-sm font-medium text-paper transition hover:bg-ink-soft"
             >
-              Open today's page
+              Sign in
             </button>
           </motion.div>
         </div>
       </div>
       <p className="mt-6 text-center text-sm text-paper-dim/80">
-        Already have an account? Using another device?{' '}
-        <Link to="/login" className="font-medium text-paper underline underline-offset-2">
-          Log in
-        </Link>
-      </p>
-      <p className="mt-1.5 text-center text-sm text-paper-dim/80">
         New here?{' '}
         <Link to="/signup" className="font-medium text-paper underline underline-offset-2">
           Create an account

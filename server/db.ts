@@ -274,7 +274,6 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
-  CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 `)
 
 // Defensive migration for a reports table created before this pass: add
@@ -317,8 +316,10 @@ if (!reportColumns.has('status')) {
   db.exec(`ALTER TABLE reports ADD COLUMN resolution_note TEXT`)
   db.exec(`ALTER TABLE reports ADD COLUMN resolved_by TEXT`)
   db.exec(`ALTER TABLE reports ADD COLUMN resolved_at INTEGER`)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)`)
 }
+// By this point every path above (fresh create, rebuild, or column add)
+// guarantees `status` exists, so this is always safe to run once more.
+db.exec(`CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)`)
 
 // Feedback: open-ended, not tied to any specific post/account — a direct
 // line to the people running the app, same resolve workflow as a report.

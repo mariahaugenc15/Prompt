@@ -14,10 +14,11 @@ export interface AccountRow {
   avatar_path: string | null
   bio: string | null
   is_verified: number
+  profile_visibility: 'public' | 'private'
 }
 
 const ACCOUNT_COLUMNS =
-  'id, account_type, username, email, prompt_permission, first_name, organization_name, website_url, avatar_path, bio, is_verified'
+  'id, account_type, username, email, prompt_permission, first_name, organization_name, website_url, avatar_path, bio, is_verified, profile_visibility'
 const ACCOUNT_COLUMNS_A = ACCOUNT_COLUMNS.split(', ').map((c) => `a.${c}`).join(', ')
 
 const byId = db.prepare(`SELECT ${ACCOUNT_COLUMNS} FROM accounts WHERE id = ?`)
@@ -146,6 +147,18 @@ export function displayName(account: Pick<AccountRow, 'first_name' | 'organizati
   return account.first_name ?? account.organization_name ?? account.username
 }
 
+// The one gate for whether a viewer gets to see this account's completed-
+// prompt calendar: always true for a public profile, otherwise only the
+// account itself or someone who follows it. No per-completion or
+// per-calendar override on top of this — see server/db.ts's
+// profile_visibility comment.
+export function canViewProfileActivity(account: AccountRow, viewerId?: string): boolean {
+  if (account.profile_visibility !== 'private') return true
+  if (!viewerId) return false
+  if (viewerId === account.id) return true
+  return isFollowing(viewerId, account.id)
+}
+
 export function publicProfile(account: AccountRow, viewerId?: string) {
   return {
     id: account.id,
@@ -160,6 +173,8 @@ export function publicProfile(account: AccountRow, viewerId?: string) {
     isFollowing: viewerId ? isFollowing(viewerId, account.id) : undefined,
     blockedByMe: viewerId ? isBlockedByViewer(viewerId, account.id) : undefined,
     isVerified: Boolean(account.is_verified),
+    profileVisibility: account.profile_visibility,
+    canViewActivity: canViewProfileActivity(account, viewerId),
   }
 }
 

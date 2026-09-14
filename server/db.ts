@@ -71,6 +71,13 @@ if (!accountColumns.has('is_admin')) {
 if (!accountColumns.has('is_verified')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN is_verified INTEGER NOT NULL DEFAULT 0`)
 }
+// One account-level switch for whether anyone can see your completed-prompt
+// calendar on your public profile ('public', the default — like a normal
+// Instagram account) or only people who follow you can ('private). No
+// per-completion or per-calendar visibility on top of this.
+if (!accountColumns.has('profile_visibility')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN profile_visibility TEXT NOT NULL DEFAULT 'public' CHECK (profile_visibility IN ('public', 'private'))`)
+}
 // Two-factor auth (TOTP, RFC 6238 — see server/totp.ts). totp_secret holds
 // the base32 secret as soon as setup starts, but it isn't checked at login
 // until totp_enabled flips to 1 on a confirmed code — so an abandoned setup

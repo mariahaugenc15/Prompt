@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
-import { CATEGORY_ICON, BoardsIcon } from '../components/Icons'
+import { CATEGORY_ICON, BoardsIcon, LockIcon } from '../components/Icons'
 import { PromptLogo } from '../components/PromptLogo'
 import { FollowListModal } from '../components/FollowListModal'
 import { VerifiedBadge } from '../components/VerifiedBadge'
+import { CalendarGrid } from '../components/CalendarGrid'
+import { DayDetailSheet } from '../components/DayDetailSheet'
 import {
   blockAccount,
   follow,
@@ -21,6 +23,8 @@ import {
   type BroadcastSummary,
   type PublicProfile,
 } from '../lib/realAccountsApi'
+import { getPublicActivity } from '../lib/feedApi'
+import { getMyCalendars, reactToCompletion, tagCompletion, type CompletionView, type RealCalendar } from '../lib/calendarsApi'
 
 export function OrgPage() {
   const { username = '' } = useParams()
@@ -30,6 +34,14 @@ export function OrgPage() {
   const [profile, setProfile] = useState<PublicProfile | null | 'not-found'>(null)
   const [broadcasts, setBroadcasts] = useState<BroadcastSummary[]>([])
   const [busy, setBusy] = useState(false)
+
+  // An individual's public calendar — the "grid" of this profile, same
+  // month-view component the owner sees on Home, just fed by the public
+  // activity endpoint instead of /api/me/activity.
+  const now = new Date()
+  const [activity, setActivity] = useState<CompletionView[]>([])
+  const [myCalendars, setMyCalendars] = useState<RealCalendar[]>([])
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
   const [category, setCategory] = useState<Category>('snap')
   const [text, setText] = useState('')
@@ -49,10 +61,36 @@ export function OrgPage() {
   function refresh() {
     getProfile(username, account?.token).then((res) => setProfile(res.ok ? res.data : 'not-found'))
     getOrganizationBroadcasts(username).then((res) => setBroadcasts(res.ok ? res.data : []))
+    getPublicActivity(username, account?.token).then((res) => setActivity(res.ok ? res.data : []))
   }
 
   useEffect(refresh, [username, account?.token])
   useEffect(() => setListOpen(null), [username])
+
+  useEffect(() => {
+    if (!account) return
+    getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
+  }, [account?.token])
+
+  async function handleReact(completionId: string, kind: 'upvote' | 'pin') {
+    if (!account) return
+    const res = await reactToCompletion(completionId, kind, account.token)
+    if (res.ok) setActivity((prev) => prev.map((c) => (c.id === completionId ? { ...c, ...res.data } : c)))
+  }
+
+  async function handleTag(completionId: string, calendarIds: string[]) {
+    if (!account) return
+    const res = await tagCompletion(completionId, calendarIds, account.token)
+    if (res.ok) {
+      setActivity((prev) =>
+        prev.map((c) =>
+          c.id === completionId
+            ? { ...c, calendarIds: res.data.calendarIds, calendarNames: myCalendars.filter((cal) => res.data.calendarIds.includes(cal.id)).map((cal) => cal.name) }
+            : c,
+        ),
+      )
+    }
+  }
 
   function openList(which: 'followers' | 'following') {
     setListOpen(which)
@@ -265,6 +303,23 @@ export function OrgPage() {
         </section>
       )}
 
+      {profile && profile.accountType === 'individual' && (
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">
+            {now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+          </p>
+          {profile.canViewActivity ? (
+            <CalendarGrid year={now.getFullYear()} month={now.getMonth()} completions={activity} onDayClick={setSelectedDay} />
+          ) : (
+            <div className="flex flex-col items-center gap-1 rounded-sm border border-line bg-paper-dim px-4 py-8 text-center">
+              <LockIcon size={18} className="text-ink-faint" />
+              <p className="text-sm text-ink-soft">This profile is private.</p>
+              <p className="text-xs text-ink-faint">Follow @{username} to see their completed prompts.</p>
+            </div>
+          )}
+        </section>
+      )}
+
       {profile && profile.accountType === 'organization' && (
       <section>
         <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Broadcasts &amp; submissions</p>
@@ -315,6 +370,19 @@ export function OrgPage() {
           profiles={listProfiles}
           loading={listLoading}
           onClose={() => setListOpen(null)}
+        />
+      )}
+
+      {selectedDay && (
+        <DayDetailSheet
+          dayKey={selectedDay}
+          completions={activity.filter((c) => c.dayKey === selectedDay)}
+          myUsername={account?.username}
+          token={account?.token}
+          myCalendars={myCalendars}
+          onClose={() => setSelectedDay(null)}
+          onReact={handleReact}
+          onTag={handleTag}
         />
       )}
     </div>

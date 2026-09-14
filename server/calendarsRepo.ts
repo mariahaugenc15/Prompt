@@ -114,9 +114,3 @@ export function tagCompletion(completionId: string, calendarIds: string[]): void
 export function calendarsForCompletion(completionId: string): { id: string; name: string }[] {
   return calendarsForCompletionStmt.all(completionId) as { id: string; name: string }[]
 }
-
-export function isCompletionPublic(completionId: string): boolean {
-  const rows = calendarsForCompletion(completionId)
-  if (rows.length === 0) return false
-  return rows.some((r) => getCalendarById(r.id)?.visibility === 'public')
-}

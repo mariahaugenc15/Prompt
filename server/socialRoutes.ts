@@ -26,6 +26,7 @@ socialRouter.get('/api/me', requireAuth, (req, res) => {
     displayName: actor.displayName,
     email: actor.email,
     promptPermission: actor.promptPermission,
+    profileVisibility: actor.profileVisibility,
     isAdmin: actor.isAdmin,
     isVerified: actor.isVerified,
     totpEnabled: actor.totpEnabled,
@@ -72,6 +73,22 @@ socialRouter.patch('/api/me/prompt-permission', requireAuth, (req, res) => {
   }
   setPromptPermission.run(value, actor.id)
   res.json({ promptPermission: value })
+})
+
+const PROFILE_VISIBILITIES = ['public', 'private'] as const
+const setProfileVisibility = db.prepare('UPDATE accounts SET profile_visibility = ? WHERE id = ?')
+
+// Whether anyone can see your completed-prompt calendar on your public
+// profile ('public') or only people who follow you can ('private') — see
+// server/db.ts's profile_visibility comment and accountsRepo.ts's
+// canViewProfileActivity.
+socialRouter.patch('/api/me/profile-visibility', requireAuth, (req, res) => {
+  const value = String(req.body?.profileVisibility ?? '')
+  if (!PROFILE_VISIBILITIES.includes(value as (typeof PROFILE_VISIBILITIES)[number])) {
+    return res.status(422).json({ errors: { profileVisibility: `Must be one of: ${PROFILE_VISIBILITIES.join(', ')}.` } })
+  }
+  setProfileVisibility.run(value, req.account!.id)
+  res.json({ profileVisibility: value })
 })
 
 const insertFollow = db.prepare(

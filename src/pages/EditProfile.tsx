@@ -12,6 +12,7 @@ import {
   getProfile,
   getFollowing,
   setMyPromptPermission,
+  setMyProfileVisibility,
   getCompletionScore,
   getBlockedAccounts,
   unblockAccount,
@@ -96,6 +97,12 @@ export function EditProfile() {
     if (!account) return
     const res = await setMyPromptPermission(value, account.token)
     if (res.ok) setMe((prev) => (prev ? { ...prev, promptPermission: value } : prev))
+  }
+
+  async function handleProfileVisibility(value: 'public' | 'private') {
+    if (!account) return
+    const res = await setMyProfileVisibility(value, account.token)
+    if (res.ok) setMe((prev) => (prev ? { ...prev, profileVisibility: value } : prev))
   }
 
   async function handleUnblock(username: string) {
@@ -343,6 +350,30 @@ export function EditProfile() {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+          {me.accountType === 'individual' && (
+            <div className="mt-3 border-t border-line pt-3">
+              <p className="mb-1.5 text-xs text-ink-faint">Who can see @{me.username}'s calendar on their profile</p>
+              <div className="flex gap-1.5">
+                {(['public', 'private'] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => handleProfileVisibility(v)}
+                    className={clsx(
+                      'flex-1 rounded-sm border py-1.5 text-xs capitalize',
+                      me.profileVisibility === v ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-ink-faint">
+                {me.profileVisibility === 'private'
+                  ? 'Only accounts that follow you can see your completed prompts.'
+                  : 'Anyone can see your completed prompts, like a public Instagram profile.'}
+              </p>
             </div>
           )}
         </section>

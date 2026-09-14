@@ -21,6 +21,8 @@ export interface PublicProfile {
   isFollowing?: boolean
   blockedByMe?: boolean
   isVerified: boolean
+  profileVisibility: 'public' | 'private'
+  canViewActivity: boolean
 }
 
 export type PromptStatus = 'pending' | 'completed' | 'declined' | 'expired'
@@ -115,6 +117,7 @@ export interface Me {
   displayName: string
   email: string
   promptPermission: 'everyone' | 'followers' | 'mutuals'
+  profileVisibility: 'public' | 'private'
   isAdmin: boolean
   isVerified: boolean
   totpEnabled: boolean
@@ -200,6 +203,13 @@ export function setMyPromptPermission(promptPermission: 'everyone' | 'followers'
   return call<{ promptPermission: string }>('/api/me/prompt-permission', token, {
     method: 'PATCH',
     body: JSON.stringify({ promptPermission }),
+  })
+}
+
+export function setMyProfileVisibility(profileVisibility: 'public' | 'private', token: string) {
+  return call<{ profileVisibility: string }>('/api/me/profile-visibility', token, {
+    method: 'PATCH',
+    body: JSON.stringify({ profileVisibility }),
   })
 }
 

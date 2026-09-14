@@ -1,6 +1,6 @@
 import { db } from './db.js'
 import { reactionCounts } from './reactionsRepo.js'
-import { calendarsForCompletion, isCompletionPublic } from './calendarsRepo.js'
+import { calendarsForCompletion } from './calendarsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
 
 export interface CompletionView {
@@ -201,20 +201,18 @@ export function communityFeed(accountId: string, limit = 50, offset = 0): Comple
   return paginate(rows.map((r) => normalizeBroadcast(r, accountId)), limit, offset)
 }
 
-// What shows on someone else's public profile: any broadcast (org or board)
-// they've completed is inherently public (they opted into a public
-// challenge), plus any 1:1 completion they've tagged into a public
-// calendar — a private calendar can organize it for them, but it can't
-// make it private once a board already made it public. If the viewer has
-// blocked (or is blocked by) the profile's owner, none of it shows —
-// there's nothing to negotiate part-way when the two of you can't interact
-// at all.
+// What shows on someone else's public profile: every broadcast (org or
+// board) and 1:1 prompt they've completed — the account-level
+// profile_visibility switch (server/accountsRepo.ts's
+// canViewProfileActivity) is what actually gates whether a given viewer
+// gets to call this at all, checked by the route before this runs, so
+// nothing here is held back per-completion. If the viewer has blocked (or
+// is blocked by) the profile's owner, none of it shows regardless — there's
+// nothing to negotiate part-way when the two of you can't interact at all.
 export function publicActivity(targetAccountId: string, viewerId?: string, limit = 100, offset = 0): CompletionView[] {
   if (viewerId && blockedEitherWayIds(viewerId).has(targetAccountId)) return []
   const broadcasts = (broadcastByCompleter.all(targetAccountId) as BroadcastRow[]).map((r) => normalizeBroadcast(r, viewerId))
-  const oneToOne = (oneToOneByRecipient.all(targetAccountId) as OneToOneRow[])
-    .filter((r) => isCompletionPublic(r.id))
-    .map((r) => normalizeOneToOne(r, viewerId))
+  const oneToOne = (oneToOneByRecipient.all(targetAccountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, viewerId))
   return paginate([...broadcasts, ...oneToOne].sort((a, b) => b.createdAt - a.createdAt), limit, offset)
 }
 

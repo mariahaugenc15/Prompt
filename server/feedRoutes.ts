@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { db } from './db.js'
 import { requireAuth, resolveOptionalAccountId } from './auth.js'
 import { myActivity, followingFeed, communityFeed, publicActivity } from './completionsRepo.js'
-import { getAccountByUsername } from './accountsRepo.js'
+import { canViewProfileActivity, getAccountByUsername } from './accountsRepo.js'
 
 export const feedRouter = Router()
 
@@ -30,8 +30,13 @@ feedRouter.get('/api/feed/community', requireAuth, (req, res) => {
 feedRouter.get('/api/accounts/:username/activity', (req, res) => {
   const target = getAccountByUsername(req.params.username)
   if (!target) return res.status(404).json({ errors: { form: 'No account with that username.' } })
+  const viewerId = resolveOptionalAccountId(req)
+  // Same gate accountsRepo.ts's publicProfile() reports as canViewActivity —
+  // enforced here too so a private profile's calendar can't be read by
+  // calling this endpoint directly instead of going through the profile.
+  if (!canViewProfileActivity(target, viewerId)) return res.json([])
   const { limit, offset } = parsePaging(req, 100, 200)
-  res.json(publicActivity(target.id, resolveOptionalAccountId(req), limit, offset))
+  res.json(publicActivity(target.id, viewerId, limit, offset))
 })
 
 // Completion score: of every 1:1 prompt directly sent to you that's been

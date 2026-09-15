@@ -4,7 +4,10 @@ import { deactivateAccount } from './accountsRepo.js'
 // Admin-facing account view — includes fields the normal-user
 // accountsRepo.ts queries deliberately leave out (is_admin, is_deleted,
 // created_at, raw email) since those aren't anyone's business but an
-// admin's.
+// admin's. The engagement counts (resolved_one_to_one etc.) are the raw
+// inputs to the same completion-score formula feedRoutes.ts uses for
+// /api/me/completion-score — computed here per-row via subqueries rather
+// than N+1 queries, then turned into a score in JS below.
 export interface AdminAccountRow {
   id: string
   account_type: string
@@ -17,46 +20,91 @@ export interface AdminAccountRow {
   is_verified: number
   totp_enabled: number
   created_at: number
+  resolved_one_to_one: number
+  completed_one_to_one: number
+  broadcasts_completed: number
+  prompts_sent: number
+  follower_count: number
+  completion_score: number | null
+  completion_completed: number
+  completion_total: number
 }
 
-const ADMIN_ACCOUNT_COLUMNS =
-  'id, account_type, username, email, first_name, organization_name, is_admin, is_deleted, is_verified, totp_enabled, created_at'
+const ADMIN_ACCOUNT_COLUMNS = `
+  a.id, a.account_type, a.username, a.email, a.first_name, a.organization_name,
+  a.is_admin, a.is_deleted, a.is_verified, a.totp_enabled, a.created_at,
+  (SELECT COUNT(*) FROM prompts p WHERE p.is_broadcast = 0 AND p.recipient_account_id = a.id AND p.status IN ('completed', 'declined', 'expired')) AS resolved_one_to_one,
+  (SELECT COUNT(*) FROM prompts p WHERE p.is_broadcast = 0 AND p.recipient_account_id = a.id AND p.status = 'completed') AS completed_one_to_one,
+  (SELECT COUNT(*) FROM prompt_completions pc WHERE pc.completer_account_id = a.id) AS broadcasts_completed,
+  (SELECT COUNT(*) FROM prompts p WHERE p.sender_account_id = a.id) AS prompts_sent,
+  (SELECT COUNT(*) FROM follows f WHERE f.followee_account_id = a.id) AS follower_count
+`
 
-const listAccountsStmt = db.prepare(`
-  SELECT ${ADMIN_ACCOUNT_COLUMNS}
-  FROM accounts
-  ORDER BY created_at DESC
-  LIMIT ? OFFSET ?
-`)
+function withScore(row: Omit<AdminAccountRow, 'completion_score' | 'completion_completed' | 'completion_total'>): AdminAccountRow {
+  const completed = row.completed_one_to_one + row.broadcasts_completed
+  const total = row.resolved_one_to_one + row.broadcasts_completed
+  return { ...row, completion_completed: completed, completion_total: total, completion_score: total === 0 ? null : Math.round((completed / total) * 100) }
+}
 
-const searchAccountsStmt = db.prepare(`
-  SELECT ${ADMIN_ACCOUNT_COLUMNS}
-  FROM accounts
-  WHERE username_normalized LIKE ? ESCAPE '\\' OR email_normalized LIKE ? ESCAPE '\\'
-  ORDER BY created_at DESC
-  LIMIT ? OFFSET ?
-`)
+const accountTypeFilterSql = (accountType?: string) => (accountType === 'individual' || accountType === 'organization' ? ' AND a.account_type = ?' : '')
+
+const listAccountsStmt = (accountType?: string) =>
+  db.prepare(`
+    SELECT ${ADMIN_ACCOUNT_COLUMNS}
+    FROM accounts a
+    WHERE 1=1${accountTypeFilterSql(accountType)}
+    ORDER BY a.created_at DESC
+    LIMIT ? OFFSET ?
+  `)
+
+const searchAccountsStmt = (accountType?: string) =>
+  db.prepare(`
+    SELECT ${ADMIN_ACCOUNT_COLUMNS}
+    FROM accounts a
+    WHERE (a.username_normalized LIKE ? ESCAPE '\\' OR a.email_normalized LIKE ? ESCAPE '\\')${accountTypeFilterSql(accountType)}
+    ORDER BY a.created_at DESC
+    LIMIT ? OFFSET ?
+  `)
 
 const getAccountStmt = db.prepare(`
   SELECT ${ADMIN_ACCOUNT_COLUMNS}
-  FROM accounts WHERE id = ?
+  FROM accounts a WHERE a.id = ?
 `)
+
+const allAccountsStmt = (accountType?: string) =>
+  db.prepare(`
+    SELECT ${ADMIN_ACCOUNT_COLUMNS}
+    FROM accounts a
+    WHERE 1=1${accountTypeFilterSql(accountType)}
+    ORDER BY a.created_at DESC
+  `)
 
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => '\\' + c)
 }
 
-export function adminListAccounts(limit: number, offset = 0): AdminAccountRow[] {
-  return listAccountsStmt.all(limit, offset) as AdminAccountRow[]
+export function adminListAccounts(limit: number, offset = 0, accountType?: string): AdminAccountRow[] {
+  const args = accountType === 'individual' || accountType === 'organization' ? [accountType, limit, offset] : [limit, offset]
+  return (listAccountsStmt(accountType).all(...args) as Omit<AdminAccountRow, 'completion_score' | 'completion_completed' | 'completion_total'>[]).map(withScore)
 }
 
-export function adminSearchAccounts(query: string, limit: number, offset = 0): AdminAccountRow[] {
+export function adminSearchAccounts(query: string, limit: number, offset = 0, accountType?: string): AdminAccountRow[] {
   const like = `%${escapeLike(query.trim().toLowerCase())}%`
-  return searchAccountsStmt.all(like, like, limit, offset) as AdminAccountRow[]
+  const args =
+    accountType === 'individual' || accountType === 'organization' ? [like, like, accountType, limit, offset] : [like, like, limit, offset]
+  return (searchAccountsStmt(accountType).all(...args) as Omit<AdminAccountRow, 'completion_score' | 'completion_completed' | 'completion_total'>[]).map(withScore)
 }
 
 export function adminGetAccount(id: string): AdminAccountRow | undefined {
-  return getAccountStmt.get(id) as AdminAccountRow | undefined
+  const row = getAccountStmt.get(id) as Omit<AdminAccountRow, 'completion_score' | 'completion_completed' | 'completion_total'> | undefined
+  return row ? withScore(row) : undefined
+}
+
+// Unpaginated — backs the CSV export, which needs every matching row in one
+// pass rather than a page at a time.
+export function adminAllAccounts(accountType?: string): AdminAccountRow[] {
+  const args = accountType === 'individual' || accountType === 'organization' ? [accountType] : []
+  return (allAccountsStmt(accountType).all(...args) as Omit<AdminAccountRow, 'completion_score' | 'completion_completed' | 'completion_total'>[]).map(withScore)
 }
 
 // Banning is the same anonymize-and-lock operation a self-delete performs

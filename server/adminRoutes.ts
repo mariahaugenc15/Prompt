@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireAdmin, requireAuth } from './auth.js'
 import { removeComment } from './commentsRepo.js'
 import {
+  adminAllAccounts,
   adminBanAccount,
   adminGetAccount,
   adminGetComment,
@@ -16,6 +17,7 @@ import {
   adminResolveReport,
   adminSearchAccounts,
   adminUsageStats,
+  type AdminAccountRow,
 } from './adminRepo.js'
 import {
   adminApproveVerificationRequest,
@@ -52,11 +54,55 @@ adminRouter.get('/api/admin/stats', (_req, res) => {
 
 // --- Accounts --------------------------------------------------------------
 
+function accountTypeParam(req: import('express').Request): string | undefined {
+  return req.query.type === 'individual' || req.query.type === 'organization' ? req.query.type : undefined
+}
+
 adminRouter.get('/api/admin/accounts', (req, res) => {
   const { limit, offset } = pagination(req)
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
-  const rows = q ? adminSearchAccounts(q, limit, offset) : adminListAccounts(limit, offset)
+  const accountType = accountTypeParam(req)
+  const rows = q ? adminSearchAccounts(q, limit, offset, accountType) : adminListAccounts(limit, offset, accountType)
   res.json(rows)
+})
+
+// CSV export — every matching account in one response (no pagination) so an
+// admin can pull the full signup list (emails included) into a spreadsheet.
+function csvCell(value: string | number | null): string {
+  const s = value === null ? '' : String(value)
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+}
+
+adminRouter.get('/api/admin/accounts/export.csv', (req, res) => {
+  const accountType = accountTypeParam(req)
+  const rows = adminAllAccounts(accountType)
+  const header = [
+    'username', 'email', 'account_type', 'name', 'is_verified', 'is_admin', 'is_deleted',
+    'completion_score', 'completion_completed', 'completion_total', 'prompts_sent', 'follower_count', 'created_at',
+  ]
+  const lines = [header.join(',')]
+  for (const r of rows as AdminAccountRow[]) {
+    lines.push(
+      [
+        csvCell(r.username),
+        csvCell(r.email),
+        csvCell(r.account_type),
+        csvCell(r.first_name ?? r.organization_name),
+        csvCell(r.is_verified),
+        csvCell(r.is_admin),
+        csvCell(r.is_deleted),
+        csvCell(r.completion_score),
+        csvCell(r.completion_completed),
+        csvCell(r.completion_total),
+        csvCell(r.prompts_sent),
+        csvCell(r.follower_count),
+        csvCell(new Date(r.created_at).toISOString()),
+      ].join(','),
+    )
+  }
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', 'attachment; filename="prompt-accounts.csv"')
+  res.send(lines.join('\n'))
 })
 
 adminRouter.get('/api/admin/accounts/:id', (req, res) => {

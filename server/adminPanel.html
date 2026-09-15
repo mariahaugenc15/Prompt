@@ -258,6 +258,12 @@
         <input type="text" id="accounts-search" placeholder="Search username or email…" />
         <button class="secondary" id="accounts-search-btn">Search</button>
         <button class="secondary" id="accounts-clear-btn">Clear</button>
+        <select id="accounts-type">
+          <option value="">All account types</option>
+          <option value="individual">Individual</option>
+          <option value="organization">Organization</option>
+        </select>
+        <button class="secondary" id="accounts-export-btn">Export CSV</button>
       </div>
       <div id="accounts-content"></div>
       <div class="pager" id="accounts-pager"></div>
@@ -667,20 +673,59 @@
     accountsOffset = 0;
     loadAccounts();
   });
+  document.getElementById('accounts-type').addEventListener('change', function () {
+    accountsOffset = 0;
+    loadAccounts();
+  });
+
+  function accountsBaseQs() {
+    var type = document.getElementById('accounts-type').value;
+    return (accountsQuery ? '&q=' + encodeURIComponent(accountsQuery) : '') + (type ? '&type=' + type : '');
+  }
+
+  document.getElementById('accounts-export-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Exporting…';
+    fetch('/api/admin/accounts/export.csv?' + accountsBaseQs().replace(/^&/, ''), { headers: { Authorization: 'Bearer ' + getToken() } })
+      .then(function (res) {
+        if (!res.ok) throw new Error('Export failed (' + res.status + ')');
+        return res.blob();
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'prompt-accounts.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch(function (e) { alert(e.message); })
+      .then(function () { btn.disabled = false; btn.textContent = 'Export CSV'; });
+  });
+
+  function scoreLabel(a) {
+    if (a.completion_score === null || a.completion_score === undefined) return '<span class="muted">No prompts yet</span>';
+    return a.completion_score + '%' + ' <span class="muted" style="font-size:11px">(' + a.completion_completed + '/' + a.completion_total + ')</span>';
+  }
 
   function loadAccounts() {
     var content = document.getElementById('accounts-content');
     content.innerHTML = emptyState('Loading…');
-    var qs = 'limit=' + PAGE_SIZE + '&offset=' + accountsOffset + (accountsQuery ? '&q=' + encodeURIComponent(accountsQuery) : '');
+    var qs = 'limit=' + PAGE_SIZE + '&offset=' + accountsOffset + accountsBaseQs();
     api('/api/admin/accounts?' + qs)
       .then(function (rows) {
         if (rows.length === 0) return content.innerHTML = emptyState('No accounts found.');
-        var html = '<table><thead><tr><th>Account</th><th>Email</th><th>Joined</th><th>Flags</th><th></th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>Account</th><th>Email</th><th>Prompt %</th><th>Sent / Followers</th><th>Joined</th><th>Flags</th><th></th></tr></thead><tbody>';
         rows.forEach(function (a) {
           var name = a.first_name || a.organization_name || a.username;
           html += '<tr>'
             + '<td><strong>' + escapeHtml(name) + '</strong><br><span class="muted" style="font-size:11px">@' + escapeHtml(a.username) + ' · ' + escapeHtml(a.account_type) + '</span></td>'
             + '<td>' + escapeHtml(a.email) + '</td>'
+            + '<td>' + scoreLabel(a) + '</td>'
+            + '<td>' + a.prompts_sent + ' sent <span class="muted">/</span> ' + a.follower_count + ' followers</td>'
             + '<td>' + fmtDate(a.created_at) + '</td>'
             + '<td>' + (a.is_admin ? '<span class="badge admin">admin</span> ' : '')
               + (a.is_verified ? '<span class="badge verified">verified</span> ' : '')

@@ -116,6 +116,16 @@ app.get('/admin', (_req, res) => {
   res.sendFile(path.join(__dirname, 'adminPanel.html'))
 })
 
+// Public marketing landing page — lives on this same server (rather than
+// the Vite app on Vercel) so the custom domain (promptreallife.com) only
+// needs to point at one host to cover both "/" and "/admin", with no
+// cross-provider proxying. The actual app keeps living on its existing
+// Vercel URL; this page's App Store badge just points there once live.
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'landingPage.html'))
+})
+app.use('/landing', express.static(path.join(__dirname, 'landingAssets'), { maxAge: '7d' }))
+
 const PORT = Number(process.env.PORT ?? 8787)
 
 const findByUsername = db.prepare('SELECT 1 FROM accounts WHERE username_normalized = ?')

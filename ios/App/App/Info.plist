@@ -66,5 +66,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Prompt needs camera access so you can take a photo or video to complete a prompt or update your profile picture.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Prompt needs microphone access to record sound when you complete a prompt with video.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Prompt needs photo library access so you can choose an existing photo or video to complete a prompt or update your profile picture.</string>
 </dict>
 </plist>

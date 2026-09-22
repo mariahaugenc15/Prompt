@@ -359,7 +359,7 @@ export function Home() {
         </div>
         {myBoards.length === 0 ? (
           <p className="text-sm text-ink-faint">
-            No boards yet —{' '}
+            No boards yet,{' '}
             <Link to="/feed" className="underline">
               find one to follow
             </Link>

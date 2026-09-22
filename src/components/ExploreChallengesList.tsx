@@ -21,7 +21,7 @@ export function ExploreChallengesList() {
   if (challenges.length === 0) {
     return (
       <div className="rounded-sm border border-dashed border-line-strong bg-paper-dim p-4 text-center text-sm text-ink-faint">
-        Nothing public to explore yet — be the first to{' '}
+        Nothing public to explore yet, be the first to{' '}
         <Link to="/boards/new" className="underline">
           start a board
         </Link>{' '}

@@ -113,7 +113,7 @@ export function Calendars() {
           ))}
           {discover.length === 0 && (
             <p className="text-sm text-ink-faint">
-              {mine.length === 0 ? 'No public calendars yet — be the first to create one.' : 'No public calendars left to join right now.'}
+              {mine.length === 0 ? 'No public calendars yet, be the first to create one.' : 'No public calendars left to join right now.'}
             </p>
           )}
           {discoverHasMore && (

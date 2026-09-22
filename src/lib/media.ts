@@ -44,9 +44,9 @@ export async function fileToProofDataUrl(file: File): Promise<{ dataUrl: string;
   }
   if (file.type.startsWith('video/')) {
     if (file.size > MAX_VIDEO_BYTES) {
-      throw new Error(`That video is too large (max ${Math.floor(MAX_VIDEO_BYTES / (1024 * 1024))}MB) — try a shorter clip.`)
+      throw new Error(`That video is too large (max ${Math.floor(MAX_VIDEO_BYTES / (1024 * 1024))}MB). Try a shorter clip.`)
     }
     return { dataUrl: await readFileAsDataUrl(file), kind: 'video' }
   }
-  throw new Error('Unsupported file type — please choose a photo or video.')
+  throw new Error('Unsupported file type. Please choose a photo or video.')
 }

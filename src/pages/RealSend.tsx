@@ -77,7 +77,7 @@ export function RealSend() {
 
       <div>
         <h1 className="font-serif text-2xl">Send a prompt</h1>
-        <p className="text-xs text-ink-faint">Goes straight to their inbox — enforced the same way on the server.</p>
+        <p className="text-xs text-ink-faint">Goes straight to their inbox, enforced the same way on the server.</p>
       </div>
 
       <label className="relative flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">

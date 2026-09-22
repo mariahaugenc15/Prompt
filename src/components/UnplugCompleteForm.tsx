@@ -48,7 +48,7 @@ export function UnplugCompleteForm({
   function handleSubmit() {
     const minutes = Math.round(elapsedSeconds / 60)
     const durationText = minutes < 1 ? 'less than a minute' : `${minutes} minute${minutes === 1 ? '' : 's'}`
-    const caption = reflection.trim() ? `Unplugged for ${durationText}: ${reflection.trim()}` : `Unplugged for ${durationText}`
+    const caption = reflection.trim() ? `Unplugged for ${durationText} — ${reflection.trim()}` : `Unplugged for ${durationText}`
     onSubmit({ caption })
   }
 

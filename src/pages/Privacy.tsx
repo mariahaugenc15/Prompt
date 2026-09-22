@@ -7,7 +7,7 @@ export function Privacy() {
         Back
       </Link>
       <h1 className="font-serif text-2xl text-ink">Privacy Policy</h1>
-      <p className="text-xs text-ink-faint">Last updated: beta release. This is a beta product, so this policy will evolve.</p>
+      <p className="text-xs text-ink-faint">Last updated: beta release. This is a beta product — this policy will evolve.</p>
 
       <h2 className="mt-2 font-serif text-lg text-ink">What we collect</h2>
       <p>
@@ -32,7 +32,7 @@ export function Privacy() {
       <h2 className="mt-2 font-serif text-lg text-ink">Your choices</h2>
       <p>
         You can block another account at any time, which also removes any follow relationship between you. You
-        can delete your account from your profile settings, which removes your personal details and prevents
+        can delete your account from your profile settings — this removes your personal details and prevents
         login, though prompts and completions you were part of stay visible to the other people they involved
         (shown as attributed to a deleted account) rather than disappearing from their history.
       </p>
@@ -41,7 +41,7 @@ export function Privacy() {
       <p>
         Photos and videos you upload are stored on our server, not a third-party host. Passwords are hashed with
         a per-account salt and never stored or logged in plain text. As a beta product, we can't yet promise the
-        long-term data guarantees of a mature service, so export or back up anything irreplaceable yourself.
+        long-term data guarantees of a mature service — export or back up anything irreplaceable yourself.
       </p>
 
       <p className="mt-4 text-xs text-ink-faint">

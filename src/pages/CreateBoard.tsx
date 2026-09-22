@@ -126,7 +126,7 @@ export function CreateBoard() {
         </div>
         <p className="mt-2 text-xs text-ink-faint">
           {visibility === 'invite'
-            ? 'Only people you invite can see or join it, good for something like a book club. It never shows up under Discover.'
+            ? 'Only people you invite can see or join it — good for something like a book club. It never shows up under Discover.'
             : 'Anyone can find it under Discover and subscribe.'}
         </p>
       </div>

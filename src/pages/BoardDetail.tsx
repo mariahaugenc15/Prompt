@@ -166,7 +166,7 @@ export function BoardDetail() {
           </button>
         )}
         {!board.isOwner && !board.isSubscribed && isPrivate && (
-          <p className="mt-3 text-xs text-ink-faint">This is a private group. Ask the owner to invite you.</p>
+          <p className="mt-3 text-xs text-ink-faint">This is a private group — ask the owner to invite you.</p>
         )}
         {board.isSubscribed && !board.isOwner && <p className="mt-3 text-xs text-success">You're subscribed.</p>}
       </div>

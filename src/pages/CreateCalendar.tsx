@@ -34,7 +34,7 @@ export function CreateCalendar() {
     <div className="flex flex-col gap-5 p-4">
       <h1 className="font-serif text-2xl">Create a calendar</h1>
       <p className="-mt-3 text-sm text-ink-soft">
-        A named, themed home for prompts you complete, like "Fitness Prompts" or "Sarah &amp; Me." Every completion
+        A named, themed home for prompts you complete — like "Fitness Prompts" or "Sarah &amp; Me." Every completion
         also stays on your All Activity calendar no matter what.
       </p>
 
@@ -66,7 +66,7 @@ export function CreateCalendar() {
         </div>
         <p className="mt-2 text-xs text-ink-faint">
           {visibility === 'private'
-            ? 'Only members can see it. Note: a prompt completed as part of a public board challenge stays public regardless. A private calendar can organize it for you, but it can’t hide it.'
+            ? 'Only members can see it. Note: a prompt completed as part of a public board challenge stays public regardless — a private calendar can organize it for you, but it can’t hide it.'
             : 'Anyone can find and join it, and see what gets tagged into it.'}
         </p>
       </div>

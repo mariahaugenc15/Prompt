@@ -7,7 +7,7 @@ export function Terms() {
         Back
       </Link>
       <h1 className="font-serif text-2xl text-ink">Terms of Service</h1>
-      <p className="text-xs text-ink-faint">Last updated: beta release. This is a beta product, so these terms will evolve.</p>
+      <p className="text-xs text-ink-faint">Last updated: beta release. This is a beta product — these terms will evolve.</p>
 
       <p>
         Prompt is a small, early beta. By creating an account you agree to use it in good faith and understand

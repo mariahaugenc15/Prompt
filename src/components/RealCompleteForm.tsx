@@ -28,7 +28,7 @@ export function RealCompleteForm({
       setKind(resolvedKind)
       setPreview(dataUrl)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not process that file. Try another one.')
+      setError(err instanceof Error ? err.message : 'Could not process that file — try another one.')
     } finally {
       setBusy(false)
     }

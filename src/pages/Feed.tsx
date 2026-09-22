@@ -255,7 +255,7 @@ export function Feed() {
                     ))}
                     {discoverBoardsList.length === 0 && (
                       <p className="text-sm text-ink-faint">
-                        {myBoards.length === 0 ? 'No boards yet, be the first to create one.' : 'You’re subscribed to everything for now.'}
+                        {myBoards.length === 0 ? 'No boards yet — be the first to create one.' : 'You’re subscribed to everything for now.'}
                       </p>
                     )}
                     {discoverHasMore && (

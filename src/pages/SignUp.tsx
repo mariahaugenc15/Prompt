@@ -188,7 +188,7 @@ export function SignUp() {
           error={usernameFormatError}
           hint={
             !username.trim()
-              ? 'Letters, numbers, underscores, periods. Shared by everyone, individuals and organizations alike.'
+              ? 'Letters, numbers, underscores, periods. Shared by everyone — individuals and organizations alike.'
               : usernameStatus === 'checking'
                 ? 'Checking availability…'
                 : undefined

@@ -238,7 +238,7 @@ export function OrgPage() {
               Report
             </button>
           )}
-          {reportSent && <span className="text-ink-soft">Report sent, thank you.</span>}
+          {reportSent && <span className="text-ink-soft">Report sent — thank you.</span>}
         </div>
       )}
 

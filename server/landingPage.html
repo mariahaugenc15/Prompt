@@ -109,39 +109,13 @@
   .badge-store .lines .small { font-size: 10px; opacity: 0.75; display: block; }
   .badge-store .lines .big { font-size: 15px; font-weight: 600; display: block; }
 
-  section.feature {
-    padding: 64px 0;
+  section.origin {
+    padding: 56px 0;
     border-top: 1px solid var(--line);
+    background: var(--paper-dim);
+    text-align: center;
   }
-  section.feature .inner {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
-    align-items: center;
-  }
-  section.feature.reverse .inner { direction: rtl; }
-  section.feature.reverse .inner > * { direction: ltr; }
-  @media (max-width: 760px) {
-    section.feature .inner { grid-template-columns: 1fr; }
-    section.feature.reverse .inner { direction: ltr; }
-  }
-
-  .feature-shot {
-    display: flex;
-    justify-content: center;
-  }
-  .feature-shot .frame {
-    width: 100%;
-    max-width: 280px;
-    border-radius: 28px;
-    border: 6px solid var(--ink);
-    overflow: hidden;
-    box-shadow: 0 20px 40px -20px rgba(33, 31, 28, 0.35);
-    background: var(--ink);
-  }
-  .feature-shot img { width: 100%; }
-
-  .feature-text .eyebrow {
+  section.origin .eyebrow {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -149,16 +123,165 @@
     font-weight: 600;
     margin-bottom: 10px;
   }
-  .feature-text h2 {
+  section.origin h2 {
+    font-family: var(--font-slab);
+    font-size: clamp(24px, 3.4vw, 32px);
+    margin: 0 0 18px;
+  }
+  section.origin .origin-body {
+    max-width: 620px;
+    margin: 0 auto 18px;
+    font-size: 16px;
+    color: var(--ink-soft);
+  }
+  section.origin .origin-line {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: clamp(18px, 2.4vw, 22px);
+    color: var(--ink);
+    margin: 0;
+  }
+
+  /* --- Scroll-driven walkthrough ------------------------------------- */
+  section.walkthrough {
+    padding: 72px 0 40px;
+    border-top: 1px solid var(--line);
+  }
+  .walkthrough-intro { text-align: center; max-width: 560px; margin: 0 auto 56px; }
+  .walkthrough-intro .eyebrow {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .walkthrough-intro h2 {
+    font-family: var(--font-slab);
+    font-size: clamp(26px, 4vw, 36px);
+    margin: 0 0 10px;
+  }
+  .walkthrough-intro p { color: var(--ink-soft); font-size: 16px; margin: 0; }
+
+  .walkthrough-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+  }
+  .walkthrough-sticky {
+    position: sticky;
+    top: 32px;
+    align-self: start;
+    display: flex;
+    justify-content: center;
+    height: fit-content;
+  }
+  /* The pinned-image-beside-scrolling-text effect only works with two real
+     columns — there's no way to keep an image fixed in place while
+     different text scrolls past it in the same single column on a phone
+     screen. So on narrow screens, drop the shared pinned image entirely
+     and give each step its own inline screenshot instead (.wstep-shot). */
+  @media (max-width: 760px) {
+    .walkthrough-sticky { display: none; }
+  }
+
+  .wshot-stack {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+    border-radius: 28px;
+    border: 6px solid var(--ink);
+    overflow: hidden;
+    box-shadow: 0 24px 48px -20px rgba(33, 31, 28, 0.4);
+    background: var(--ink);
+    aspect-ratio: 700 / 1514;
+  }
+  @media (max-width: 760px) {
+    .wshot-stack { max-width: 200px; }
+  }
+  .wshot {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transform: scale(1.03);
+    transition: opacity 0.7s ease, transform 0.9s ease;
+  }
+  .wshot.active { opacity: 1; transform: scale(1); }
+  @media (prefers-reduced-motion: reduce) {
+    .wshot { transition: opacity 0.2s linear; transform: none !important; }
+  }
+
+  .walkthrough-steps { display: flex; flex-direction: column; }
+  .wstep {
+    min-height: 62vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 24px 0;
+    opacity: 0.32;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .wstep.active { opacity: 1; transform: translateY(0); }
+  .wstep:last-child { min-height: 40vh; }
+  @media (max-width: 760px) {
+    .wstep { min-height: 0; padding: 22px 0; opacity: 1; transform: none; }
+    .wstep .wstep-num { display: inline-flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wstep { transition: opacity 0.2s linear; transform: none !important; opacity: 1; }
+  }
+
+  .wstep-shot { display: none; }
+  @media (max-width: 760px) {
+    .wstep-shot {
+      display: block;
+      width: 100%;
+      max-width: 200px;
+      margin: 0 auto 18px;
+      border-radius: 22px;
+      border: 5px solid var(--ink);
+      overflow: hidden;
+      box-shadow: 0 16px 32px -18px rgba(33, 31, 28, 0.4);
+    }
+    .wstep-shot img { width: 100%; }
+  }
+
+  .wstep-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .wstep .eyebrow {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .wstep h2 {
     font-family: var(--font-slab);
     font-size: clamp(24px, 3.4vw, 34px);
     margin: 0 0 14px;
     line-height: 1.15;
   }
-  .feature-text p {
+  .wstep p {
     color: var(--ink-soft);
     font-size: 16px;
     max-width: 420px;
+    margin: 0;
   }
 
   section.how {
@@ -277,7 +400,7 @@
   <p class="tagline">prompt real life</p>
   <p class="pitch">
     Prompt is the app that gets you off the feed and into your own life. Send a friend a real prompt, complete
-    the ones sent to you, and build a calendar of what you actually did — not what you liked.
+    the ones sent to you, and build a calendar of what you actually did, not what you liked.
   </p>
   <span class="badge-store" aria-label="Available on the App Store (coming soon)">
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -290,66 +413,82 @@
   </span>
 </section>
 
-<section class="feature" id="features">
-  <div class="wrap inner">
-    <div class="feature-shot">
-      <div class="frame"><img src="/landing/feature-send.jpg" alt="Sending a prompt in the app" loading="lazy" /></div>
-    </div>
-    <div class="feature-text">
-      <p class="eyebrow">Send a prompt</p>
-      <h2>Prompt a friend to do something real</h2>
-      <p>
-        Snap it, sound it, show it, share it — or leave your phone behind entirely with Unplug. Prompt sends
-        straight to their inbox, no algorithm involved.
-      </p>
-    </div>
+<section class="origin">
+  <div class="wrap">
+    <p class="eyebrow">The name</p>
+    <h2>Why call it Prompt?</h2>
+    <p class="origin-body">
+      Everywhere else, a prompt means one thing: typing something into a screen to get a better answer out of
+      it. We wanted the word back. A prompt that pulls you up from the chair instead of further into it, one
+      nudge at a time, toward the walk, the phone call, the person actually across the table.
+    </p>
+    <p class="origin-line">Real life, prompted.</p>
   </div>
 </section>
 
-<section class="feature reverse">
-  <div class="wrap inner">
-    <div class="feature-shot">
-      <div class="frame"><img src="/landing/feature-calendar.jpg" alt="Home screen with calendar and completion score" loading="lazy" /></div>
+<section class="walkthrough" id="features">
+  <div class="wrap">
+    <div class="walkthrough-intro">
+      <p class="eyebrow">Walk through it</p>
+      <h2>See a prompt go from sent to remembered</h2>
+      <p>Scroll to follow one prompt through the app, start to finish.</p>
     </div>
-    <div class="feature-text">
-      <p class="eyebrow">Your calendar</p>
-      <h2>A record of what you actually did</h2>
-      <p>
-        Every completed prompt lands on your calendar. Watch your completion score build day by day — a
-        history you made, not one a feed curated for you.
-      </p>
-    </div>
-  </div>
-</section>
 
-<section class="feature">
-  <div class="wrap inner">
-    <div class="feature-shot">
-      <div class="frame"><img src="/landing/feature-completion.jpg" alt="Detail view of a completed prompt with photo" loading="lazy" /></div>
-    </div>
-    <div class="feature-text">
-      <p class="eyebrow">Real, not curated</p>
-      <h2>Proof, not a highlight reel</h2>
-      <p>
-        A photo, a reflection, a real moment — tap into any day to see exactly what got done and by whom.
-        Nothing sits in a permanent feed; it lives on the day it happened.
-      </p>
-    </div>
-  </div>
-</section>
+    <div class="walkthrough-inner">
+      <div class="walkthrough-sticky">
+        <div class="wshot-stack">
+          <img class="wshot active" data-index="0" src="/landing/feature-send.jpg" alt="Sending a prompt in the app" />
+          <img class="wshot" data-index="1" src="/landing/feature-completion.jpg" alt="Detail view of a completed prompt with photo" />
+          <img class="wshot" data-index="2" src="/landing/feature-calendar.jpg" alt="Home screen with calendar and completion score" />
+          <img class="wshot" data-index="3" src="/landing/feature-boards.jpg" alt="A board with a challenge and submission gallery" />
+        </div>
+      </div>
 
-<section class="feature reverse">
-  <div class="wrap inner">
-    <div class="feature-shot">
-      <div class="frame"><img src="/landing/feature-boards.jpg" alt="A board with a challenge and submission gallery" loading="lazy" /></div>
-    </div>
-    <div class="feature-text">
-      <p class="eyebrow">Boards</p>
-      <h2>Small groups, real moments</h2>
-      <p>
-        Start a board for your people — a weekend crew, a book club, a family group — and challenge each
-        other to real prompts, together.
-      </p>
+      <div class="walkthrough-steps">
+        <div class="wstep active" data-index="0">
+          <div class="wstep-shot"><img src="/landing/feature-send.jpg" alt="Sending a prompt in the app" loading="lazy" /></div>
+          <span class="wstep-num">1</span>
+          <p class="eyebrow">Send a prompt</p>
+          <h2>Prompt a friend to do something real</h2>
+          <p>
+            Snap it, sound it, show it, share it, or leave your phone behind entirely with Unplug. Prompt sends
+            straight to their inbox, no algorithm involved.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="1">
+          <div class="wstep-shot"><img src="/landing/feature-completion.jpg" alt="Detail view of a completed prompt with photo" loading="lazy" /></div>
+          <span class="wstep-num">2</span>
+          <p class="eyebrow">Real, not curated</p>
+          <h2>Proof, not a highlight reel</h2>
+          <p>
+            A photo, a reflection, a real moment: tap into any day to see exactly what got done and by whom.
+            Nothing sits in a permanent feed; it lives on the day it happened.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="2">
+          <div class="wstep-shot"><img src="/landing/feature-calendar.jpg" alt="Home screen with calendar and completion score" loading="lazy" /></div>
+          <span class="wstep-num">3</span>
+          <p class="eyebrow">Your calendar</p>
+          <h2>A record of what you actually did</h2>
+          <p>
+            Every completed prompt lands on your calendar. Watch your completion score build day by day, a
+            history you made, not one a feed curated for you.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="3">
+          <div class="wstep-shot"><img src="/landing/feature-boards.jpg" alt="A board with a challenge and submission gallery" loading="lazy" /></div>
+          <span class="wstep-num">4</span>
+          <p class="eyebrow">Boards</p>
+          <h2>Small groups, real moments</h2>
+          <p>
+            Start a board for your people, a weekend crew, a book club, a family group, and challenge each
+            other to real prompts, together.
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -472,6 +611,31 @@
 
 <script>
   document.getElementById('year').textContent = new Date().getFullYear();
+
+  // Scroll-driven walkthrough: as each step's caption crosses the vertical
+  // center of the viewport, cross-fade the sticky phone mockup to match and
+  // fade the other captions down — a lightweight scrollytelling effect with
+  // no scroll-jacking (the page still scrolls at its own natural speed).
+  (function () {
+    var steps = Array.prototype.slice.call(document.querySelectorAll('.wstep'));
+    var shots = Array.prototype.slice.call(document.querySelectorAll('.wshot'));
+    if (!steps.length || !shots.length || typeof IntersectionObserver === 'undefined') return;
+
+    function setActive(index) {
+      steps.forEach(function (el) { el.classList.toggle('active', el.getAttribute('data-index') === String(index)); });
+      shots.forEach(function (el) { el.classList.toggle('active', el.getAttribute('data-index') === String(index)); });
+    }
+
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) setActive(entry.target.getAttribute('data-index'));
+        });
+      },
+      { rootMargin: '-45% 0px -45% 0px', threshold: 0 },
+    );
+    steps.forEach(function (el) { observer.observe(el); });
+  })();
 </script>
 
 </body>

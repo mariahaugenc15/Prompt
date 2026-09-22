@@ -20,7 +20,7 @@ export interface AdminAccountRow {
   is_verified: number
   totp_enabled: number
   created_at: number
-  last_signed_in_at: number | null
+  last_active_date: string | null
   resolved_one_to_one: number
   completed_one_to_one: number
   broadcasts_completed: number
@@ -34,7 +34,7 @@ export interface AdminAccountRow {
 const ADMIN_ACCOUNT_COLUMNS = `
   a.id, a.account_type, a.username, a.email, a.first_name, a.organization_name,
   a.is_admin, a.is_deleted, a.is_verified, a.totp_enabled, a.created_at,
-  a.auth_token_created_at AS last_signed_in_at,
+  (SELECT MAX(ad.activity_date) FROM activity_days ad WHERE ad.account_id = a.id) AS last_active_date,
   (SELECT COUNT(*) FROM prompts p WHERE p.is_broadcast = 0 AND p.recipient_account_id = a.id AND p.status IN ('completed', 'declined', 'expired')) AS resolved_one_to_one,
   (SELECT COUNT(*) FROM prompts p WHERE p.is_broadcast = 0 AND p.recipient_account_id = a.id AND p.status = 'completed') AS completed_one_to_one,
   (SELECT COUNT(*) FROM prompt_completions pc WHERE pc.completer_account_id = a.id) AS broadcasts_completed,

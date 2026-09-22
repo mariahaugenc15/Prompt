@@ -78,7 +78,7 @@ adminRouter.get('/api/admin/accounts/export.csv', (req, res) => {
   const rows = adminAllAccounts(accountType)
   const header = [
     'username', 'email', 'account_type', 'name', 'is_verified', 'is_admin', 'is_deleted',
-    'completion_score', 'completion_completed', 'completion_total', 'prompts_sent', 'follower_count', 'created_at',
+    'completion_score', 'completion_completed', 'completion_total', 'prompts_sent', 'follower_count', 'created_at', 'last_signed_in_at',
   ]
   const lines = [header.join(',')]
   for (const r of rows as AdminAccountRow[]) {
@@ -97,6 +97,7 @@ adminRouter.get('/api/admin/accounts/export.csv', (req, res) => {
         csvCell(r.prompts_sent),
         csvCell(r.follower_count),
         csvCell(new Date(r.created_at).toISOString()),
+        csvCell(r.last_signed_in_at ? new Date(r.last_signed_in_at).toISOString() : null),
       ].join(','),
     )
   }

@@ -718,7 +718,7 @@
     api('/api/admin/accounts?' + qs)
       .then(function (rows) {
         if (rows.length === 0) return content.innerHTML = emptyState('No accounts found.');
-        var html = '<table><thead><tr><th>Account</th><th>Email</th><th>Prompt %</th><th>Sent / Followers</th><th>Joined</th><th>Flags</th><th></th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>Account</th><th>Email</th><th>Prompt %</th><th>Sent / Followers</th><th>Joined</th><th>Last signed in</th><th>Flags</th><th></th></tr></thead><tbody>';
         rows.forEach(function (a) {
           var name = a.first_name || a.organization_name || a.username;
           html += '<tr>'
@@ -727,6 +727,7 @@
             + '<td>' + scoreLabel(a) + '</td>'
             + '<td>' + a.prompts_sent + ' sent <span class="muted">/</span> ' + a.follower_count + ' followers</td>'
             + '<td>' + fmtDate(a.created_at) + '</td>'
+            + '<td>' + (a.last_signed_in_at ? fmtDate(a.last_signed_in_at) : '<span class="muted">Never</span>') + '</td>'
             + '<td>' + (a.is_admin ? '<span class="badge admin">admin</span> ' : '')
               + (a.is_verified ? '<span class="badge verified">verified</span> ' : '')
               + (a.totp_enabled ? '<span class="badge" style="background:#eee;color:#555">2FA</span> ' : '')

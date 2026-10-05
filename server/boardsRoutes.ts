@@ -7,10 +7,12 @@ import {
   getBoardById,
   getBoardsForAccount,
   getSubscriberIds,
+  getTopFans,
   listDiscoverable,
   publicBoardView,
   searchBoards,
   setBoardAdultFlag,
+  setBoardTopFansPublic,
   subscribe,
 } from './boardsRepo.js'
 import { getAccountByUsername, hasOptedIntoAdultContent } from './accountsRepo.js'
@@ -108,6 +110,32 @@ boardsRouter.patch('/api/boards/:id/adult-flag', requireAuth, (req, res) => {
   const isAdult = Boolean(req.body?.isAdult)
   setBoardAdultFlag(board.id, isAdult)
   res.json(publicBoardView(getBoardById(board.id)!, me.id))
+})
+
+// --- Top Fans (owner-facing subscriber leaderboard) -----------------------
+
+boardsRouter.patch('/api/boards/:id/top-fans-visibility', requireAuth, (req, res) => {
+  const me = req.account!
+  const board = getBoardById(String(req.params.id))
+  if (!board) return res.status(404).json({ errors: { form: 'No board with that id.' } })
+  if (board.owner_account_id !== me.id) {
+    return res.status(403).json({ errors: { form: 'Only the board owner can change this.' } })
+  }
+  setBoardTopFansPublic(board.id, Boolean(req.body?.isPublic))
+  res.json(publicBoardView(getBoardById(board.id)!, me.id))
+})
+
+// Ranked across every board this owner runs, not just this one — see
+// boardsRepo.ts's getTopFans(). Always visible to the owner; to anyone
+// else only once the owner has turned Top Fans public on this board.
+boardsRouter.get('/api/boards/:id/top-fans', requireAuth, (req, res) => {
+  const me = req.account!
+  const board = getBoardById(String(req.params.id))
+  if (!board) return res.status(404).json({ errors: { form: 'No board with that id.' } })
+  if (board.owner_account_id !== me.id && !board.top_fans_public) {
+    return res.status(403).json({ errors: { form: 'Top Fans is owner-only for this board.' } })
+  }
+  res.json(getTopFans(board.owner_account_id))
 })
 
 boardsRouter.get('/api/boards/:id', (req, res) => {

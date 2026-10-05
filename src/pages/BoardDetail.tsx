@@ -13,12 +13,15 @@ import { getMe } from '../lib/realAccountsApi'
 import {
   getBoard,
   getBoardChallenges,
+  getTopFans,
   inviteToBoard,
   postBoardChallenge,
   setBoardAdultFlag,
+  setBoardTopFansVisibility,
   subscribeBoard,
   type BoardChallenge,
   type RealBoard,
+  type TopFan,
 } from '../lib/boardsApi'
 
 const CADENCES: BoardChallenge['cadence'][] = ['one-off', 'daily', 'weekly']
@@ -95,6 +98,9 @@ export function BoardDetail() {
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [adultFlagBusy, setAdultFlagBusy] = useState(false)
 
+  const [topFans, setTopFans] = useState<TopFan[]>([])
+  const [topFansVisBusy, setTopFansVisBusy] = useState(false)
+
   function refresh() {
     if (!boardId) return
     getBoard(boardId, account?.token).then((res) => setBoard(res.ok ? res.data : 'not-found'))
@@ -102,6 +108,15 @@ export function BoardDetail() {
   }
 
   useEffect(refresh, [boardId, account?.token])
+
+  const boardIsOwner = board && board !== 'not-found' ? board.isOwner : false
+  const boardTopFansPublic = board && board !== 'not-found' ? board.topFansPublic : false
+
+  useEffect(() => {
+    if (!boardId || !account) return
+    if (!boardIsOwner && !boardTopFansPublic) return
+    getTopFans(boardId, account.token).then((res) => setTopFans(res.ok ? res.data : []))
+  }, [boardId, account, boardIsOwner, boardTopFansPublic])
 
   useEffect(() => {
     if (account) getMe(account.token).then((res) => { if (res.ok) setAdultOptedIn(res.data.adultContentOptIn) })
@@ -124,6 +139,17 @@ export function BoardDetail() {
       if (res.ok) setBoard(res.data)
     } finally {
       setAdultFlagBusy(false)
+    }
+  }
+
+  async function handleToggleTopFansVisibility(isPublic: boolean) {
+    if (!account || board === 'not-found' || !board) return
+    setTopFansVisBusy(true)
+    try {
+      const res = await setBoardTopFansVisibility(board.id, isPublic, account.token)
+      if (res.ok) setBoard(res.data)
+    } finally {
+      setTopFansVisBusy(false)
     }
   }
 
@@ -219,6 +245,19 @@ export function BoardDetail() {
               className="h-4 w-4 accent-[var(--color-accent)]"
             />
           </label>
+          <label className="mt-3 flex items-center justify-between border-t border-line pt-3 text-sm">
+            <span>
+              <span className="block font-medium">Show Top Fans publicly</span>
+              <span className="block text-xs text-ink-faint">Off keeps the ranking visible to only you.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={board.topFansPublic}
+              disabled={topFansVisBusy}
+              onChange={(e) => handleToggleTopFansVisibility(e.target.checked)}
+              className="h-4 w-4 accent-[var(--color-accent)]"
+            />
+          </label>
         </section>
       )}
 
@@ -279,6 +318,25 @@ export function BoardDetail() {
               <div key={c.id} className="flex items-center justify-between rounded-sm border border-line bg-card px-3 py-2 text-sm">
                 <span className="line-clamp-1">{c.text}</span>
                 <span className="shrink-0 text-xs text-ink-faint">{c.participationCount} completed</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {(boardIsOwner || boardTopFansPublic) && topFans.length > 0 && (
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">
+            Top Fans{!boardIsOwner && boardTopFansPublic ? '' : boardIsOwner && !boardTopFansPublic ? ' (owner-only)' : ''}
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {topFans.slice(0, 20).map((fan, i) => (
+              <div key={fan.accountId} className="flex items-center gap-2.5 rounded-sm border border-line bg-card px-3 py-2 text-sm">
+                <span className="w-5 shrink-0 text-center font-serif text-ink-faint">{i + 1}</span>
+                <span className="flex-1 truncate">@{fan.username}</span>
+                <span className="shrink-0 text-xs text-ink-faint">
+                  {Math.round(fan.responseRate * 100)}% · {fan.completed}/{fan.received}
+                </span>
               </div>
             ))}
           </div>

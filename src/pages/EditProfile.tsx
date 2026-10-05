@@ -13,6 +13,7 @@ import {
   setMyPromptPermission,
   setMyProfileVisibility,
   setAdultContentOptIn,
+  setTopFansOptOut,
   getCompletionScore,
   getBlockedAccounts,
   unblockAccount,
@@ -117,6 +118,12 @@ export function EditProfile() {
     if (!account) return
     const res = await setAdultContentOptIn(optIn, account.token)
     if (res.ok) setMe((prev) => (prev ? { ...prev, adultContentOptIn: res.data.adultContentOptIn } : prev))
+  }
+
+  async function handleTopFansOptOut(optOut: boolean) {
+    if (!account) return
+    const res = await setTopFansOptOut(optOut, account.token)
+    if (res.ok) setMe((prev) => (prev ? { ...prev, topFansOptOut: res.data.topFansOptOut } : prev))
   }
 
   async function handleUnblock(username: string) {
@@ -444,6 +451,18 @@ export function EditProfile() {
               checked={me.adultContentOptIn}
               onChange={(e) => handleAdultOptIn(e.target.checked)}
               className="h-4 w-4 accent-[var(--color-accent)]"
+            />
+          </label>
+          <label className="mt-3 flex items-center justify-between border-t border-line pt-3 text-sm">
+            <span>
+              <span className="block">Hide me from Top Fans</span>
+              <span className="block text-xs text-ink-faint">Keeps you out of any board owner's Top Fans ranking.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={me.topFansOptOut}
+              onChange={(e) => handleTopFansOptOut(e.target.checked)}
+              className="h-4 w-4 shrink-0 accent-[var(--color-accent)]"
             />
           </label>
         </section>

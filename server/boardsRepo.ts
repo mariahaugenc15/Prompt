@@ -1,5 +1,5 @@
 import { db } from './db.js'
-import { getAccountById, displayName, hasOptedIntoAdultContent } from './accountsRepo.js'
+import { getAccountById, displayName, hasOptedIntoAdultContent, hasOptedOutOfTopFans } from './accountsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
 
 export interface BoardRow {
@@ -12,6 +12,7 @@ export interface BoardRow {
   location_tag: string | null
   icon: string | null
   is_adult: number
+  top_fans_public: number
   created_at: number
 }
 
@@ -145,6 +146,7 @@ export function publicBoardView(board: BoardRow, viewerId?: string) {
     locationTag: board.location_tag ?? undefined,
     icon: board.icon ?? undefined,
     isAdult: Boolean(board.is_adult),
+    topFansPublic: Boolean(board.top_fans_public),
     ownerUsername: owner?.username ?? '',
     ownerDisplayName: owner ? displayName(owner) : '',
     subscriberCount: subscriberCount(board.id),
@@ -160,4 +162,71 @@ const setAdultFlagStmt = db.prepare('UPDATE boards SET is_adult = ? WHERE id = ?
 // — this just performs the write once a caller is already authorized.
 export function setBoardAdultFlag(boardId: string, isAdult: boolean): void {
   setAdultFlagStmt.run(isAdult ? 1 : 0, boardId)
+}
+
+const setTopFansPublicStmt = db.prepare('UPDATE boards SET top_fans_public = ? WHERE id = ?')
+
+// Owner-only at the route level — this just performs the write.
+export function setBoardTopFansPublic(boardId: string, isPublic: boolean): void {
+  setTopFansPublicStmt.run(isPublic ? 1 : 0, boardId)
+}
+
+// For each account subscribed to any board this owner runs, counts board
+// challenges broadcast to them since they joined that board (across all of
+// the owner's boards, not just one) and how many they actually completed —
+// "response rate" per the brief. A challenge only counts toward a
+// subscriber once they'd already joined when it went out, matching "since
+// they joined".
+const topFansStmt = db.prepare(`
+  SELECT s.account_id AS accountId,
+         a.username AS username,
+         a.first_name AS firstName,
+         a.organization_name AS organizationName,
+         COUNT(p.id) AS received,
+         SUM(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END) AS completed
+  FROM board_subscribers s
+  JOIN boards b ON b.id = s.board_id AND b.owner_account_id = ?
+  JOIN accounts a ON a.id = s.account_id
+  JOIN prompts p ON p.board_id = b.id AND p.is_broadcast = 1 AND p.created_at >= s.created_at
+  LEFT JOIN prompt_completions c ON c.prompt_id = p.id AND c.completer_account_id = s.account_id
+  WHERE s.account_id != ?
+  GROUP BY s.account_id
+`)
+
+export interface TopFan {
+  accountId: string
+  username: string
+  displayName: string
+  received: number
+  completed: number
+  responseRate: number
+}
+
+interface TopFanRow {
+  accountId: string
+  username: string
+  firstName: string | null
+  organizationName: string | null
+  received: number
+  completed: number
+}
+
+// Configurable (TOP_FANS_MIN_RECEIVED) so a subscriber with one of one
+// challenge received, completed, can't outrank someone with a long, mostly
+// consistent history — they need at least this many challenges received
+// across the owner's boards before they're ranked at all.
+const MIN_RECEIVED_FOR_TOP_FANS = Number(process.env.TOP_FANS_MIN_RECEIVED ?? 3)
+
+export function getTopFans(ownerAccountId: string): TopFan[] {
+  return (topFansStmt.all(ownerAccountId, ownerAccountId) as TopFanRow[])
+    .filter((r) => r.received >= MIN_RECEIVED_FOR_TOP_FANS && !hasOptedOutOfTopFans(r.accountId))
+    .map((r) => ({
+      accountId: r.accountId,
+      username: r.username,
+      displayName: r.firstName ?? r.organizationName ?? r.username,
+      received: r.received,
+      completed: r.completed,
+      responseRate: r.completed / r.received,
+    }))
+    .sort((a, b) => b.responseRate - a.responseRate || b.completed - a.completed)
 }

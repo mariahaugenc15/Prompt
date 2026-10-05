@@ -125,6 +125,7 @@ export interface Me {
   createdAt: number
   usernameChangedAt: number | null
   adultContentOptIn: boolean
+  topFansOptOut: boolean
 }
 
 export function getMe(token: string) {
@@ -135,6 +136,13 @@ export function setAdultContentOptIn(optIn: boolean, token: string) {
   return call<{ adultContentOptIn: boolean }>('/api/me/adult-content-optin', token, {
     method: 'PATCH',
     body: JSON.stringify({ optIn }),
+  })
+}
+
+export function setTopFansOptOut(optOut: boolean, token: string) {
+  return call<{ topFansOptOut: boolean }>('/api/me/top-fans-optout', token, {
+    method: 'PATCH',
+    body: JSON.stringify({ optOut }),
   })
 }
 

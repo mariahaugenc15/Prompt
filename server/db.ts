@@ -98,6 +98,12 @@ if (!accountColumns.has('username_changed_at')) {
 if (!accountColumns.has('adult_content_opt_in')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN adult_content_opt_in INTEGER NOT NULL DEFAULT 0`)
 }
+// Opt out of ever appearing in a board owner's Top Fans ranking (v2,
+// Phase 5.2) — default off (shown by default; this is an opt-out, not an
+// opt-in, unlike the adult-content setting above).
+if (!accountColumns.has('top_fans_opt_out')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN top_fans_opt_out INTEGER NOT NULL DEFAULT 0`)
+}
 
 // Bootstraps the first admin(s) without needing direct DB access: list
 // usernames (comma-separated) in ADMIN_USERNAMES and, on every server
@@ -219,6 +225,13 @@ if (!boardColumns.has('icon')) {
 // against each viewer's own opt-in (accounts.adult_content_opt_in below).
 if (!boardColumns.has('is_adult')) {
   db.exec(`ALTER TABLE boards ADD COLUMN is_adult INTEGER NOT NULL DEFAULT 0`)
+}
+// Whether this board's owner has chosen to show its Top Fans ranking
+// (v2, Phase 5.2) to anyone, or keep it owner-only — owner-only by
+// default, since that's the safer default for a ranking of who responds
+// most to someone's prompts.
+if (!boardColumns.has('top_fans_public')) {
+  db.exec(`ALTER TABLE boards ADD COLUMN top_fans_public INTEGER NOT NULL DEFAULT 0`)
 }
 
 // Calendars: a named, optionally-shared filter over your own completions.

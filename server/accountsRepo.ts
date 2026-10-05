@@ -215,3 +215,14 @@ export function hasOptedIntoAdultContent(accountId: string): boolean {
 export function setAdultContentOptIn(accountId: string, optIn: boolean): void {
   setAdultOptInStmt.run(optIn ? 1 : 0, accountId)
 }
+
+const getTopFansOptOutStmt = db.prepare('SELECT top_fans_opt_out FROM accounts WHERE id = ?')
+const setTopFansOptOutStmt = db.prepare('UPDATE accounts SET top_fans_opt_out = ? WHERE id = ?')
+
+export function hasOptedOutOfTopFans(accountId: string): boolean {
+  return Boolean((getTopFansOptOutStmt.get(accountId) as { top_fans_opt_out: number } | undefined)?.top_fans_opt_out)
+}
+
+export function setTopFansOptOut(accountId: string, optOut: boolean): void {
+  setTopFansOptOutStmt.run(optOut ? 1 : 0, accountId)
+}

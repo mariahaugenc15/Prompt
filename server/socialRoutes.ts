@@ -7,10 +7,12 @@ import {
   getFollowers,
   getFollowing,
   hasOptedIntoAdultContent,
+  hasOptedOutOfTopFans,
   listAccounts,
   publicProfile,
   searchAccounts,
   setAdultContentOptIn,
+  setTopFansOptOut,
   suggestedAccounts,
 } from './accountsRepo.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
@@ -45,6 +47,7 @@ socialRouter.get('/api/me', requireAuth, (req, res) => {
     createdAt: actor.createdAt,
     usernameChangedAt: actor.usernameChangedAt,
     adultContentOptIn: hasOptedIntoAdultContent(actor.id),
+    topFansOptOut: hasOptedOutOfTopFans(actor.id),
   })
 })
 
@@ -52,6 +55,12 @@ socialRouter.patch('/api/me/adult-content-optin', requireAuth, (req, res) => {
   const optIn = Boolean(req.body?.optIn)
   setAdultContentOptIn(req.account!.id, optIn)
   res.json({ adultContentOptIn: optIn })
+})
+
+socialRouter.patch('/api/me/top-fans-optout', requireAuth, (req, res) => {
+  const optOut = Boolean(req.body?.optOut)
+  setTopFansOptOut(req.account!.id, optOut)
+  res.json({ topFansOptOut: optOut })
 })
 
 // Configurable so a cooldown that turns out too strict (or too loose) in

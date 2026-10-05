@@ -14,6 +14,7 @@ export interface RealBoard {
   locationTag?: string
   icon?: string
   isAdult: boolean
+  topFansPublic: boolean
   ownerUsername: string
   ownerDisplayName: string
   subscriberCount: number
@@ -82,6 +83,26 @@ export function setBoardAdultFlag(id: string, isAdult: boolean, token: string) {
     method: 'PATCH',
     body: JSON.stringify({ isAdult }),
   })
+}
+
+export function setBoardTopFansVisibility(id: string, isPublic: boolean, token: string) {
+  return call<RealBoard>(`/api/boards/${encodeURIComponent(id)}/top-fans-visibility`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ isPublic }),
+  })
+}
+
+export interface TopFan {
+  accountId: string
+  username: string
+  displayName: string
+  received: number
+  completed: number
+  responseRate: number
+}
+
+export function getTopFans(id: string, token: string) {
+  return call<TopFan[]>(`/api/boards/${encodeURIComponent(id)}/top-fans`, token)
 }
 
 export function discoverBoards(token?: string, offset = 0, limit = 50) {

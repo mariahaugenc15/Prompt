@@ -5,6 +5,7 @@ import { CATEGORY_META } from '../lib/types'
 import { getComments, postComment, deleteComment, type CommentView } from '../lib/commentsApi'
 import { ReportButton } from './ReportButton'
 import { CATEGORY_ICON, CloseIcon, FlagIcon, PinIcon, UpvoteIcon } from './Icons'
+import { AudioProofPlayer } from './AudioProofPlayer'
 
 export function DayDetailSheet({
   dayKey,
@@ -109,6 +110,9 @@ function CompletionCard({
         )}
         {completion.mediaDataUrl && completion.mediaType === 'video' && (
           <video src={completion.mediaDataUrl} controls playsInline className="max-h-56 w-full rounded-sm bg-ink" />
+        )}
+        {completion.mediaDataUrl && completion.mediaType === 'audio' && (
+          <AudioProofPlayer src={completion.mediaDataUrl} className="mb-0" />
         )}
         {completion.userCaption && <p className="mt-2 text-sm italic text-ink-soft">"{completion.userCaption}"</p>}
         {completion.calendarNames.length > 0 && (

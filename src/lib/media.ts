@@ -50,3 +50,36 @@ export async function fileToProofDataUrl(file: File): Promise<{ dataUrl: string;
   }
   throw new Error('Unsupported file type — please choose a photo or video.')
 }
+
+// Voice-note proof ("Sound it" — see SoundCompleteForm.tsx). Bitrate for a
+// voice recording is roughly fixed, so a byte cap is a reasonable proxy for
+// a duration cap without needing to decode the audio to measure it —
+// MAX_AUDIO_DURATION_SECONDS is enforced by auto-stopping the recording
+// client-side, and MAX_AUDIO_BYTES is also checked server-side
+// (server/promptRoutes.ts) since a client-side-only limit isn't a limit.
+export const MAX_AUDIO_DURATION_SECONDS = 120
+export const MAX_AUDIO_BYTES = 6 * 1024 * 1024
+
+function assertAudioSize(bytes: number): void {
+  if (bytes > MAX_AUDIO_BYTES) {
+    throw new Error(`That recording is too large (max ${Math.floor(MAX_AUDIO_BYTES / (1024 * 1024))}MB) — try a shorter one.`)
+  }
+}
+
+export async function blobToAudioDataUrl(blob: Blob): Promise<string> {
+  assertAudioSize(blob.size)
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = reject
+    reader.onload = () => resolve(reader.result as string)
+    reader.readAsDataURL(blob)
+  })
+}
+
+export async function fileToAudioDataUrl(file: File): Promise<string> {
+  if (!file.type.startsWith('audio/')) {
+    throw new Error('Unsupported file type — please choose an audio file.')
+  }
+  assertAudioSize(file.size)
+  return readFileAsDataUrl(file)
+}

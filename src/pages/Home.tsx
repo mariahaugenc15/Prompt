@@ -8,6 +8,7 @@ import { FridgeNoteStack, FridgeNoteDetail, type FridgeNoteViewModel } from '../
 import { DayDetailSheet } from '../components/DayDetailSheet'
 import { RealCompleteForm } from '../components/RealCompleteForm'
 import { UnplugCompleteForm } from '../components/UnplugCompleteForm'
+import { SoundCompleteForm } from '../components/SoundCompleteForm'
 import { CompletionFeedCard } from '../components/CompletionFeedCard'
 import { PlusIcon, CloseIcon, BoardsIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/Icons'
 import {
@@ -532,6 +533,8 @@ function CompleteModal({
         <p className="mb-3 font-serif text-lg leading-snug text-ink">Complete this prompt</p>
         {category === 'unplug' ? (
           <UnplugCompleteForm senderDisplayName={senderDisplayName} promptText={promptText} submitting={submitting} onSubmit={onSubmit} />
+        ) : category === 'sound' ? (
+          <SoundCompleteForm senderDisplayName={senderDisplayName} promptText={promptText} submitting={submitting} onSubmit={onSubmit} />
         ) : (
           <RealCompleteForm senderDisplayName={senderDisplayName} promptText={promptText} submitting={submitting} onSubmit={onSubmit} />
         )}

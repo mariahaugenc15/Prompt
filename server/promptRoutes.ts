@@ -15,6 +15,20 @@ export const promptRouter = Router()
 const CATEGORIES = ['snap', 'sound', 'show', 'share', 'unplug'] as const
 type Category = (typeof CATEGORIES)[number]
 
+// "Sound it" voice-note proof — matches src/lib/media.ts's client-side cap.
+// A client-side-only limit isn't a real limit, so this is checked again
+// here regardless of what the client already enforced.
+const MAX_AUDIO_BYTES = 6 * 1024 * 1024
+const DATA_URL_BASE64_RE = /^data:[^;,]+(?:;charset=[^;,]+)?;base64,(.+)$/s
+
+function decodedDataUrlByteLength(dataUrl: string): number {
+  const match = DATA_URL_BASE64_RE.exec(dataUrl)
+  if (!match) return 0
+  const base64 = match[1]
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
+  return Math.floor((base64.length * 3) / 4) - padding
+}
+
 function validatePromptBody(body: unknown): { category: Category; text: string } | { error: string } {
   const b = (body ?? {}) as { category?: unknown; text?: unknown }
   const category = typeof b.category === 'string' ? b.category : ''
@@ -250,6 +264,11 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
     return res.status(422).json({ errors: { media: 'Photo or video proof is required.' } })
   }
   const mediaType = rawMediaDataUrl ? (typeof req.body?.mediaType === 'string' ? req.body.mediaType : 'photo') : undefined
+  if (mediaType === 'audio' && rawMediaDataUrl && decodedDataUrlByteLength(rawMediaDataUrl) > MAX_AUDIO_BYTES) {
+    return res.status(422).json({
+      errors: { media: `That recording is too large (max ${Math.floor(MAX_AUDIO_BYTES / (1024 * 1024))}MB) — try a shorter one.` },
+    })
+  }
   const mediaDataUrl = rawMediaDataUrl ? saveDataUrlAsFile(rawMediaDataUrl, publicBaseUrl(req)) : undefined
 
   const sender = getAccountById(prompt.sender_account_id as string)!

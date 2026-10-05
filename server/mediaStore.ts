@@ -40,6 +40,12 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   'video/mp4': 'mp4',
   'video/webm': 'webm',
   'video/quicktime': 'mov',
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
 }
 
 const DATA_URL_RE = /^data:([^;,]+)(;charset=[^;,]+)?;base64,(.+)$/s

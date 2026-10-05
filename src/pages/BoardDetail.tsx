@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import type { Category } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
 import { CATEGORY_ICON, LockIcon, PinIcon, UpvoteIcon } from '../components/Icons'
+import { AudioProofPlayer } from '../components/AudioProofPlayer'
 import { reactToCompletion } from '../lib/calendarsApi'
 import {
   getBoard,
@@ -281,6 +282,7 @@ function ChallengeCompletionCard({
       {completion.mediaDataUrl && completion.mediaType === 'video' && (
         <video src={completion.mediaDataUrl} controls playsInline className="mb-2 w-full rounded-sm bg-ink" />
       )}
+      {completion.mediaDataUrl && completion.mediaType === 'audio' && <AudioProofPlayer src={completion.mediaDataUrl} />}
       <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-ink-faint">
         <CATEGORY_ICON category={category} size={11} />
         {CATEGORY_META[category].label}

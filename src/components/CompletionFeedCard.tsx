@@ -3,6 +3,7 @@ import type { CompletionView } from '../lib/calendarsApi'
 import { CATEGORY_META } from '../lib/types'
 import { ReportButton } from './ReportButton'
 import { CATEGORY_ICON, FlagIcon, PinIcon, UpvoteIcon } from './Icons'
+import { AudioProofPlayer } from './AudioProofPlayer'
 
 // Renders any CompletionView (1:1 completion or board-broadcast completion)
 // in the masonry feed grid, with live server-backed reactions.
@@ -26,6 +27,7 @@ export function CompletionFeedCard({
       {completion.mediaDataUrl && completion.mediaType === 'video' && (
         <video src={completion.mediaDataUrl} controls playsInline className="mb-2 w-full rounded-sm bg-ink" />
       )}
+      {completion.mediaDataUrl && completion.mediaType === 'audio' && <AudioProofPlayer src={completion.mediaDataUrl} />}
       {!completion.mediaDataUrl && (
         <div className="mb-2 flex aspect-[4/3] items-center justify-center rounded-sm bg-paper-dim text-ink-faint">
           <CATEGORY_ICON category={completion.category} size={28} />

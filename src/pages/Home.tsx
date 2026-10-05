@@ -3,14 +3,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import type { Category } from '../lib/types'
-import { CalendarGrid } from '../components/CalendarGrid'
+import { ScrollableMonthFeed } from '../components/ScrollableMonthFeed'
 import { FridgeNoteStack, FridgeNoteDetail, type FridgeNoteViewModel } from '../components/FridgeNote'
 import { DayDetailSheet } from '../components/DayDetailSheet'
 import { RealCompleteForm } from '../components/RealCompleteForm'
 import { UnplugCompleteForm } from '../components/UnplugCompleteForm'
 import { SoundCompleteForm } from '../components/SoundCompleteForm'
 import { CompletionFeedCard } from '../components/CompletionFeedCard'
-import { PlusIcon, CloseIcon, BoardsIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/Icons'
+import { PlusIcon, CloseIcon, BoardsIcon } from '../components/Icons'
 import {
   getActiveBroadcasts,
   getCompletionScore,
@@ -24,14 +24,8 @@ import {
 import { reactToCompletion, tagCompletion, getMyCalendars, type CompletionView, type RealCalendar } from '../lib/calendarsApi'
 import { getMyActivity, getFollowingFeed, getCommunityFeed } from '../lib/feedApi'
 import { getMyBoards, type RealBoard } from '../lib/boardsApi'
-import {
-  currentMonthCursor,
-  monthCursorFromTimestamp,
-  shiftMonth,
-  compareMonthCursor,
-  monthCursorLabel,
-  type MonthCursor,
-} from '../lib/monthCursor'
+import { monthCursorFromTimestamp } from '../lib/monthCursor'
+import { useCurrentMonthCursor } from '../lib/useCurrentMonthCursor'
 
 const FEED_PAGE_SIZE = 20
 
@@ -63,9 +57,11 @@ export function Home() {
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
-  // The month the calendar is showing — navigable, not just "whatever month
-  // it is right now" (that was the September-disappears-in-October bug).
-  const [cursor, setCursor] = useState<MonthCursor>(currentMonthCursor)
+  // The newest month the scrollable calendar feed shows — advances on its
+  // own at midnight (see useCurrentMonthCursor), rather than ever being
+  // pinned to a single fixed month (that was the September-disappears-
+  // in-October bug; ScrollableMonthFeed resolves it fully).
+  const newestCursor = useCurrentMonthCursor()
   const [accountCreatedAt, setAccountCreatedAt] = useState<number | null>(null)
 
   const [activity, setActivity] = useState<CompletionView[]>([])
@@ -300,21 +296,8 @@ export function Home() {
 
   const dayCompletions = selectedDay ? activity.filter((c) => c.dayKey === selectedDay) : []
 
-  // Never let the cursor go past the current month, and never past the
-  // month the account was created in — nothing to show before either edge.
+  // Nothing to show before the account's own creation month.
   const oldestCursor = accountCreatedAt !== null ? monthCursorFromTimestamp(accountCreatedAt) : null
-  const canGoPrev = oldestCursor === null || compareMonthCursor(cursor, oldestCursor) > 0
-  const canGoNext = compareMonthCursor(cursor, currentMonthCursor()) < 0
-
-  function goToPrevMonth() {
-    if (!canGoPrev) return
-    setCursor((c) => shiftMonth(c, -1))
-  }
-
-  function goToNextMonth() {
-    if (!canGoNext) return
-    setCursor((c) => shiftMonth(c, 1))
-  }
 
   async function handleReact(completionId: string, kind: 'upvote' | 'pin') {
     if (!account) return
@@ -343,27 +326,9 @@ export function Home() {
       <FridgeNoteStack notes={notes} onOpen={setOpenNoteId} />
 
       <div className="flex items-center justify-between px-4 pt-2">
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={goToPrevMonth}
-            disabled={!canGoPrev}
-            aria-label="Previous month"
-            className="rounded-full p-1 text-ink-soft transition disabled:opacity-30"
-          >
-            <ChevronLeftIcon size={16} />
-          </button>
-          <div>
-            <h1 className="font-serif text-2xl leading-none">{monthCursorLabel(cursor)}</h1>
-            <p className="text-xs text-ink-faint">{cursor.year} · All Activity</p>
-          </div>
-          <button
-            onClick={goToNextMonth}
-            disabled={!canGoNext}
-            aria-label="Next month"
-            className="rounded-full p-1 text-ink-soft transition disabled:opacity-30"
-          >
-            <ChevronRightIcon size={16} />
-          </button>
+        <div>
+          <h1 className="font-serif text-2xl leading-none">Your calendar</h1>
+          <p className="text-xs text-ink-faint">All Activity</p>
         </div>
         {!hideCompletionScore && (
           <div className="max-w-[45%] text-right">
@@ -380,7 +345,12 @@ export function Home() {
       </div>
 
       <div className="px-4">
-        <CalendarGrid year={cursor.year} month={cursor.month} completions={activity} onDayClick={setSelectedDay} />
+        <ScrollableMonthFeed
+          newestCursor={newestCursor}
+          oldestCursor={oldestCursor}
+          completions={activity}
+          onDayClick={setSelectedDay}
+        />
       </div>
 
       <div className="flex gap-2 px-4">

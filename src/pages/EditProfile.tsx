@@ -12,6 +12,7 @@ import {
   getFollowing,
   setMyPromptPermission,
   setMyProfileVisibility,
+  setAdultContentOptIn,
   getCompletionScore,
   getBlockedAccounts,
   unblockAccount,
@@ -110,6 +111,12 @@ export function EditProfile() {
     if (!account) return
     const res = await setMyProfileVisibility(value, account.token)
     if (res.ok) setMe((prev) => (prev ? { ...prev, profileVisibility: value } : prev))
+  }
+
+  async function handleAdultOptIn(optIn: boolean) {
+    if (!account) return
+    const res = await setAdultContentOptIn(optIn, account.token)
+    if (res.ok) setMe((prev) => (prev ? { ...prev, adultContentOptIn: res.data.adultContentOptIn } : prev))
   }
 
   async function handleUnblock(username: string) {
@@ -430,6 +437,15 @@ export function EditProfile() {
               </p>
             </div>
           )}
+          <label className="mt-3 flex items-center justify-between border-t border-line pt-3 text-sm">
+            Show adult (18+) boards
+            <input
+              type="checkbox"
+              checked={me.adultContentOptIn}
+              onChange={(e) => handleAdultOptIn(e.target.checked)}
+              className="h-4 w-4 accent-[var(--color-accent)]"
+            />
+          </label>
         </section>
       )}
 

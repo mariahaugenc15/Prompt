@@ -93,6 +93,11 @@ if (!accountColumns.has('totp_enabled')) {
 if (!accountColumns.has('username_changed_at')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN username_changed_at INTEGER`)
 }
+// Opt-in to seeing adult (18+) boards elsewhere on the app — default off
+// (v2, Phase 5.1).
+if (!accountColumns.has('adult_content_opt_in')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN adult_content_opt_in INTEGER NOT NULL DEFAULT 0`)
+}
 
 // Bootstraps the first admin(s) without needing direct DB access: list
 // usernames (comma-separated) in ADMIN_USERNAMES and, on every server
@@ -209,6 +214,11 @@ db.exec(`
 const boardColumns = new Set((db.prepare('PRAGMA table_info(boards)').all() as { name: string }[]).map((c) => c.name))
 if (!boardColumns.has('icon')) {
   db.exec(`ALTER TABLE boards ADD COLUMN icon TEXT`)
+}
+// Adult-content flag (v2, Phase 5.1) — owner- or admin-settable, gated
+// against each viewer's own opt-in (accounts.adult_content_opt_in below).
+if (!boardColumns.has('is_adult')) {
+  db.exec(`ALTER TABLE boards ADD COLUMN is_adult INTEGER NOT NULL DEFAULT 0`)
 }
 
 // Calendars: a named, optionally-shared filter over your own completions.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import type { Category } from '../lib/types'
@@ -9,11 +9,13 @@ import { AudioProofPlayer } from '../components/AudioProofPlayer'
 import { ReactionBar } from '../components/ReactionBar'
 import { CompletionDetailModal } from '../components/CompletionDetailModal'
 import { reactToCompletion, type ReactionKind } from '../lib/calendarsApi'
+import { getMe } from '../lib/realAccountsApi'
 import {
   getBoard,
   getBoardChallenges,
   inviteToBoard,
   postBoardChallenge,
+  setBoardAdultFlag,
   subscribeBoard,
   type BoardChallenge,
   type RealBoard,
@@ -89,6 +91,10 @@ export function BoardDetail() {
   const [cadence, setCadence] = useState<BoardChallenge['cadence']>('one-off')
   const [posting, setPosting] = useState(false)
 
+  const [adultOptedIn, setAdultOptedIn] = useState(false)
+  const [ageConfirmed, setAgeConfirmed] = useState(false)
+  const [adultFlagBusy, setAdultFlagBusy] = useState(false)
+
   function refresh() {
     if (!boardId) return
     getBoard(boardId, account?.token).then((res) => setBoard(res.ok ? res.data : 'not-found'))
@@ -98,10 +104,30 @@ export function BoardDetail() {
   useEffect(refresh, [boardId, account?.token])
 
   useEffect(() => {
+    if (account) getMe(account.token).then((res) => { if (res.ok) setAdultOptedIn(res.data.adultContentOptIn) })
+  }, [account])
+
+  // Tap-to-confirm resets per board visited, not just per app session.
+  useEffect(() => setAgeConfirmed(false), [boardId])
+
+  useEffect(() => {
     if (board === 'not-found') navigate('/feed')
   }, [board, navigate])
 
   if (!board || board === 'not-found') return null
+
+  async function handleToggleAdultFlag(isAdult: boolean) {
+    if (!account || board === 'not-found' || !board) return
+    setAdultFlagBusy(true)
+    try {
+      const res = await setBoardAdultFlag(board.id, isAdult, account.token)
+      if (res.ok) setBoard(res.data)
+    } finally {
+      setAdultFlagBusy(false)
+    }
+  }
+
+  const needsAdultGate = board.isAdult && !board.isOwner && !(adultOptedIn && ageConfirmed)
 
   async function handleSubscribe() {
     if (!account || board === 'not-found' || !board) return
@@ -143,7 +169,8 @@ export function BoardDetail() {
   const isPrivate = board.visibility === 'invite'
 
   return (
-    <div className="flex flex-col gap-5 p-4">
+    <div className="relative flex flex-col gap-5 p-4">
+      <div className={clsx(needsAdultGate && 'pointer-events-none select-none blur-md', 'flex flex-col gap-5')}>
       <div>
         <div className="flex items-center gap-2">
           {board.icon && <span className="text-2xl leading-none">{board.icon}</span>}
@@ -175,6 +202,25 @@ export function BoardDetail() {
       </div>
 
       {board.isOwner && <RealInviteBox boardId={board.id} onInvited={refresh} />}
+
+      {board.isOwner && (
+        <section className="rounded-sm border border-line bg-card p-3">
+          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Board settings</p>
+          <label className="flex items-center justify-between text-sm">
+            <span>
+              <span className="block font-medium">Adult content (18+)</span>
+              <span className="block text-xs text-ink-faint">Excluded from Discover and search for anyone who hasn't opted in.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={board.isAdult}
+              disabled={adultFlagBusy}
+              onChange={(e) => handleToggleAdultFlag(e.target.checked)}
+              className="h-4 w-4 accent-[var(--color-accent)]"
+            />
+          </label>
+        </section>
+      )}
 
       {board.isOwner && (
         <section className="rounded-sm border border-line bg-card p-3">
@@ -260,6 +306,30 @@ export function BoardDetail() {
           </div>
         )}
       </section>
+      </div>
+
+      {needsAdultGate && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-sm bg-paper/85 p-6 text-center">
+          <p className="font-serif text-lg leading-snug">This board is marked 18+</p>
+          {adultOptedIn ? (
+            <>
+              <p className="max-w-xs text-sm text-ink-soft">Confirm you're 18 or older to view it.</p>
+              <button onClick={() => setAgeConfirmed(true)} className="rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper">
+                I'm 18 or older, show this board
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="max-w-xs text-sm text-ink-soft">
+                Turn on "Show adult (18+) boards" in your profile settings to view it.
+              </p>
+              <Link to="/profile/edit" className="rounded-sm border border-ink px-4 py-2 text-sm font-medium">
+                Go to settings
+              </Link>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

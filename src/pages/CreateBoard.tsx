@@ -25,6 +25,7 @@ export function CreateBoard() {
   const [visibility, setVisibility] = useState<'public' | 'invite'>('public')
   const [locationTag, setLocationTag] = useState('')
   const [icon, setIcon] = useState(ICON_CHOICES[0])
+  const [isAdult, setIsAdult] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,7 +35,7 @@ export function CreateBoard() {
     setError(null)
     try {
       const res = await createBoard(
-        { name: name.trim(), description: description.trim(), category, visibility, locationTag: locationTag.trim() || undefined, icon },
+        { name: name.trim(), description: description.trim(), category, visibility, locationTag: locationTag.trim() || undefined, icon, isAdult },
         account.token,
       )
       if (!res.ok) {
@@ -138,6 +139,19 @@ export function CreateBoard() {
           onChange={(e) => setLocationTag(e.target.value)}
           placeholder="e.g. Portland, OR"
           className="rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
+        />
+      </label>
+
+      <label className="flex items-center justify-between rounded-sm border border-line bg-card p-3 text-sm">
+        <span>
+          <span className="block font-medium">Adult content (18+)</span>
+          <span className="block text-xs text-ink-faint">Excluded from Discover and search for anyone who hasn't opted in.</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={isAdult}
+          onChange={(e) => setIsAdult(e.target.checked)}
+          className="h-4 w-4 accent-[var(--color-accent)]"
         />
       </label>
 

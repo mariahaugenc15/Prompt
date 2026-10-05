@@ -3,6 +3,7 @@ import { reactionCounts } from './reactionsRepo.js'
 import { calendarsForCompletion } from './calendarsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
 import { getBoardById, isSubscribed } from './boardsRepo.js'
+import { hasOptedIntoAdultContent } from './accountsRepo.js'
 
 export interface CompletionView {
   id: string
@@ -198,9 +199,17 @@ export function followingFeed(accountId: string, limit = 50, offset = 0): Comple
 // owner) needs an explicit filter here.
 export function communityFeed(accountId: string, limit = 50, offset = 0): CompletionView[] {
   const blocked = blockedEitherWayIds(accountId)
-  const rows = (broadcastByBoardIds.all(accountId) as BroadcastRow[]).filter(
-    (r) => r.boardId && (blocked.size === 0 || (!blocked.has(r.senderAccountId!) && !blocked.has(r.completerAccountId!))),
-  )
+  // Defensive, on top of the subscribe-time gate (boardsRoutes.ts) that
+  // should already keep a non-opted-in viewer out of an adult board's
+  // subscriber list in the first place — a later toggle-off of the
+  // account-level opt-in still can't leak content already subscribed to.
+  const adultOk = hasOptedIntoAdultContent(accountId)
+  const rows = (broadcastByBoardIds.all(accountId) as BroadcastRow[]).filter((r) => {
+    if (!r.boardId) return false
+    if (blocked.size > 0 && (blocked.has(r.senderAccountId!) || blocked.has(r.completerAccountId!))) return false
+    if (!adultOk && getBoardById(r.boardId)?.is_adult) return false
+    return true
+  })
   return paginate(rows.map((r) => normalizeBroadcast(r, accountId)), limit, offset)
 }
 

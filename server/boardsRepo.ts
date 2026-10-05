@@ -1,5 +1,5 @@
 import { db } from './db.js'
-import { getAccountById, displayName } from './accountsRepo.js'
+import { getAccountById, displayName, hasOptedIntoAdultContent } from './accountsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
 
 export interface BoardRow {
@@ -11,12 +11,13 @@ export interface BoardRow {
   visibility: 'public' | 'invite'
   location_tag: string | null
   icon: string | null
+  is_adult: number
   created_at: number
 }
 
 const insertBoard = db.prepare(`
-  INSERT INTO boards (id, owner_account_id, name, description, category, visibility, location_tag, icon, created_at)
-  VALUES (@id, @ownerAccountId, @name, @description, @category, @visibility, @locationTag, @icon, @createdAt)
+  INSERT INTO boards (id, owner_account_id, name, description, category, visibility, location_tag, icon, is_adult, created_at)
+  VALUES (@id, @ownerAccountId, @name, @description, @category, @visibility, @locationTag, @icon, @isAdult, @createdAt)
 `)
 const insertSubscriber = db.prepare(
   'INSERT OR IGNORE INTO board_subscribers (board_id, account_id, created_at) VALUES (?, ?, ?)',
@@ -28,9 +29,13 @@ const subscriberIdsStmt = db.prepare('SELECT account_id FROM board_subscribers W
 
 // Boards that are public and not already subscribed to — the "Discover"
 // list backing anyone finding a board they don't already belong to.
+// Adult-flagged boards are excluded from this (and search, below) unless
+// the viewer has opted in — filtered in SQL, unlike the blocked-owner
+// check which needs a dynamic id set computed in JS first.
 const discoverStmt = db.prepare(`
   SELECT b.* FROM boards b
   WHERE b.visibility = 'public'
+    AND (b.is_adult = 0 OR ? = 1)
     AND NOT EXISTS (SELECT 1 FROM board_subscribers s WHERE s.board_id = b.id AND s.account_id = ?)
   ORDER BY b.created_at DESC
   LIMIT ? OFFSET ?
@@ -42,7 +47,8 @@ function escapeLike(value: string): string {
 
 const searchStmt = db.prepare(`
   SELECT * FROM boards
-  WHERE visibility = 'public' AND (LOWER(name) LIKE ? ESCAPE '\\' OR LOWER(description) LIKE ? ESCAPE '\\')
+  WHERE visibility = 'public' AND (is_adult = 0 OR ? = 1)
+    AND (LOWER(name) LIKE ? ESCAPE '\\' OR LOWER(description) LIKE ? ESCAPE '\\')
   ORDER BY created_at DESC
   LIMIT ? OFFSET ?
 `)
@@ -57,7 +63,8 @@ const mineStmt = db.prepare(`
 
 // Discover/search results are fetched a little deep past the requested
 // page before filtering, so a blocked owner's boards being skipped doesn't
-// shrink the page below what was asked for.
+// shrink the page below what was asked for. (Adult-content filtering
+// happens in SQL above instead, since it doesn't need a dynamic id set.)
 function filterBlockedOwners(boards: BoardRow[], viewerId: string | undefined, limit: number): BoardRow[] {
   if (!viewerId) return boards.slice(0, limit)
   const blocked = blockedEitherWayIds(viewerId)
@@ -74,9 +81,15 @@ export function createBoard(input: {
   visibility: 'public' | 'invite'
   locationTag?: string
   icon?: string
+  isAdult?: boolean
   createdAt: number
 }): void {
-  insertBoard.run({ ...input, locationTag: input.locationTag ?? null, icon: input.icon ?? null })
+  insertBoard.run({
+    ...input,
+    locationTag: input.locationTag ?? null,
+    icon: input.icon ?? null,
+    isAdult: input.isAdult ? 1 : 0,
+  })
   insertSubscriber.run(input.id, input.ownerAccountId, input.createdAt)
 }
 
@@ -103,15 +116,17 @@ export function subscribe(boardId: string, accountId: string): void {
 // Fetches a bit past the page (limit + blocked.size) so filtering blocked
 // owners out afterward doesn't leave the page short.
 export function listDiscoverable(viewerId: string | undefined, limit: number, offset = 0): BoardRow[] {
+  const adultOk = viewerId && hasOptedIntoAdultContent(viewerId) ? 1 : 0
   const overfetch = limit + (viewerId ? blockedEitherWayIds(viewerId).size : 0)
-  const rows = discoverStmt.all(viewerId ?? '', overfetch, offset) as BoardRow[]
+  const rows = discoverStmt.all(adultOk, viewerId ?? '', overfetch, offset) as BoardRow[]
   return filterBlockedOwners(rows, viewerId, limit)
 }
 
 export function searchBoards(query: string, viewerId: string | undefined, limit: number, offset = 0): BoardRow[] {
   const like = `%${escapeLike(query.trim().toLowerCase())}%`
+  const adultOk = viewerId && hasOptedIntoAdultContent(viewerId) ? 1 : 0
   const overfetch = limit + (viewerId ? blockedEitherWayIds(viewerId).size : 0)
-  const rows = searchStmt.all(like, like, overfetch, offset) as BoardRow[]
+  const rows = searchStmt.all(adultOk, like, like, overfetch, offset) as BoardRow[]
   return filterBlockedOwners(rows, viewerId, limit)
 }
 
@@ -129,6 +144,7 @@ export function publicBoardView(board: BoardRow, viewerId?: string) {
     visibility: board.visibility,
     locationTag: board.location_tag ?? undefined,
     icon: board.icon ?? undefined,
+    isAdult: Boolean(board.is_adult),
     ownerUsername: owner?.username ?? '',
     ownerDisplayName: owner ? displayName(owner) : '',
     subscriberCount: subscriberCount(board.id),
@@ -136,4 +152,12 @@ export function publicBoardView(board: BoardRow, viewerId?: string) {
     isOwner: viewerId ? viewerId === board.owner_account_id : undefined,
     createdAt: board.created_at,
   }
+}
+
+const setAdultFlagStmt = db.prepare('UPDATE boards SET is_adult = ? WHERE id = ?')
+
+// Owner- or admin-only at the route level (boardsRoutes.ts/adminRoutes.ts)
+// — this just performs the write once a caller is already authorized.
+export function setBoardAdultFlag(boardId: string, isAdult: boolean): void {
+  setAdultFlagStmt.run(isAdult ? 1 : 0, boardId)
 }

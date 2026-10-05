@@ -200,3 +200,18 @@ export function deactivateAccount(accountId: string): void {
   const deletedEmail = `deleted_${suffix}@deleted.invalid`
   deactivateStmt.run(Date.now(), deletedUsername, deletedUsername, deletedEmail, deletedEmail, accountId)
 }
+
+const getAdultOptInStmt = db.prepare('SELECT adult_content_opt_in FROM accounts WHERE id = ?')
+const setAdultOptInStmt = db.prepare('UPDATE accounts SET adult_content_opt_in = ? WHERE id = ?')
+
+// User-level opt-in to seeing adult (18+) boards elsewhere on the app —
+// default off. Checked server-side (boardsRepo.ts/boardsRoutes.ts)
+// wherever an adult-flagged board's existence or content would otherwise
+// be exposed.
+export function hasOptedIntoAdultContent(accountId: string): boolean {
+  return Boolean((getAdultOptInStmt.get(accountId) as { adult_content_opt_in: number } | undefined)?.adult_content_opt_in)
+}
+
+export function setAdultContentOptIn(accountId: string, optIn: boolean): void {
+  setAdultOptInStmt.run(optIn ? 1 : 0, accountId)
+}

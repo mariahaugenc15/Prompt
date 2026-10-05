@@ -10,9 +10,10 @@ import {
   listDiscoverable,
   publicBoardView,
   searchBoards,
+  setBoardAdultFlag,
   subscribe,
 } from './boardsRepo.js'
-import { getAccountByUsername } from './accountsRepo.js'
+import { getAccountByUsername, hasOptedIntoAdultContent } from './accountsRepo.js'
 import { notifyForEvent } from './notificationsRepo.js'
 import { reactionCounts } from './reactionsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
@@ -24,7 +25,7 @@ const VISIBILITIES = ['public', 'invite']
 const PROMPT_CATEGORIES = ['snap', 'sound', 'show', 'share', 'unplug']
 const CADENCES = ['one-off', 'daily', 'weekly']
 
-function validateBoardBody(body: unknown): { name: string; description: string; category: string; visibility: string; locationTag?: string; icon?: string } | { error: Record<string, string> } {
+function validateBoardBody(body: unknown): { name: string; description: string; category: string; visibility: string; locationTag?: string; icon?: string; isAdult: boolean } | { error: Record<string, string> } {
   const b = (body ?? {}) as Record<string, unknown>
   const name = typeof b.name === 'string' ? b.name.trim() : ''
   const description = typeof b.description === 'string' ? b.description.trim() : ''
@@ -32,6 +33,7 @@ function validateBoardBody(body: unknown): { name: string; description: string; 
   const visibility = typeof b.visibility === 'string' ? b.visibility : ''
   const locationTag = typeof b.locationTag === 'string' && b.locationTag.trim() ? b.locationTag.trim() : undefined
   const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : undefined
+  const isAdult = b.isAdult === true
 
   const errors: Record<string, string> = {}
   if (!name) errors.name = 'Board name is required.'
@@ -39,7 +41,7 @@ function validateBoardBody(body: unknown): { name: string; description: string; 
   if (!VISIBILITIES.includes(visibility)) errors.visibility = `Visibility must be one of: ${VISIBILITIES.join(', ')}.`
   if (Object.keys(errors).length > 0) return { error: errors }
 
-  return { name, description, category, visibility, locationTag, icon }
+  return { name, description, category, visibility, locationTag, icon, isAdult }
 }
 
 // GET /api/boards/discover — public boards you haven't joined yet, most
@@ -83,11 +85,29 @@ boardsRouter.post('/api/boards', requireAuth, (req, res) => {
     visibility: parsed.visibility as 'public' | 'invite',
     locationTag: parsed.locationTag,
     icon: parsed.icon,
+    isAdult: parsed.isAdult,
     createdAt: Date.now(),
   })
 
   const board = getBoardById(id)!
   res.status(201).json(publicBoardView(board, me.id))
+})
+
+// Owner- or admin-only — an adult-flagged board can never be silently
+// un-flagged by anyone else (e.g. another subscriber), matching the
+// brief. Admin access is checked the same way adminRoutes.ts does
+// (req.account.isAdmin), just inline here rather than behind a whole
+// separate admin-only router, since an owner can hit this route too.
+boardsRouter.patch('/api/boards/:id/adult-flag', requireAuth, (req, res) => {
+  const me = req.account!
+  const board = getBoardById(String(req.params.id))
+  if (!board) return res.status(404).json({ errors: { form: 'No board with that id.' } })
+  if (board.owner_account_id !== me.id && !me.isAdmin) {
+    return res.status(403).json({ errors: { form: 'Only the board owner or an admin can change this.' } })
+  }
+  const isAdult = Boolean(req.body?.isAdult)
+  setBoardAdultFlag(board.id, isAdult)
+  res.json(publicBoardView(getBoardById(board.id)!, me.id))
 })
 
 boardsRouter.get('/api/boards/:id', (req, res) => {
@@ -110,6 +130,9 @@ boardsRouter.post('/api/boards/:id/subscribe', requireAuth, (req, res) => {
   if (!board) return res.status(404).json({ errors: { form: 'No board with that id.' } })
   if (board.visibility !== 'public') {
     return res.status(403).json({ errors: { form: 'This board is invite-only — ask the owner to add you.' } })
+  }
+  if (board.is_adult && !hasOptedIntoAdultContent(me.id)) {
+    return res.status(403).json({ errors: { form: 'This board is marked 18+. Opt in to adult content in your settings first.' } })
   }
   subscribe(board.id, me.id)
   res.json(publicBoardView(board, me.id))
@@ -196,7 +219,7 @@ const recentPublicChallenges = db.prepare(`
   FROM prompts p
   JOIN boards b ON b.id = p.board_id
   JOIN accounts a ON a.id = b.owner_account_id
-  WHERE p.is_broadcast = 1 AND b.visibility = 'public'
+  WHERE p.is_broadcast = 1 AND b.visibility = 'public' AND (b.is_adult = 0 OR ? = 1)
   ORDER BY p.created_at DESC
   LIMIT ? OFFSET ?
 `)
@@ -205,9 +228,10 @@ boardsRouter.get('/api/boards/discover/challenges', (req, res) => {
   const viewerId = resolveOptionalAccountId(req)
   const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100)
   const offset = Math.max(Number(req.query.offset) || 0, 0)
+  const adultOk = viewerId && hasOptedIntoAdultContent(viewerId) ? 1 : 0
   const overfetch = limit + (viewerId ? blockedEitherWayIds(viewerId).size : 0)
   const blocked = viewerId ? blockedEitherWayIds(viewerId) : undefined
-  const rows = (recentPublicChallenges.all(overfetch, offset) as Record<string, unknown>[])
+  const rows = (recentPublicChallenges.all(adultOk, overfetch, offset) as Record<string, unknown>[])
     .filter((r) => !blocked || !blocked.has(r.ownerAccountId as string))
     .slice(0, limit)
   res.json(
@@ -231,6 +255,10 @@ boardsRouter.get('/api/boards/:id/challenges', (req, res) => {
   const viewerId = resolveOptionalAccountId(req)
   if (board.visibility === 'invite' && (!viewerId || (board.owner_account_id !== viewerId && !getSubscriberIds(board.id).includes(viewerId)))) {
     return res.status(404).json({ errors: { form: 'No board with that id.' } })
+  }
+  const isOwner = viewerId === board.owner_account_id
+  if (board.is_adult && !isOwner && (!viewerId || !hasOptedIntoAdultContent(viewerId))) {
+    return res.status(403).json({ errors: { form: 'This board is marked 18+. Opt in to adult content in your settings first.' } })
   }
 
   const challenges = (challengesForBoard.all(board.id) as Record<string, unknown>[]).map((c) => {

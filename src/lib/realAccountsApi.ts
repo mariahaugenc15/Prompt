@@ -124,10 +124,18 @@ export interface Me {
   totpEnabled: boolean
   createdAt: number
   usernameChangedAt: number | null
+  adultContentOptIn: boolean
 }
 
 export function getMe(token: string) {
   return call<Me>('/api/me', token)
+}
+
+export function setAdultContentOptIn(optIn: boolean, token: string) {
+  return call<{ adultContentOptIn: boolean }>('/api/me/adult-content-optin', token, {
+    method: 'PATCH',
+    body: JSON.stringify({ optIn }),
+  })
 }
 
 export function changeUsername(username: string, token: string) {

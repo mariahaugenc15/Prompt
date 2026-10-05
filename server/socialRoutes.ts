@@ -2,7 +2,17 @@ import { Router, type Request } from 'express'
 import { db } from './db.js'
 import { requireAuth, resolveOptionalAccountId } from './auth.js'
 import { canFollow, type PromptPermission } from './permissions.js'
-import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicProfile, searchAccounts, suggestedAccounts } from './accountsRepo.js'
+import {
+  getAccountByUsername,
+  getFollowers,
+  getFollowing,
+  hasOptedIntoAdultContent,
+  listAccounts,
+  publicProfile,
+  searchAccounts,
+  setAdultContentOptIn,
+  suggestedAccounts,
+} from './accountsRepo.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
 import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { normalizeUsername, validateUsernameFormat } from '../shared/signupValidation.js'
@@ -34,7 +44,14 @@ socialRouter.get('/api/me', requireAuth, (req, res) => {
     totpEnabled: actor.totpEnabled,
     createdAt: actor.createdAt,
     usernameChangedAt: actor.usernameChangedAt,
+    adultContentOptIn: hasOptedIntoAdultContent(actor.id),
   })
+})
+
+socialRouter.patch('/api/me/adult-content-optin', requireAuth, (req, res) => {
+  const optIn = Boolean(req.body?.optIn)
+  setAdultContentOptIn(req.account!.id, optIn)
+  res.json({ adultContentOptIn: optIn })
 })
 
 // Configurable so a cooldown that turns out too strict (or too loose) in

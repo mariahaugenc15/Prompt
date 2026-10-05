@@ -13,6 +13,7 @@ export interface RealBoard {
   visibility: 'public' | 'invite'
   locationTag?: string
   icon?: string
+  isAdult: boolean
   ownerUsername: string
   ownerDisplayName: string
   subscriberCount: number
@@ -62,10 +63,25 @@ async function call<T>(path: string, token: string | undefined, init?: RequestIn
 }
 
 export function createBoard(
-  input: { name: string; description: string; category: BoardCategory; visibility: 'public' | 'invite'; locationTag?: string; icon?: string },
+  input: {
+    name: string
+    description: string
+    category: BoardCategory
+    visibility: 'public' | 'invite'
+    locationTag?: string
+    icon?: string
+    isAdult?: boolean
+  },
   token: string,
 ) {
   return call<RealBoard>('/api/boards', token, { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function setBoardAdultFlag(id: string, isAdult: boolean, token: string) {
+  return call<RealBoard>(`/api/boards/${encodeURIComponent(id)}/adult-flag`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ isAdult }),
+  })
 }
 
 export function discoverBoards(token?: string, offset = 0, limit = 50) {

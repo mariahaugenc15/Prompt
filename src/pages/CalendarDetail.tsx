@@ -4,7 +4,15 @@ import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CalendarGrid } from '../components/CalendarGrid'
 import { DayDetailSheet } from '../components/DayDetailSheet'
-import { CalendarIcon, LockIcon } from '../components/Icons'
+import { CalendarIcon, LockIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/Icons'
+import {
+  currentMonthCursor,
+  monthCursorFromTimestamp,
+  shiftMonth,
+  compareMonthCursor,
+  monthCursorLabel,
+  type MonthCursor,
+} from '../lib/monthCursor'
 import {
   getCalendar,
   getCalendarFeed,
@@ -27,6 +35,7 @@ export function CalendarDetail() {
   const [feed, setFeed] = useState<CompletionView[]>([])
   const [myCalendars, setMyCalendars] = useState<RealCalendar[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [cursor, setCursor] = useState<MonthCursor>(currentMonthCursor)
 
   function refresh() {
     if (!calendarId) return
@@ -38,6 +47,9 @@ export function CalendarDetail() {
   useEffect(() => {
     if (account) getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
   }, [account])
+  // Switching to a different calendar resets the cursor to its current
+  // month rather than carrying over the last calendar's cursor.
+  useEffect(() => setCursor(currentMonthCursor()), [calendarId])
 
   useEffect(() => {
     if (calendar === 'not-found') navigate('/calendars')
@@ -46,7 +58,6 @@ export function CalendarDetail() {
   if (!calendar || calendar === 'not-found') return null
 
   const cal = calendar
-  const now = new Date()
 
   async function handleJoinLeave() {
     if (!account) return
@@ -121,8 +132,28 @@ export function CalendarDetail() {
       )}
 
       <div>
-        <p className="mb-2 font-serif text-lg">{now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</p>
-        <CalendarGrid year={now.getFullYear()} month={now.getMonth()} completions={feed} onDayClick={setSelectedDay} />
+        <div className="mb-2 flex items-center gap-1.5">
+          <button
+            onClick={() => setCursor((c) => shiftMonth(c, -1))}
+            disabled={compareMonthCursor(cursor, monthCursorFromTimestamp(cal.createdAt)) <= 0}
+            aria-label="Previous month"
+            className="rounded-full p-1 text-ink-soft transition disabled:opacity-30"
+          >
+            <ChevronLeftIcon size={15} />
+          </button>
+          <p className="font-serif text-lg">
+            {monthCursorLabel(cursor)} {cursor.year}
+          </p>
+          <button
+            onClick={() => setCursor((c) => shiftMonth(c, 1))}
+            disabled={compareMonthCursor(cursor, currentMonthCursor()) >= 0}
+            aria-label="Next month"
+            className="rounded-full p-1 text-ink-soft transition disabled:opacity-30"
+          >
+            <ChevronRightIcon size={15} />
+          </button>
+        </div>
+        <CalendarGrid year={cursor.year} month={cursor.month} completions={feed} onDayClick={setSelectedDay} />
       </div>
 
       {cal.members && (

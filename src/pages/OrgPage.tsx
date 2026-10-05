@@ -3,7 +3,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
-import { CATEGORY_ICON, BoardsIcon, LockIcon } from '../components/Icons'
+import { CATEGORY_ICON, BoardsIcon, LockIcon, ChevronLeftIcon, ChevronRightIcon } from '../components/Icons'
+import {
+  currentMonthCursor,
+  monthCursorFromTimestamp,
+  shiftMonth,
+  compareMonthCursor,
+  monthCursorLabel,
+  type MonthCursor,
+} from '../lib/monthCursor'
 import { PromptLogo } from '../components/PromptLogo'
 import { FollowListModal } from '../components/FollowListModal'
 import { VerifiedBadge } from '../components/VerifiedBadge'
@@ -38,7 +46,7 @@ export function OrgPage() {
   // An individual's public calendar — the "grid" of this profile, same
   // month-view component the owner sees on Home, just fed by the public
   // activity endpoint instead of /api/me/activity.
-  const now = new Date()
+  const [cursor, setCursor] = useState<MonthCursor>(currentMonthCursor)
   const [activity, setActivity] = useState<CompletionView[]>([])
   const [myCalendars, setMyCalendars] = useState<RealCalendar[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
@@ -66,6 +74,10 @@ export function OrgPage() {
 
   useEffect(refresh, [username, account?.token])
   useEffect(() => setListOpen(null), [username])
+  // Looking at a different profile resets the calendar to its current
+  // month rather than carrying over whatever month the last profile left
+  // the cursor on.
+  useEffect(() => setCursor(currentMonthCursor()), [username])
 
   useEffect(() => {
     if (!account) return
@@ -305,11 +317,29 @@ export function OrgPage() {
 
       {profile && profile.accountType === 'individual' && (
         <section>
-          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">
-            {now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-          </p>
+          <div className="mb-2 flex items-center justify-center gap-1.5">
+            <button
+              onClick={() => setCursor((c) => shiftMonth(c, -1))}
+              disabled={compareMonthCursor(cursor, monthCursorFromTimestamp(profile.createdAt)) <= 0}
+              aria-label="Previous month"
+              className="rounded-full p-1 text-ink-soft transition disabled:opacity-30"
+            >
+              <ChevronLeftIcon size={14} />
+            </button>
+            <p className="text-xs uppercase tracking-wider text-ink-faint">
+              {monthCursorLabel(cursor)} {cursor.year}
+            </p>
+            <button
+              onClick={() => setCursor((c) => shiftMonth(c, 1))}
+              disabled={compareMonthCursor(cursor, currentMonthCursor()) >= 0}
+              aria-label="Next month"
+              className="rounded-full p-1 text-ink-soft transition disabled:opacity-30"
+            >
+              <ChevronRightIcon size={14} />
+            </button>
+          </div>
           {profile.canViewActivity ? (
-            <CalendarGrid year={now.getFullYear()} month={now.getMonth()} completions={activity} onDayClick={setSelectedDay} />
+            <CalendarGrid year={cursor.year} month={cursor.month} completions={activity} onDayClick={setSelectedDay} />
           ) : (
             <div className="flex flex-col items-center gap-1 rounded-sm border border-line bg-paper-dim px-4 py-8 text-center">
               <LockIcon size={18} className="text-ink-faint" />

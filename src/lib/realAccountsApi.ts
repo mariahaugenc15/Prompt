@@ -23,6 +23,7 @@ export interface PublicProfile {
   isVerified: boolean
   profileVisibility: 'public' | 'private'
   canViewActivity: boolean
+  createdAt: number
 }
 
 export type PromptStatus = 'pending' | 'completed' | 'declined' | 'expired'
@@ -121,6 +122,7 @@ export interface Me {
   isAdmin: boolean
   isVerified: boolean
   totpEnabled: boolean
+  createdAt: number
 }
 
 export function getMe(token: string) {

@@ -15,10 +15,11 @@ export interface AccountRow {
   bio: string | null
   is_verified: number
   profile_visibility: 'public' | 'private'
+  created_at: number
 }
 
 const ACCOUNT_COLUMNS =
-  'id, account_type, username, email, prompt_permission, first_name, organization_name, website_url, avatar_path, bio, is_verified, profile_visibility'
+  'id, account_type, username, email, prompt_permission, first_name, organization_name, website_url, avatar_path, bio, is_verified, profile_visibility, created_at'
 const ACCOUNT_COLUMNS_A = ACCOUNT_COLUMNS.split(', ').map((c) => `a.${c}`).join(', ')
 
 const byId = db.prepare(`SELECT ${ACCOUNT_COLUMNS} FROM accounts WHERE id = ?`)
@@ -175,6 +176,7 @@ export function publicProfile(account: AccountRow, viewerId?: string) {
     isVerified: Boolean(account.is_verified),
     profileVisibility: account.profile_visibility,
     canViewActivity: canViewProfileActivity(account, viewerId),
+    createdAt: account.created_at,
   }
 }
 

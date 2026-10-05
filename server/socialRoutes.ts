@@ -30,6 +30,7 @@ socialRouter.get('/api/me', requireAuth, (req, res) => {
     isAdmin: actor.isAdmin,
     isVerified: actor.isVerified,
     totpEnabled: actor.totpEnabled,
+    createdAt: actor.createdAt,
   })
 })
 

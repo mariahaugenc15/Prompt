@@ -6,6 +6,7 @@ import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicP
 import { isBlockedEitherWay } from './blocksRepo.js'
 import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { normalizeUsername, validateUsernameFormat } from '../shared/signupValidation.js'
+import { notifyForEvent } from './notificationsRepo.js'
 
 function parsePaging(req: Request, defaultLimit: number, maxLimit: number) {
   const limit = Math.min(Math.max(Number(req.query.limit) || defaultLimit, 1), maxLimit)
@@ -217,6 +218,7 @@ socialRouter.post('/api/follow', requireAuth, (req, res) => {
   }
 
   insertFollow.run(actor.id, target.id, Date.now())
+  notifyForEvent(target.id, 'new_follower', `${actor.displayName} followed you`, `@${actor.username} is now following you.`)
   res.status(201).json(publicProfile(target, actor.id))
 })
 

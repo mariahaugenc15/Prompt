@@ -6,7 +6,7 @@ import { canBroadcast, canCompleteBroadcast, canReceiveOneToOne, canSendOneToOne
 import { displayName, getAccountById, getAccountByUsername, isFollowing } from './accountsRepo.js'
 import { isSubscribed } from './boardsRepo.js'
 import { reactionCounts, toggleReaction } from './reactionsRepo.js'
-import { notifyAccount } from './pushRepo.js'
+import { notifyForEvent } from './notificationsRepo.js'
 import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
 import { canViewCompletion } from './completionsRepo.js'
@@ -91,7 +91,7 @@ promptRouter.post('/api/prompts', requireAuth, (req, res) => {
     createdAt: Date.now(),
   })
 
-  notifyAccount(recipient.id, `${sender.displayName} sent you a prompt`, parsed.text)
+  notifyForEvent(recipient.id, 'new_prompt', `${sender.displayName} sent you a prompt`, parsed.text)
 
   res.status(201).json({
     id,
@@ -303,6 +303,10 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
       throw err
     }
 
+    if (sender.id !== me.id) {
+      notifyForEvent(sender.id, 'prompt_completed', `${me.displayName} completed your prompt`, prompt.prompt_text as string)
+    }
+
     return res.status(201).json({
       promptId: prompt.id,
       completionId: id,
@@ -330,6 +334,8 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
     userCaption,
     completedAt: Date.now(),
   })
+
+  notifyForEvent(sender.id, 'prompt_completed', `${me.displayName} completed your prompt`, prompt.prompt_text as string)
 
   res.status(200).json({
     promptId: prompt.id,

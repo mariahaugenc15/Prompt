@@ -13,7 +13,7 @@ import {
   subscribe,
 } from './boardsRepo.js'
 import { getAccountByUsername } from './accountsRepo.js'
-import { notifyAccount } from './pushRepo.js'
+import { notifyForEvent } from './notificationsRepo.js'
 import { reactionCounts } from './reactionsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
 
@@ -165,7 +165,7 @@ boardsRouter.post('/api/boards/:id/challenges', requireAuth, (req, res) => {
 
   for (const subscriberId of getSubscriberIds(board.id)) {
     if (subscriberId === me.id) continue
-    notifyAccount(subscriberId, `${board.name} posted a new challenge`, text)
+    notifyForEvent(subscriberId, 'new_prompt', `${board.name} posted a new challenge`, text)
   }
 
   res.status(201).json({ id, category, text, cadence, status: 'active', boardId: board.id })

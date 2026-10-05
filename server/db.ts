@@ -469,3 +469,30 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_push_subscriptions_account ON push_subscriptions(account_id);
 `)
+
+// Per-event notification preferences (v2, Phase 4) — one master switch plus
+// one per event, each defaulting to on so existing users keep the behavior
+// they already had rather than going silent on upgrade.
+if (!accountColumns.has('notify_master')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN notify_master INTEGER NOT NULL DEFAULT 1`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN notify_new_follower INTEGER NOT NULL DEFAULT 1`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN notify_new_prompt INTEGER NOT NULL DEFAULT 1`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN notify_prompt_completed INTEGER NOT NULL DEFAULT 1`)
+}
+
+// The in-app notification list (v2, Phase 4) — a persisted record of the
+// same events that can also go out as push, so there's somewhere to see
+// them after the fact even on a device that never granted push permission.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    event TEXT NOT NULL CHECK (event IN ('new_follower', 'new_prompt', 'prompt_completed')),
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT '/',
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_notifications_account ON notifications(account_id, created_at DESC);
+`)

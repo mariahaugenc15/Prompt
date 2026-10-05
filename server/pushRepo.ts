@@ -52,6 +52,7 @@ const upsertSubscription = db.prepare(`
   ON CONFLICT(endpoint) DO UPDATE SET account_id = @accountId, p256dh = @p256dh, auth = @auth
 `)
 const deleteSubscription = db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?')
+const deleteSubscriptionsForAccount = db.prepare('DELETE FROM push_subscriptions WHERE account_id = ?')
 const subscriptionsForAccount = db.prepare('SELECT * FROM push_subscriptions WHERE account_id = ?')
 
 export function saveSubscription(accountId: string, sub: PushSubscriptionInput): void {
@@ -60,6 +61,14 @@ export function saveSubscription(accountId: string, sub: PushSubscriptionInput):
 
 export function removeSubscription(endpoint: string): void {
   deleteSubscription.run(endpoint)
+}
+
+// Called on logout and account deletion (authRoutes.ts) so a device that
+// signed out (or an account that's gone) stops being a valid push target —
+// otherwise its subscription rows would sit there indefinitely, still
+// reachable by endpoint, with no account actively claiming them.
+export function removeSubscriptionsForAccount(accountId: string): void {
+  deleteSubscriptionsForAccount.run(accountId)
 }
 
 interface SubscriptionRow {

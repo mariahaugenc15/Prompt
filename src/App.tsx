@@ -11,6 +11,7 @@ import { Feed } from './pages/Feed'
 import { BoardDetail } from './pages/BoardDetail'
 import { CreateBoard } from './pages/CreateBoard'
 import { EditProfile } from './pages/EditProfile'
+import { Notifications } from './pages/Notifications'
 import { Calendars } from './pages/Calendars'
 import { CreateCalendar } from './pages/CreateCalendar'
 import { CalendarDetail } from './pages/CalendarDetail'
@@ -123,6 +124,14 @@ export default function App() {
         element={
           <Protected>
             <EditProfile />
+          </Protected>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <Protected>
+            <Notifications />
           </Protected>
         }
       />

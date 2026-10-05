@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { fileToCompressedDataUrl } from '../lib/media'
-import { enablePushNotifications, pushSupported } from '../lib/push'
 import type { PromptPermission } from '../lib/types'
 import { BackIcon, CalendarIcon, CameraIcon, LockIcon, BoardsIcon, ShareIcon, BellIcon } from '../components/Icons'
 import { VerifiedBadge } from '../components/VerifiedBadge'
@@ -204,17 +203,6 @@ export function EditProfile() {
     setTimeout(() => setInviteCopied(false), 2000)
   }
 
-  const [notifStatus, setNotifStatus] = useState<'idle' | 'busy' | 'on' | 'denied' | 'unsupported'>(() =>
-    pushSupported() ? (Notification.permission === 'granted' ? 'on' : 'idle') : 'unsupported',
-  )
-
-  async function handleEnableNotifications() {
-    if (!account) return
-    setNotifStatus('busy')
-    const result = await enablePushNotifications(account.token)
-    setNotifStatus(result === 'subscribed' ? 'on' : result === 'denied' ? 'denied' : result === 'unsupported' ? 'unsupported' : 'idle')
-  }
-
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackSending, setFeedbackSending] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
@@ -338,27 +326,15 @@ export function EditProfile() {
         <span className="shrink-0 text-xs font-medium text-accent">{inviteCopied ? 'Copied!' : 'Share'}</span>
       </button>
 
-      {notifStatus !== 'unsupported' && (
-        <button
-          onClick={handleEnableNotifications}
-          disabled={notifStatus === 'busy' || notifStatus === 'on'}
-          className="flex items-center gap-3 rounded-sm border border-line bg-card p-3 text-left disabled:opacity-70"
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-paper-dim text-ink-soft">
-            <BellIcon size={15} />
-          </span>
-          <span className="flex-1">
-            <span className="block text-sm font-medium">
-              {notifStatus === 'on' ? 'Notifications enabled' : 'Enable notifications'}
-            </span>
-            <span className="block text-xs text-ink-faint">
-              {notifStatus === 'denied'
-                ? 'Blocked in your browser settings — enable them there to turn this on.'
-                : "Get notified when someone prompts you, even when the app's closed."}
-            </span>
-          </span>
-        </button>
-      )}
+      <Link to="/notifications" className="flex items-center gap-3 rounded-sm border border-line bg-card p-3 text-left">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-paper-dim text-ink-soft">
+          <BellIcon size={15} />
+        </span>
+        <span className="flex-1">
+          <span className="block text-sm font-medium">Notifications</span>
+          <span className="block text-xs text-ink-faint">Turn push on, choose what you hear about, and see what you've missed.</span>
+        </span>
+      </Link>
 
       {account && me && (
         <section className="rounded-sm border border-line bg-card p-4">

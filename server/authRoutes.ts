@@ -6,6 +6,7 @@ import { hashPassword } from './passwordHash.js'
 import { sendEmail } from './emailer.js'
 import { deactivateAccount } from './accountsRepo.js'
 import { createPendingLogin } from './pendingLoginRepo.js'
+import { removeSubscriptionsForAccount } from './pushRepo.js'
 import { normalizeEmail, validatePassword } from '../shared/signupValidation.js'
 
 export const authRouter = Router()
@@ -113,6 +114,7 @@ authRouter.post('/api/password-reset/confirm', (req, res) => {
 const rotateTokenAway = db.prepare('UPDATE accounts SET auth_token = ? WHERE id = ?')
 authRouter.post('/api/logout', requireAuth, (req, res) => {
   rotateTokenAway.run(crypto.randomBytes(32).toString('hex'), req.account!.id)
+  removeSubscriptionsForAccount(req.account!.id)
   res.json({ ok: true })
 })
 
@@ -124,5 +126,6 @@ authRouter.post('/api/logout', requireAuth, (req, res) => {
 // uses (see accountsRepo.ts's deactivateAccount).
 authRouter.delete('/api/me', requireAuth, (req, res) => {
   deactivateAccount(req.account!.id)
+  removeSubscriptionsForAccount(req.account!.id)
   res.json({ ok: true })
 })

@@ -18,6 +18,7 @@ import {
   unblockAccount,
   updateMyAvatar,
   updateMyBio,
+  changeUsername,
   logout,
   deleteMyAccount,
   getPromptHistory,
@@ -36,11 +37,13 @@ import {
   type VerificationCategory,
   type VerificationStatus as VerificationStatusData,
 } from '../lib/verificationApi'
+import { validateUsernameFormat } from '../../shared/signupValidation'
 
 export function EditProfile() {
   const navigate = useNavigate()
   const signOut = useStore((s) => s.signOut)
   const account = useStore((s) => s.account)
+  const setAccount = useStore((s) => s.setAccount)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
   const setHideCompletionScore = useStore((s) => s.setHideCompletionScore)
 
@@ -146,6 +149,41 @@ export function EditProfile() {
       setEditingBio(false)
     } finally {
       setBioSaving(false)
+    }
+  }
+
+  const [editingUsername, setEditingUsername] = useState(false)
+  const [usernameDraft, setUsernameDraft] = useState('')
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [usernameSaving, setUsernameSaving] = useState(false)
+
+  function startEditingUsername() {
+    setUsernameDraft(me?.username ?? '')
+    setUsernameError(null)
+    setEditingUsername(true)
+  }
+
+  async function saveUsername() {
+    if (!account || !me) return
+    const trimmed = usernameDraft.trim()
+    const formatError = validateUsernameFormat(trimmed)
+    if (formatError) {
+      setUsernameError(formatError)
+      return
+    }
+    setUsernameError(null)
+    setUsernameSaving(true)
+    try {
+      const res = await changeUsername(trimmed, account.token)
+      if (res.ok) {
+        setMe((prev) => (prev ? { ...prev, username: res.data.username, usernameChangedAt: res.data.usernameChangedAt } : prev))
+        setAccount({ ...account, username: res.data.username })
+        setEditingUsername(false)
+      } else {
+        setUsernameError(res.errors.username ?? res.errors.form ?? 'Could not change your username.')
+      }
+    } finally {
+      setUsernameSaving(false)
     }
   }
 
@@ -324,9 +362,44 @@ export function EditProfile() {
 
       {account && me && (
         <section className="rounded-sm border border-line bg-card p-4">
-          <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">
-            Account — @{me.username} ({me.accountType})
-          </p>
+          {editingUsername ? (
+            <div className="mb-3 flex flex-col gap-1.5">
+              <label className="text-xs uppercase tracking-wider text-ink-faint">Username</label>
+              <input
+                value={usernameDraft}
+                onChange={(e) => setUsernameDraft(e.target.value)}
+                maxLength={24}
+                autoFocus
+                className="rounded-sm border border-line bg-paper p-2 text-sm outline-none focus:border-line-strong"
+              />
+              {usernameError && <p className="text-xs text-danger">{usernameError}</p>}
+              <p className="text-xs text-ink-faint">You can change your username again 30 days after your last change.</p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={saveUsername}
+                  disabled={usernameSaving || !usernameDraft.trim()}
+                  className="flex-1 rounded-sm bg-ink py-1.5 text-xs font-medium text-paper disabled:opacity-50"
+                >
+                  {usernameSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => { setEditingUsername(false); setUsernameError(null) }}
+                  className="flex-1 rounded-sm border border-line py-1.5 text-xs text-ink-soft"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="mb-2 flex items-center justify-between text-xs uppercase tracking-wider text-ink-faint">
+              <span>
+                Account — @{me.username} ({me.accountType})
+              </span>
+              <button onClick={startEditingUsername} className="font-medium text-ink underline underline-offset-2">
+                Edit
+              </button>
+            </p>
+          )}
           <Link to={`/o/${me.username}`} className="block rounded-sm border border-ink py-2 text-center text-sm font-medium">
             My page
           </Link>

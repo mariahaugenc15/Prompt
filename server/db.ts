@@ -88,6 +88,11 @@ if (!accountColumns.has('totp_enabled')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`)
   db.exec(`ALTER TABLE accounts ADD COLUMN totp_backup_codes TEXT`)
 }
+// Null until the first rename — a brand-new account can pick a new
+// username right away, the cooldown only starts counting after that.
+if (!accountColumns.has('username_changed_at')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN username_changed_at INTEGER`)
+}
 
 // Bootstraps the first admin(s) without needing direct DB access: list
 // usernames (comma-separated) in ADMIN_USERNAMES and, on every server

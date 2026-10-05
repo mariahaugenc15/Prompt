@@ -22,6 +22,7 @@ export interface AuthedAccount {
   isVerified: boolean
   totpEnabled: boolean
   createdAt: number
+  usernameChangedAt: number | null
 }
 
 declare module 'express-serve-static-core' {
@@ -43,10 +44,11 @@ interface AccountRow {
   is_verified: number
   totp_enabled: number
   created_at: number
+  username_changed_at: number | null
 }
 
 const findByToken = db.prepare(
-  `SELECT id, account_type, username, email, prompt_permission, profile_visibility, first_name, organization_name, is_admin, is_verified, totp_enabled, created_at, auth_token_created_at, is_deleted
+  `SELECT id, account_type, username, email, prompt_permission, profile_visibility, first_name, organization_name, is_admin, is_verified, totp_enabled, created_at, username_changed_at, auth_token_created_at, is_deleted
    FROM accounts WHERE auth_token = ?`,
 )
 
@@ -90,6 +92,7 @@ export function toAuthedAccount(row: AccountRow): AuthedAccount {
     isVerified: Boolean(row.is_verified),
     totpEnabled: Boolean(row.totp_enabled),
     createdAt: row.created_at,
+    usernameChangedAt: row.username_changed_at ?? null,
   }
 }
 

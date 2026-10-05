@@ -123,10 +123,18 @@ export interface Me {
   isVerified: boolean
   totpEnabled: boolean
   createdAt: number
+  usernameChangedAt: number | null
 }
 
 export function getMe(token: string) {
   return call<Me>('/api/me', token)
+}
+
+export function changeUsername(username: string, token: string) {
+  return call<{ username: string; usernameChangedAt: number }>('/api/me/username', token, {
+    method: 'PATCH',
+    body: JSON.stringify({ username }),
+  })
 }
 
 export function getProfile(username: string, token?: string) {

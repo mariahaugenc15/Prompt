@@ -5,6 +5,7 @@ import { canFollow, type PromptPermission } from './permissions.js'
 import { getAccountByUsername, getFollowers, getFollowing, listAccounts, publicProfile, searchAccounts, suggestedAccounts } from './accountsRepo.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
 import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
+import { normalizeUsername, validateUsernameFormat } from '../shared/signupValidation.js'
 
 function parsePaging(req: Request, defaultLimit: number, maxLimit: number) {
   const limit = Math.min(Math.max(Number(req.query.limit) || defaultLimit, 1), maxLimit)
@@ -31,7 +32,54 @@ socialRouter.get('/api/me', requireAuth, (req, res) => {
     isVerified: actor.isVerified,
     totpEnabled: actor.totpEnabled,
     createdAt: actor.createdAt,
+    usernameChangedAt: actor.usernameChangedAt,
   })
+})
+
+// Configurable so a cooldown that turns out too strict (or too loose) in
+// practice is an env var change, not a code change.
+const USERNAME_CHANGE_COOLDOWN_MS = Number(process.env.USERNAME_CHANGE_COOLDOWN_DAYS ?? 30) * 24 * 60 * 60 * 1000
+
+const findUsernameOwner = db.prepare('SELECT id FROM accounts WHERE username_normalized = ? AND is_deleted = 0')
+const getUsernameChangedAt = db.prepare('SELECT username_changed_at FROM accounts WHERE id = ?')
+const updateUsername = db.prepare('UPDATE accounts SET username = ?, username_normalized = ?, username_changed_at = ? WHERE id = ?')
+
+// Every other table references accounts by UUID (prompts, boards,
+// completions, follows, invites all key off account id, never username —
+// see server/db.ts), so a rename here never orphans anything; the places
+// that show "@username" (Send a prompt, board "Made by @username", invite
+// links) all resolve the current username through that id at read time.
+socialRouter.patch('/api/me/username', requireAuth, (req, res) => {
+  const actor = req.account!
+  const raw = typeof req.body?.username === 'string' ? req.body.username.trim() : ''
+
+  const formatError = validateUsernameFormat(raw)
+  if (formatError) return res.status(422).json({ errors: { username: formatError } })
+
+  if (raw === actor.username) {
+    return res.status(422).json({ errors: { username: 'That is already your username.' } })
+  }
+
+  const normalized = normalizeUsername(raw)
+  const existing = findUsernameOwner.get(normalized) as { id: string } | undefined
+  if (existing && existing.id !== actor.id) {
+    return res.status(422).json({ errors: { username: 'That username is already taken.' } })
+  }
+
+  const row = getUsernameChangedAt.get(actor.id) as { username_changed_at: number | null } | undefined
+  if (row?.username_changed_at) {
+    const elapsed = Date.now() - row.username_changed_at
+    if (elapsed < USERNAME_CHANGE_COOLDOWN_MS) {
+      const daysLeft = Math.ceil((USERNAME_CHANGE_COOLDOWN_MS - elapsed) / (24 * 60 * 60 * 1000))
+      return res.status(429).json({
+        errors: { form: `You can change your username again in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}.` },
+      })
+    }
+  }
+
+  const changedAt = Date.now()
+  updateUsername.run(raw, normalized, changedAt, actor.id)
+  res.json({ username: raw, usernameChangedAt: changedAt })
 })
 
 const setAvatarPath = db.prepare('UPDATE accounts SET avatar_path = ? WHERE id = ?')

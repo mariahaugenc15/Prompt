@@ -2,12 +2,9 @@ import clsx from 'clsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { CompletionView } from '../lib/calendarsApi'
 import { CATEGORY_ICON } from './Icons'
+import { useTodayKey } from '../lib/useTodayKey'
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
 function buildMonthCells(year: number, month: number): (Date | null)[] {
   const first = new Date(year, month, 1)
@@ -42,7 +39,7 @@ export function CalendarGrid({
   compact?: boolean
 }) {
   const cells = buildMonthCells(year, month)
-  const today = todayKey()
+  const today = useTodayKey()
   const byDay = new Map<string, CompletionView[]>()
   for (const c of completions) {
     const list = byDay.get(c.dayKey) ?? []
@@ -75,7 +72,11 @@ export function CalendarGrid({
                 cover && !coverPhoto && 'border-line bg-card',
                 !cover && 'border-line/60 bg-paper-dim/40',
                 coverPhoto && 'border-line',
-                isToday && 'ring-1 ring-accent ring-offset-1 ring-offset-paper',
+                // Distinct from the "has completions" cover-photo/icon
+                // state above (both can be true on the same day) — a
+                // terra-cotta outline plus a soft matching drop shadow,
+                // not just a thin ring.
+                isToday && 'ring-2 ring-accent ring-offset-1 ring-offset-paper shadow-today',
                 onDayClick && 'hover:border-line-strong',
               )}
             >

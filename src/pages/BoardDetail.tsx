@@ -4,9 +4,11 @@ import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import type { Category } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
-import { CATEGORY_ICON, LockIcon, PinIcon, UpvoteIcon } from '../components/Icons'
+import { CATEGORY_ICON, LockIcon, PinIcon } from '../components/Icons'
 import { AudioProofPlayer } from '../components/AudioProofPlayer'
-import { reactToCompletion } from '../lib/calendarsApi'
+import { ReactionBar } from '../components/ReactionBar'
+import { CompletionDetailModal } from '../components/CompletionDetailModal'
+import { reactToCompletion, type ReactionKind } from '../lib/calendarsApi'
 import {
   getBoard,
   getBoardChallenges,
@@ -126,7 +128,7 @@ export function BoardDetail() {
     }
   }
 
-  async function handleReact(completionId: string, kind: 'upvote' | 'pin') {
+  async function handleReact(completionId: string, kind: ReactionKind | 'pin') {
     if (!account) return
     const res = await reactToCompletion(completionId, kind, account.token)
     if (!res.ok) return
@@ -249,6 +251,7 @@ export function BoardDetail() {
                   key={completion.id}
                   category={challenge.category}
                   challengeText={challenge.text}
+                  boardName={board.name}
                   completion={completion}
                   onReact={(kind) => handleReact(completion.id, kind)}
                 />
@@ -264,46 +267,87 @@ export function BoardDetail() {
 function ChallengeCompletionCard({
   category,
   challengeText,
+  boardName,
   completion,
   onReact,
 }: {
   category: Category
   challengeText: string
+  boardName: string
   completion: BoardChallenge['completions'][number]
-  onReact: (kind: 'upvote' | 'pin') => void
+  onReact: (kind: ReactionKind | 'pin') => void
 }) {
+  const account = useStore((s) => s.account)
   const caption = completion.userCaption ?? completion.autoCaption ?? challengeText
+  const isMine = completion.completerUsername === account?.username
+  const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="mb-3 break-inside-avoid rounded-sm border border-line bg-card p-3 shadow-card">
-      {completion.mediaDataUrl && completion.mediaType === 'photo' && (
-        <img src={completion.mediaDataUrl} alt="" className="mb-2 w-full rounded-sm object-cover" />
-      )}
-      {completion.mediaDataUrl && completion.mediaType === 'video' && (
-        <video src={completion.mediaDataUrl} controls playsInline className="mb-2 w-full rounded-sm bg-ink" />
-      )}
-      {completion.mediaDataUrl && completion.mediaType === 'audio' && <AudioProofPlayer src={completion.mediaDataUrl} />}
-      <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-ink-faint">
-        <CATEGORY_ICON category={category} size={11} />
-        {CATEGORY_META[category].label}
-      </p>
-      <p className="mt-1 text-sm leading-snug text-ink">{caption}</p>
-      <p className="mt-1.5 text-[11px] text-ink-faint">@{completion.completerUsername}</p>
+    <>
+      <div
+        onClick={() => setExpanded(true)}
+        className="mb-3 break-inside-avoid cursor-pointer rounded-sm border border-line bg-card p-3 shadow-card"
+      >
+        {completion.mediaDataUrl && completion.mediaType === 'photo' && (
+          <img src={completion.mediaDataUrl} alt="" className="mb-2 w-full rounded-sm object-cover" />
+        )}
+        {completion.mediaDataUrl && completion.mediaType === 'video' && (
+          <video src={completion.mediaDataUrl} controls playsInline onClick={(e) => e.stopPropagation()} className="mb-2 w-full rounded-sm bg-ink" />
+        )}
+        {completion.mediaDataUrl && completion.mediaType === 'audio' && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <AudioProofPlayer src={completion.mediaDataUrl} />
+          </div>
+        )}
+        <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-ink-faint">
+          <CATEGORY_ICON category={category} size={11} />
+          {CATEGORY_META[category].label}
+        </p>
+        <p className="mt-1 text-sm leading-snug text-ink">{caption}</p>
+        <p className="mt-1.5 text-[11px] text-ink-faint">@{completion.completerUsername}</p>
 
-      <div className="mt-2 flex gap-3 border-t border-line pt-2">
-        <button
-          onClick={() => onReact('upvote')}
-          className={clsx('flex items-center gap-1 text-xs', completion.upvotedByMe ? 'text-accent' : 'text-ink-faint')}
-        >
-          <UpvoteIcon size={14} /> {completion.upvotes}
-        </button>
-        <button
-          onClick={() => onReact('pin')}
-          className={clsx('flex items-center gap-1 text-xs', completion.pinnedByMe ? 'text-accent' : 'text-ink-faint')}
-        >
-          <PinIcon size={14} /> {completion.pinnedByMe ? 'Pinned' : 'Pin'}
-        </button>
+        <div className="mt-2 flex items-center gap-3 border-t border-line pt-2" onClick={(e) => e.stopPropagation()}>
+          <ReactionBar
+            likes={completion.likes}
+            dislikes={completion.dislikes}
+            laughs={completion.laughs}
+            myReaction={completion.myReaction}
+            onReact={onReact}
+          />
+          <button
+            onClick={() => onReact('pin')}
+            className={clsx('flex items-center gap-1 text-xs', completion.pinnedByMe ? 'text-accent' : 'text-ink-faint')}
+          >
+            <PinIcon size={14} /> {completion.pinnedByMe ? 'Pinned' : 'Pin'}
+          </button>
+        </div>
       </div>
-    </div>
+
+      {expanded && (
+        <CompletionDetailModal
+          completion={{
+            id: completion.id,
+            category,
+            text: challengeText,
+            userCaption: completion.userCaption,
+            mediaType: completion.mediaType,
+            mediaDataUrl: completion.mediaDataUrl,
+            completerDisplayName: completion.completerUsername,
+            boardName,
+            isSelfSent: false,
+            likes: completion.likes,
+            dislikes: completion.dislikes,
+            laughs: completion.laughs,
+            pins: completion.pins,
+            myReaction: completion.myReaction,
+            pinnedByMe: completion.pinnedByMe,
+          }}
+          isMine={isMine}
+          token={account?.token}
+          onReact={onReact}
+          onClose={() => setExpanded(false)}
+        />
+      )}
+    </>
   )
 }

@@ -23,6 +23,7 @@ import {
   setCalendarVisibility,
   tagCompletion,
   type CompletionView,
+  type ReactionKind,
   type RealCalendar,
 } from '../lib/calendarsApi'
 
@@ -71,7 +72,7 @@ export function CalendarDetail() {
     if (res.ok) refresh()
   }
 
-  async function handleReact(completionId: string, kind: 'upvote' | 'pin') {
+  async function handleReact(completionId: string, kind: ReactionKind | 'pin') {
     if (!account) return
     const res = await reactToCompletion(completionId, kind, account.token)
     if (res.ok) setFeed((prev) => prev.map((c) => (c.id === completionId ? { ...c, ...res.data } : c)))

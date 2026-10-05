@@ -2,6 +2,7 @@ import { Router } from 'express'
 import crypto from 'node:crypto'
 import { requireAuth, resolveOptionalAccountId } from './auth.js'
 import { addComment, getCommentById, listComments, removeComment } from './commentsRepo.js'
+import { canViewCompletion } from './completionsRepo.js'
 import { notifyAccount } from './pushRepo.js'
 import { db } from './db.js'
 
@@ -11,6 +12,9 @@ const MAX_COMMENT_LENGTH = 500
 
 commentsRouter.get('/api/completions/:id/comments', (req, res) => {
   const viewerId = resolveOptionalAccountId(req)
+  if (!canViewCompletion(String(req.params.id), viewerId)) {
+    return res.status(404).json({ errors: { form: 'Not found.' } })
+  }
   res.json(listComments(String(req.params.id), viewerId))
 })
 
@@ -27,6 +31,9 @@ const completerOfBroadcast = db.prepare(`
 commentsRouter.post('/api/completions/:id/comments', requireAuth, (req, res) => {
   const me = req.account!
   const completionId = String(req.params.id)
+  if (!canViewCompletion(completionId, me.id)) {
+    return res.status(404).json({ errors: { form: 'Not found.' } })
+  }
   const text = typeof req.body?.text === 'string' ? req.body.text.trim() : ''
   if (!text) return res.status(422).json({ errors: { text: 'Comment cannot be empty.' } })
   if (text.length > MAX_COMMENT_LENGTH) {

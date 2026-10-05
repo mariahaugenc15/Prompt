@@ -244,15 +244,43 @@ db.exec(`
 `)
 
 // Reactions on a completion (same dual completion-id space as above).
+// v2 replaced the single "upvote" with three mutually-exclusive reactions
+// (like/dislike/laugh) plus the existing independent "pin" — see
+// reactionsRepo.ts. SQLite can't ALTER a CHECK constraint in place, so an
+// install still carrying the old ('upvote', 'pin') constraint gets its
+// table rebuilt below, with every existing "upvote" row carried over as
+// "like" (a straight rename — the two were never both present together on
+// the same row, so this can't collide) rather than losing those counts.
 db.exec(`
   CREATE TABLE IF NOT EXISTS completion_reactions (
     completion_id TEXT NOT NULL,
     account_id TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('upvote', 'pin')),
+    kind TEXT NOT NULL CHECK (kind IN ('like', 'dislike', 'laugh', 'pin')),
     created_at INTEGER NOT NULL,
     PRIMARY KEY (completion_id, account_id, kind)
   );
 `)
+const reactionsTableSql = (
+  db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'completion_reactions'`).get() as
+    | { sql: string }
+    | undefined
+)?.sql
+if (reactionsTableSql?.includes("'upvote'")) {
+  db.exec(`
+    ALTER TABLE completion_reactions RENAME TO completion_reactions_old;
+    CREATE TABLE completion_reactions (
+      completion_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('like', 'dislike', 'laugh', 'pin')),
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (completion_id, account_id, kind)
+    );
+    INSERT INTO completion_reactions (completion_id, account_id, kind, created_at)
+      SELECT completion_id, account_id, CASE kind WHEN 'upvote' THEN 'like' ELSE kind END, created_at
+      FROM completion_reactions_old;
+    DROP TABLE completion_reactions_old;
+  `)
+}
 
 // Blocking: a one-directional relationship. Blocking someone also breaks any
 // existing follow in either direction (enforced in blocksRepo.ts) so a

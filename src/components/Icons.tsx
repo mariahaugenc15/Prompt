@@ -86,11 +86,32 @@ export function CheckIcon(props: IconProps) {
   )
 }
 
-export function UpvoteIcon(props: IconProps) {
+export function LikeIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <path d="M12 19V6" />
-      <path d="M5.5 12 12 5.5 18.5 12" />
+      <path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3Z" />
+      <path d="M7 11l3.5-7a2 2 0 0 1 2 2.2L11.8 10H18a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H9a2 2 0 0 1-2-2v-7Z" />
+    </svg>
+  )
+}
+
+export function DislikeIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <g transform="scale(1,-1) translate(0,-24)">
+        <path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3Z" />
+        <path d="M7 11l3.5-7a2 2 0 0 1 2 2.2L11.8 10H18a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H9a2 2 0 0 1-2-2v-7Z" />
+      </g>
+    </svg>
+  )
+}
+
+export function LaughIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8.5 10.5h.01M15.5 10.5h.01" strokeWidth={2.5} />
+      <path d="M7.5 14a4.5 4.5 0 0 0 9 0" />
     </svg>
   )
 }

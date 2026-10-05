@@ -36,9 +36,11 @@ export interface BoardChallenge {
     mediaDataUrl: string
     createdAt: number
     completerUsername: string
-    upvotes: number
+    likes: number
+    dislikes: number
+    laughs: number
     pins: number
-    upvotedByMe: boolean
+    myReaction: 'like' | 'dislike' | 'laugh' | null
     pinnedByMe: boolean
   }[]
 }

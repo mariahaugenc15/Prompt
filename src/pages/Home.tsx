@@ -21,7 +21,7 @@ import {
   type ActiveBroadcastItem,
   type OneToOneHistoryItem,
 } from '../lib/realAccountsApi'
-import { reactToCompletion, tagCompletion, getMyCalendars, type CompletionView, type RealCalendar } from '../lib/calendarsApi'
+import { reactToCompletion, tagCompletion, getMyCalendars, type CompletionView, type ReactionKind, type RealCalendar } from '../lib/calendarsApi'
 import { getMyActivity, getFollowingFeed, getCommunityFeed } from '../lib/feedApi'
 import { getMyBoards, type RealBoard } from '../lib/boardsApi'
 import { monthCursorFromTimestamp } from '../lib/monthCursor'
@@ -108,7 +108,7 @@ export function Home() {
     })
   }, [account])
 
-  async function handleFeedReact(list: 'following' | 'boards', completionId: string, kind: 'upvote' | 'pin') {
+  async function handleFeedReact(list: 'following' | 'boards', completionId: string, kind: ReactionKind | 'pin') {
     if (!account) return
     const res = await reactToCompletion(completionId, kind, account.token)
     if (!res.ok) return
@@ -299,7 +299,7 @@ export function Home() {
   // Nothing to show before the account's own creation month.
   const oldestCursor = accountCreatedAt !== null ? monthCursorFromTimestamp(accountCreatedAt) : null
 
-  async function handleReact(completionId: string, kind: 'upvote' | 'pin') {
+  async function handleReact(completionId: string, kind: ReactionKind | 'pin') {
     if (!account) return
     const res = await reactToCompletion(completionId, kind, account.token)
     if (res.ok) {
@@ -423,7 +423,13 @@ export function Home() {
           <>
             <div className="columns-2 gap-3">
               {(feedTab === 'following' ? followingFeed : communityFeed).map((c) => (
-                <CompletionFeedCard key={c.id} completion={c} token={account?.token} onReact={(kind) => handleFeedReact(feedTab, c.id, kind)} />
+                <CompletionFeedCard
+                  key={c.id}
+                  completion={c}
+                  isMine={c.completerUsername === account?.username}
+                  token={account?.token}
+                  onReact={(kind) => handleFeedReact(feedTab, c.id, kind)}
+                />
               ))}
             </div>
             {(feedTab === 'following' ? followingHasMore : communityHasMore) && (

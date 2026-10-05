@@ -2,6 +2,7 @@ import { db } from './db.js'
 import { reactionCounts } from './reactionsRepo.js'
 import { calendarsForCompletion } from './calendarsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
+import { getBoardById, isSubscribed } from './boardsRepo.js'
 
 export interface CompletionView {
   id: string
@@ -21,9 +22,11 @@ export interface CompletionView {
   boardId?: string
   boardName?: string
   isSelfSent: boolean
-  upvotes: number
+  likes: number
+  dislikes: number
+  laughs: number
   pins: number
-  upvotedByMe: boolean
+  myReaction: 'like' | 'dislike' | 'laugh' | null
   pinnedByMe: boolean
   calendarIds: string[]
   calendarNames: string[]
@@ -270,4 +273,36 @@ export function ownedCompletion(completionId: string, accountId: string): { kind
   const broadcast = db.prepare('SELECT 1 FROM prompt_completions WHERE id = ? AND completer_account_id = ?').get(completionId, accountId)
   if (broadcast) return { kind: 'broadcast' }
   return undefined
+}
+
+const oneToOneAccessStmt = db.prepare('SELECT sender_account_id, recipient_account_id FROM prompts WHERE id = ? AND is_broadcast = 0')
+const broadcastAccessStmt = db.prepare(`
+  SELECT p.sender_account_id AS senderAccountId, c.completer_account_id AS completerAccountId, p.board_id AS boardId
+  FROM prompt_completions c JOIN prompts p ON p.id = c.prompt_id
+  WHERE c.id = ?
+`)
+
+// Reactions and comments both hang off a completion id with no visibility
+// check of their own — this is what "respect existing visibility rules"
+// (comments/reactions on someone else's content, Phase 3.1) resolves to in
+// terms of the actual schema: a 1:1 completion is private to the two
+// people it was between, a board-backed completion follows that board's
+// own public/invite visibility, and a plain org-to-followers broadcast
+// (no board) has always been openly readable (see the unauthenticated
+// GET /api/organizations/:username/broadcasts), so it stays that way here.
+export function canViewCompletion(completionId: string, viewerId?: string): boolean {
+  const oneToOne = oneToOneAccessStmt.get(completionId) as { sender_account_id: string; recipient_account_id: string | null } | undefined
+  if (oneToOne) {
+    return viewerId === oneToOne.sender_account_id || viewerId === oneToOne.recipient_account_id
+  }
+
+  const broadcast = broadcastAccessStmt.get(completionId) as
+    | { senderAccountId: string; completerAccountId: string; boardId: string | null }
+    | undefined
+  if (!broadcast) return false
+  if (!broadcast.boardId) return true
+
+  const board = getBoardById(broadcast.boardId)
+  if (!board || board.visibility === 'public') return true
+  return Boolean(viewerId) && (viewerId === board.owner_account_id || isSubscribed(broadcast.boardId, viewerId!))
 }

@@ -9,6 +9,7 @@ import { reactionCounts, toggleReaction } from './reactionsRepo.js'
 import { notifyAccount } from './pushRepo.js'
 import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
+import { canViewCompletion } from './completionsRepo.js'
 
 export const promptRouter = Router()
 
@@ -345,18 +346,25 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   })
 })
 
-// --- Reactions (upvote/pin) on a completion -------------------------------
+// --- Reactions (like/dislike/laugh, plus the independent pin) on a
+// completion ----------------------------------------------------------------
 // completionId is either a completed prompts.id (1:1) or a
 // prompt_completions.id (broadcast) — the reactions table doesn't care which.
+
+const REACT_KINDS = ['like', 'dislike', 'laugh', 'pin'] as const
 
 promptRouter.post('/api/completions/:id/react', requireAuth, (req, res) => {
   const me = req.account!
   const kind = String(req.body?.kind ?? '')
-  if (kind !== 'upvote' && kind !== 'pin') {
-    return res.status(422).json({ errors: { kind: 'kind must be "upvote" or "pin".' } })
+  if (!REACT_KINDS.includes(kind as (typeof REACT_KINDS)[number])) {
+    return res.status(422).json({ errors: { kind: `kind must be one of: ${REACT_KINDS.join(', ')}.` } })
   }
-  toggleReaction(String(req.params.id), me.id, kind)
-  res.json(reactionCounts(String(req.params.id), me.id))
+  const completionId = String(req.params.id)
+  if (!canViewCompletion(completionId, me.id)) {
+    return res.status(404).json({ errors: { form: 'Not found.' } })
+  }
+  toggleReaction(completionId, me.id, kind as (typeof REACT_KINDS)[number])
+  res.json(reactionCounts(completionId, me.id))
 })
 
 // --- Organization broadcast gallery ---------------------------------------

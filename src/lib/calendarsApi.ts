@@ -33,13 +33,17 @@ export interface CompletionView {
   boardId?: string
   boardName?: string
   isSelfSent: boolean
-  upvotes: number
+  likes: number
+  dislikes: number
+  laughs: number
   pins: number
-  upvotedByMe: boolean
+  myReaction: ReactionKind | null
   pinnedByMe: boolean
   calendarIds: string[]
   calendarNames: string[]
 }
+
+export type ReactionKind = 'like' | 'dislike' | 'laugh'
 
 type ApiResult<T> = { ok: true; data: T } | { ok: false; errors: Record<string, string> }
 
@@ -99,8 +103,8 @@ export function tagCompletion(completionId: string, calendarIds: string[], token
   })
 }
 
-export function reactToCompletion(completionId: string, kind: 'upvote' | 'pin', token: string) {
-  return call<{ upvotes: number; pins: number; upvotedByMe: boolean; pinnedByMe: boolean }>(
+export function reactToCompletion(completionId: string, kind: ReactionKind | 'pin', token: string) {
+  return call<{ likes: number; dislikes: number; laughs: number; pins: number; myReaction: ReactionKind | null; pinnedByMe: boolean }>(
     `/api/completions/${encodeURIComponent(completionId)}/react`,
     token,
     { method: 'POST', body: JSON.stringify({ kind }) },

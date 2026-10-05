@@ -32,7 +32,7 @@ import {
   type PublicProfile,
 } from '../lib/realAccountsApi'
 import { getPublicActivity } from '../lib/feedApi'
-import { getMyCalendars, reactToCompletion, tagCompletion, type CompletionView, type RealCalendar } from '../lib/calendarsApi'
+import { getMyCalendars, reactToCompletion, tagCompletion, type CompletionView, type ReactionKind, type RealCalendar } from '../lib/calendarsApi'
 
 export function OrgPage() {
   const { username = '' } = useParams()
@@ -84,7 +84,7 @@ export function OrgPage() {
     getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
   }, [account?.token])
 
-  async function handleReact(completionId: string, kind: 'upvote' | 'pin') {
+  async function handleReact(completionId: string, kind: ReactionKind | 'pin') {
     if (!account) return
     const res = await reactToCompletion(completionId, kind, account.token)
     if (res.ok) setActivity((prev) => prev.map((c) => (c.id === completionId ? { ...c, ...res.data } : c)))

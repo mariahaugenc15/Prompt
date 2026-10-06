@@ -1,5 +1,6 @@
+import crypto from 'node:crypto'
 import { db } from './db.js'
-import { deactivateAccount } from './accountsRepo.js'
+import { deactivateAccount, permanentlyDeleteAccount } from './accountsRepo.js'
 
 // Admin-facing account view — includes fields the normal-user
 // accountsRepo.ts queries deliberately leave out (is_admin, is_deleted,
@@ -114,6 +115,13 @@ export function adminAllAccounts(accountType?: string): AdminAccountRow[] {
 // same as if the person had deleted their own account.
 export function adminBanAccount(id: string): void {
   deactivateAccount(id)
+}
+
+// Permanent delete — see accountsRepo.ts's permanentlyDeleteAccount for
+// exactly what this does and doesn't remove. Separate and irreversible,
+// unlike Ban above.
+export function adminDeleteAccount(id: string): void {
+  permanentlyDeleteAccount(id)
 }
 
 // --- Reports -----------------------------------------------------------
@@ -304,4 +312,129 @@ export function adminUsageStats(): UsageStats {
     dailyActiveUsersToday: (dailyActiveUsersTodayStmt.get() as { n: number }).n,
     avgDailyActiveUsers30d: (avgDailyActiveUsers30dStmt.get() as { avg: number | null }).avg ?? 0,
   }
+}
+
+// --- Audit log -------------------------------------------------------------
+// One row per sensitive admin action (permanent delete, email export,
+// broadcast send/test) — who, whom (if applicable), when, and a short
+// human-readable detail string. Independent of every other table so it
+// outlives even a permanently-deleted target account.
+
+export interface AuditLogRow {
+  id: string
+  admin_account_id: string
+  action: string
+  target_account_id: string | null
+  details: string | null
+  created_at: number
+  admin_username: string | null
+  target_username: string | null
+}
+
+const insertAuditLog = db.prepare(`
+  INSERT INTO admin_audit_log (id, admin_account_id, action, target_account_id, details, created_at)
+  VALUES (@id, @adminAccountId, @action, @targetAccountId, @details, @createdAt)
+`)
+
+export function recordAuditLog(input: { adminAccountId: string; action: string; targetAccountId?: string; details?: string }): void {
+  insertAuditLog.run({
+    id: crypto.randomUUID(),
+    adminAccountId: input.adminAccountId,
+    action: input.action,
+    targetAccountId: input.targetAccountId ?? null,
+    details: input.details ?? null,
+    createdAt: Date.now(),
+  })
+}
+
+const listAuditLogStmt = db.prepare(`
+  SELECT l.*, admin.username AS admin_username, target.username AS target_username
+  FROM admin_audit_log l
+  LEFT JOIN accounts admin ON admin.id = l.admin_account_id
+  LEFT JOIN accounts target ON target.id = l.target_account_id
+  ORDER BY l.created_at DESC
+  LIMIT ? OFFSET ?
+`)
+
+export function listAuditLog(limit: number, offset = 0): AuditLogRow[] {
+  return listAuditLogStmt.all(limit, offset) as AuditLogRow[]
+}
+
+// --- Broadcast email (admin "contact all users") ---------------------------
+
+const getUnsubTokenStmt = db.prepare('SELECT broadcast_unsub_token FROM accounts WHERE id = ?')
+const setUnsubTokenStmt = db.prepare('UPDATE accounts SET broadcast_unsub_token = ? WHERE id = ?')
+
+// Generated lazily (on first broadcast) rather than at signup, so the
+// column stays empty for every account until it's actually needed.
+export function ensureBroadcastUnsubToken(accountId: string): string {
+  const existing = (getUnsubTokenStmt.get(accountId) as { broadcast_unsub_token: string | null } | undefined)
+    ?.broadcast_unsub_token
+  if (existing) return existing
+  const token = crypto.randomBytes(24).toString('hex')
+  setUnsubTokenStmt.run(token, accountId)
+  return token
+}
+
+const findByUnsubTokenStmt = db.prepare('SELECT id FROM accounts WHERE broadcast_unsub_token = ?')
+const setUnsubscribedStmt = db.prepare('UPDATE accounts SET broadcast_unsubscribed = 1 WHERE id = ?')
+
+// Returns the account id unsubscribed, or undefined for an unknown/already-
+// consumed token — the route treats either the same way (a quiet no-op
+// success page, never an error that would leak whether a token was valid).
+export function unsubscribeByToken(token: string): string | undefined {
+  const row = findByUnsubTokenStmt.get(token) as { id: string } | undefined
+  if (!row) return undefined
+  setUnsubscribedStmt.run(row.id)
+  return row.id
+}
+
+export interface BroadcastRecipient {
+  id: string
+  email: string
+  username: string
+}
+
+// Every non-deleted, non-unsubscribed account — "contact all users" per the
+// brief. Notification preferences (notify_*, Phase 4) govern push/in-app
+// notifications, a different channel, so they're not consulted here;
+// broadcast_unsubscribed is this channel's own opt-out.
+const listRecipientsStmt = db.prepare(`
+  SELECT id, email, username FROM accounts WHERE is_deleted = 0 AND broadcast_unsubscribed = 0
+`)
+
+export function listBroadcastRecipients(): BroadcastRecipient[] {
+  return listRecipientsStmt.all() as BroadcastRecipient[]
+}
+
+export interface BroadcastEmailRow {
+  id: string
+  sent_by: string
+  subject: string
+  body: string
+  recipient_count: number
+  created_at: number
+  sent_by_username: string | null
+}
+
+const insertBroadcastEmail = db.prepare(`
+  INSERT INTO broadcast_emails (id, sent_by, subject, body, recipient_count, created_at)
+  VALUES (@id, @sentBy, @subject, @body, @recipientCount, @createdAt)
+`)
+
+export function recordBroadcastEmail(input: { sentBy: string; subject: string; body: string; recipientCount: number }): string {
+  const id = crypto.randomUUID()
+  insertBroadcastEmail.run({ id, ...input, createdAt: Date.now() })
+  return id
+}
+
+const listBroadcastEmailsStmt = db.prepare(`
+  SELECT b.*, a.username AS sent_by_username
+  FROM broadcast_emails b LEFT JOIN accounts a ON a.id = b.sent_by
+  ORDER BY b.created_at DESC
+  LIMIT ? OFFSET ?
+`)
+
+export function listBroadcastEmails(limit: number, offset = 0): BroadcastEmailRow[] {
+  return listBroadcastEmailsStmt.all(limit, offset) as BroadcastEmailRow[]
 }

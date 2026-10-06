@@ -519,3 +519,45 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_notifications_account ON notifications(account_id, created_at DESC);
 `)
+
+// Admin audit log (v2, Phase 6) — one row per sensitive admin action
+// (permanent delete, email export, broadcast send), independent of any
+// other table so it survives even a permanently-deleted target account.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id TEXT PRIMARY KEY,
+    admin_account_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_account_id TEXT,
+    details TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
+`)
+
+// A record of each "contact all users" broadcast email (v2, Phase 6) — not
+// a queue, just a log: the send itself happens in the same request,
+// batched and rate-limited (adminRoutes.ts), and this is what the admin
+// panel's Broadcast history shows afterward.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS broadcast_emails (
+    id TEXT PRIMARY KEY,
+    sent_by TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    recipient_count INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_broadcast_emails_created ON broadcast_emails(created_at DESC);
+`)
+
+// Lets a recipient unsubscribe from future "contact all users" broadcasts
+// without needing to sign in — the link in the email just carries this
+// token (lazily generated the first time it's needed, see adminRepo.ts).
+// Separate from notify_* (push/in-app notification prefs, Phase 4), which
+// govern a different channel entirely.
+if (!accountColumns.has('broadcast_unsubscribed')) {
+  db.exec(`ALTER TABLE accounts ADD COLUMN broadcast_unsubscribed INTEGER NOT NULL DEFAULT 0`)
+  db.exec(`ALTER TABLE accounts ADD COLUMN broadcast_unsub_token TEXT`)
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_broadcast_unsub_token ON accounts(broadcast_unsub_token)`)
+}

@@ -1,6 +1,7 @@
 import { db } from './db.js'
 import type { AccountType, PromptPermission } from './permissions.js'
 import { blockedEitherWayIds, isBlockedByViewer } from './blocksRepo.js'
+import { deleteMediaFileByUrl } from './mediaStore.js'
 
 export interface AccountRow {
   id: string
@@ -225,4 +226,53 @@ export function hasOptedOutOfTopFans(accountId: string): boolean {
 
 export function setTopFansOptOut(accountId: string, optOut: boolean): void {
   setTopFansOptOutStmt.run(optOut ? 1 : 0, accountId)
+}
+
+const getAvatarPathStmt = db.prepare('SELECT avatar_path FROM accounts WHERE id = ?')
+const clearSecurityFieldsStmt = db.prepare(`
+  UPDATE accounts
+  SET totp_secret = NULL, totp_enabled = 0, totp_backup_codes = NULL, reset_token = NULL, reset_token_expires = NULL
+  WHERE id = ?
+`)
+
+const deleteFollowsStmt = db.prepare('DELETE FROM follows WHERE follower_account_id = ? OR followee_account_id = ?')
+const deleteBlocksStmt = db.prepare('DELETE FROM blocks WHERE blocker_account_id = ? OR blocked_account_id = ?')
+const deleteReactionsStmt = db.prepare('DELETE FROM completion_reactions WHERE account_id = ?')
+const deleteBoardSubsStmt = db.prepare('DELETE FROM board_subscribers WHERE account_id = ?')
+const deleteCalendarMembersStmt = db.prepare('DELETE FROM calendar_members WHERE account_id = ?')
+const deleteActivityDaysStmt = db.prepare('DELETE FROM activity_days WHERE account_id = ?')
+const deletePushSubsStmt = db.prepare('DELETE FROM push_subscriptions WHERE account_id = ?')
+const deleteNotificationsStmt = db.prepare('DELETE FROM notifications WHERE account_id = ?')
+const deletePendingLoginsStmt = db.prepare('DELETE FROM pending_logins WHERE account_id = ?')
+const deleteVerificationRequestsStmt = db.prepare('DELETE FROM verification_requests WHERE account_id = ?')
+const removeOwnCommentsStmt = db.prepare(
+  `UPDATE completion_comments SET is_removed = 1 WHERE account_id = ? AND is_removed = 0`,
+)
+
+// Permanent delete (v2, Phase 6) — admin-only, irreversible, distinct from
+// Ban (accountsRepo.ts's deactivateAccount, which only anonymizes identity
+// and locks login). This does that same anonymization, then additionally:
+// deletes the account's own avatar file from disk, hard-deletes every row
+// that's purely about them (relationships, memberships, sessions, device
+// subscriptions, their own settings/requests — nothing else references
+// these, unlike prompts/completions/board or calendar ownership, which
+// involve other people and are deliberately left alone so their history
+// and aggregate counts stay intact under the anonymized identity), and
+// removes (not just anonymizes) their own comments.
+export function permanentlyDeleteAccount(accountId: string): void {
+  const avatarPath = (getAvatarPathStmt.get(accountId) as { avatar_path: string | null } | undefined)?.avatar_path
+  deactivateAccount(accountId)
+  clearSecurityFieldsStmt.run(accountId)
+  deleteFollowsStmt.run(accountId, accountId)
+  deleteBlocksStmt.run(accountId, accountId)
+  deleteReactionsStmt.run(accountId)
+  deleteBoardSubsStmt.run(accountId)
+  deleteCalendarMembersStmt.run(accountId)
+  deleteActivityDaysStmt.run(accountId)
+  deletePushSubsStmt.run(accountId)
+  deleteNotificationsStmt.run(accountId)
+  deletePendingLoginsStmt.run(accountId)
+  deleteVerificationRequestsStmt.run(accountId)
+  removeOwnCommentsStmt.run(accountId)
+  if (avatarPath) deleteMediaFileByUrl(avatarPath)
 }

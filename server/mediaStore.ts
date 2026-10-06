@@ -66,3 +66,18 @@ export function saveDataUrlAsFile(dataUrl: string | undefined, baseUrl: string):
   fs.writeFileSync(path.join(mediaDir, filename), Buffer.from(base64, 'base64'))
   return `${baseUrl}/media/${filename}`
 }
+
+// Best-effort delete of a file this module saved, given its public URL —
+// used when permanently removing a user's own media (their avatar) rather
+// than content shared with other people (completion proof). A URL this
+// module didn't produce (already a data: URL, or missing) is a no-op.
+export function deleteMediaFileByUrl(url: string | null | undefined): void {
+  if (!url) return
+  const filename = url.split('/media/')[1]
+  if (!filename) return
+  try {
+    fs.unlinkSync(path.join(mediaDir, filename))
+  } catch {
+    // Already gone, or never a real file on this disk — fine either way.
+  }
+}

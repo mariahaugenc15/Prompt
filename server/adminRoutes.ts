@@ -1,9 +1,12 @@
 import { Router } from 'express'
 import { requireAdmin, requireAuth } from './auth.js'
 import { removeComment } from './commentsRepo.js'
+import { sendEmail } from './emailer.js'
+import { publicBaseUrl } from './mediaStore.js'
 import {
   adminAllAccounts,
   adminBanAccount,
+  adminDeleteAccount,
   adminGetAccount,
   adminGetComment,
   adminGetReport,
@@ -17,6 +20,13 @@ import {
   adminResolveReport,
   adminSearchAccounts,
   adminUsageStats,
+  ensureBroadcastUnsubToken,
+  listAuditLog,
+  listBroadcastEmails,
+  listBroadcastRecipients,
+  recordAuditLog,
+  recordBroadcastEmail,
+  unsubscribeByToken,
   type AdminAccountRow,
 } from './adminRepo.js'
 import {
@@ -101,6 +111,7 @@ adminRouter.get('/api/admin/accounts/export.csv', (req, res) => {
       ].join(','),
     )
   }
+  recordAuditLog({ adminAccountId: req.account!.id, action: 'export_accounts_csv', details: `${rows.length} accounts${accountType ? ` (${accountType})` : ''}` })
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', 'attachment; filename="prompt-accounts.csv"')
   res.send(lines.join('\n'))
@@ -121,6 +132,27 @@ adminRouter.post('/api/admin/accounts/:id/ban', (req, res) => {
   if (!target) return res.status(404).json({ errors: { form: 'No account with that id.' } })
   if (id === req.account!.id) return res.status(422).json({ errors: { form: 'You cannot ban your own account.' } })
   adminBanAccount(id)
+  recordAuditLog({ adminAccountId: req.account!.id, action: 'ban_account', targetAccountId: id, details: `@${target.username}` })
+  res.json({ ok: true })
+})
+
+// Permanent delete — distinct from Ban above and irreversible. Requires
+// typing the target's exact current username as a deliberate confirmation
+// step (the client enforces this as a text field, but it's re-checked
+// here too since the server is the real gate, not the UI). See
+// accountsRepo.ts's permanentlyDeleteAccount for exactly what this does
+// and doesn't remove.
+adminRouter.post('/api/admin/accounts/:id/delete', (req, res) => {
+  const id = String(req.params.id)
+  const target = adminGetAccount(id)
+  if (!target) return res.status(404).json({ errors: { form: 'No account with that id.' } })
+  if (id === req.account!.id) return res.status(422).json({ errors: { form: 'You cannot delete your own account.' } })
+  const confirmUsername = typeof req.body?.confirmUsername === 'string' ? req.body.confirmUsername.trim() : ''
+  if (confirmUsername !== target.username) {
+    return res.status(422).json({ errors: { confirmUsername: 'Type the exact username to confirm.' } })
+  }
+  adminDeleteAccount(id)
+  recordAuditLog({ adminAccountId: req.account!.id, action: 'delete_account', targetAccountId: id, details: `@${target.username}` })
   res.json({ ok: true })
 })
 
@@ -213,4 +245,97 @@ adminRouter.post('/api/admin/comments/:id/remove', (req, res) => {
   if (!adminGetComment(id)) return res.status(404).json({ errors: { form: 'No comment with that id.' } })
   removeComment(id, req.account!.id)
   res.json({ ok: true })
+})
+
+// --- Audit log ---------------------------------------------------------
+
+adminRouter.get('/api/admin/audit-log', (req, res) => {
+  const { limit, offset } = pagination(req)
+  res.json(listAuditLog(limit, offset))
+})
+
+// --- Broadcast email ("contact all users") ----------------------------------
+
+function broadcastBody(req: import('express').Request): { subject: string; body: string } | { error: string } {
+  const subject = typeof req.body?.subject === 'string' ? req.body.subject.trim() : ''
+  const body = typeof req.body?.body === 'string' ? req.body.body.trim() : ''
+  if (!subject || !body) return { error: 'Subject and body are required.' }
+  return { subject, body }
+}
+
+adminRouter.post('/api/admin/broadcast/test', async (req, res) => {
+  const parsed = broadcastBody(req)
+  if ('error' in parsed) return res.status(422).json({ errors: { form: parsed.error } })
+  await sendEmail(req.account!.email, parsed.subject, parsed.body)
+  recordAuditLog({ adminAccountId: req.account!.id, action: 'broadcast_test', details: parsed.subject })
+  res.json({ ok: true })
+})
+
+const BROADCAST_BATCH_SIZE = 20
+const BROADCAST_BATCH_DELAY_MS = 2000
+
+// Fires after the response has already gone out (the admin shouldn't wait
+// on hundreds of individual sends) — batched and rate-limited so this
+// doesn't hammer the SMTP provider all at once. Each email gets its own
+// unsubscribe link, generated lazily per recipient.
+async function sendBroadcastBatched(
+  recipients: { id: string; email: string }[],
+  subject: string,
+  body: string,
+  baseUrl: string,
+): Promise<void> {
+  for (let i = 0; i < recipients.length; i += BROADCAST_BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BROADCAST_BATCH_SIZE)
+    await Promise.all(
+      batch.map((r) => {
+        const unsubUrl = `${baseUrl}/api/broadcast/unsubscribe/${ensureBroadcastUnsubToken(r.id)}`
+        return sendEmail(r.email, subject, `${body}\n\n---\nUnsubscribe from these emails: ${unsubUrl}`)
+      }),
+    )
+    if (i + BROADCAST_BATCH_SIZE < recipients.length) {
+      await new Promise((resolve) => setTimeout(resolve, BROADCAST_BATCH_DELAY_MS))
+    }
+  }
+}
+
+// The actual "confirm" gate: the admin panel UI has its own preview/confirm
+// step, but this is the real one, since the server is the actual
+// enforcement point per the app's own pattern — a crafted request still
+// needs confirm: true, not just subject/body.
+adminRouter.post('/api/admin/broadcast/send', (req, res) => {
+  const parsed = broadcastBody(req)
+  if ('error' in parsed) return res.status(422).json({ errors: { form: parsed.error } })
+  if (req.body?.confirm !== true) {
+    return res.status(422).json({ errors: { form: 'Confirmation is required to send a broadcast.' } })
+  }
+  const recipients = listBroadcastRecipients()
+  const baseUrl = publicBaseUrl(req)
+  const id = recordBroadcastEmail({ sentBy: req.account!.id, subject: parsed.subject, body: parsed.body, recipientCount: recipients.length })
+  recordAuditLog({
+    adminAccountId: req.account!.id,
+    action: 'broadcast_send',
+    details: `"${parsed.subject}" to ${recipients.length} recipients`,
+  })
+  res.json({ ok: true, id, recipientCount: recipients.length })
+  void sendBroadcastBatched(recipients, parsed.subject, parsed.body, baseUrl)
+})
+
+adminRouter.get('/api/admin/broadcast/log', (req, res) => {
+  const { limit, offset } = pagination(req)
+  res.json(listBroadcastEmails(limit, offset))
+})
+
+// Public — reached from a link in the broadcast email itself, not from
+// inside the app, so no auth. Same response whether the token is valid,
+// already used, or junk, so it never leaks which is which.
+adminRouter.get('/api/broadcast/unsubscribe/:token', (req, res) => {
+  unsubscribeByToken(String(req.params.token))
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.send(
+    '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>' +
+      '<body style="font-family:system-ui,sans-serif;max-width:420px;margin:72px auto;padding:0 20px;text-align:center;color:#211f1c;">' +
+      '<h1 style="font-size:1.3rem;">You\'re unsubscribed</h1>' +
+      '<p>You won\'t get any more of these emails. You\'ll still get the in-app and push notifications you\'ve chosen in your Prompt settings.</p>' +
+      '</body></html>',
+  )
 })

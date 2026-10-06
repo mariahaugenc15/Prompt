@@ -198,6 +198,8 @@
       <button data-tab="feedback">Feedback</button>
       <button data-tab="comments">Comments</button>
       <button data-tab="accounts">Accounts</button>
+      <button data-tab="broadcast">Broadcast</button>
+      <button data-tab="audit">Audit Log</button>
     </nav>
 
     <section id="panel-overview" class="panel active">
@@ -267,6 +269,31 @@
       </div>
       <div id="accounts-content"></div>
       <div class="pager" id="accounts-pager"></div>
+    </section>
+
+    <section id="panel-broadcast" class="panel">
+      <div class="toolbar" style="flex-direction:column; align-items:stretch; gap:10px;">
+        <input type="text" id="broadcast-subject" placeholder="Subject" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #ccc; border-radius:6px;" />
+        <textarea id="broadcast-body" placeholder="Message body (plain text)" rows="8" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #ccc; border-radius:6px; font-family:inherit;"></textarea>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="secondary" id="broadcast-test-btn">Send test to me</button>
+          <button class="danger" id="broadcast-send-btn">Send to all users</button>
+        </div>
+        <div id="broadcast-status" class="muted"></div>
+      </div>
+      <h3 style="margin-top:20px;">Preview</h3>
+      <div id="broadcast-preview" style="background:#fff; border:1px solid #ddd; border-radius:8px; padding:14px; white-space:pre-wrap;"></div>
+      <h3 style="margin-top:20px;">Past broadcasts</h3>
+      <div id="broadcast-log"></div>
+      <div class="pager" id="broadcast-pager"></div>
+    </section>
+
+    <section id="panel-audit" class="panel">
+      <div class="toolbar">
+        <button class="secondary" id="audit-refresh">Refresh</button>
+      </div>
+      <div id="audit-content"></div>
+      <div class="pager" id="audit-pager"></div>
     </section>
   </main>
 </div>
@@ -392,6 +419,8 @@
     feedback: document.getElementById('panel-feedback'),
     comments: document.getElementById('panel-comments'),
     accounts: document.getElementById('panel-accounts'),
+    broadcast: document.getElementById('panel-broadcast'),
+    audit: document.getElementById('panel-audit'),
   };
   var activeTab = 'overview';
 
@@ -411,6 +440,8 @@
     else if (activeTab === 'feedback') loadFeedback();
     else if (activeTab === 'comments') loadComments();
     else if (activeTab === 'accounts') loadAccounts();
+    else if (activeTab === 'broadcast') loadBroadcastLog();
+    else if (activeTab === 'audit') loadAuditLog();
   }
 
   function renderPager(el, offset, pageLen, onPrev, onNext) {
@@ -732,9 +763,10 @@
               + (a.is_verified ? '<span class="badge verified">verified</span> ' : '')
               + (a.totp_enabled ? '<span class="badge" style="background:#eee;color:#555">2FA</span> ' : '')
               + (a.is_deleted ? '<span class="badge deleted">deactivated</span>' : '') + '</td>'
-            + '<td><div class="row-actions" data-id="' + escapeHtml(a.id) + '">'
+            + '<td><div class="row-actions" data-id="' + escapeHtml(a.id) + '" data-username="' + escapeHtml(a.username) + '">'
               + (a.is_verified ? '<button data-action="revoke">Revoke verification</button>' : '')
               + (a.is_deleted ? '' : '<button class="danger" data-action="ban">Ban</button>')
+              + '<button class="danger" data-action="delete">Delete</button>'
               + '</div></td>'
             + '</tr>';
         });
@@ -745,6 +777,21 @@
             if (!confirm('Ban this account? This anonymizes their profile and blocks future login.')) return;
             var id = btn.closest('[data-id]').getAttribute('data-id');
             api('/api/admin/accounts/' + id + '/ban', { method: 'POST' })
+              .then(loadAccounts).catch(function (e) { alert(e.message); });
+          });
+        });
+        content.querySelectorAll('[data-action="delete"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var row = btn.closest('[data-id]');
+            var id = row.getAttribute('data-id');
+            var username = row.getAttribute('data-username');
+            var typed = prompt(
+              'This permanently deletes @' + username + '. This cannot be undone.\n\n' +
+              'Type the username exactly to confirm:'
+            );
+            if (typed === null) return;
+            if (typed !== username) { alert('That did not match the username, nothing was deleted.'); return; }
+            api('/api/admin/accounts/' + id + '/delete', { method: 'POST', body: JSON.stringify({ confirmUsername: typed }) })
               .then(loadAccounts).catch(function (e) { alert(e.message); });
           });
         });
@@ -759,6 +806,114 @@
         renderPager(document.getElementById('accounts-pager'), accountsOffset, rows.length,
           function () { accountsOffset = Math.max(0, accountsOffset - PAGE_SIZE); loadAccounts(); },
           function () { accountsOffset += PAGE_SIZE; loadAccounts(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Broadcast -----------------------------------------------------------
+
+  var broadcastOffset = 0;
+  var broadcastSubjectEl = document.getElementById('broadcast-subject');
+  var broadcastBodyEl = document.getElementById('broadcast-body');
+  var broadcastPreviewEl = document.getElementById('broadcast-preview');
+  var broadcastStatusEl = document.getElementById('broadcast-status');
+
+  function updateBroadcastPreview() {
+    var subject = broadcastSubjectEl.value.trim();
+    var body = broadcastBodyEl.value.trim();
+    if (!subject && !body) { broadcastPreviewEl.innerHTML = '<span class="muted">Nothing to preview yet.</span>'; return; }
+    broadcastPreviewEl.innerHTML =
+      '<div><strong>Subject:</strong> ' + escapeHtml(subject || '(none)') + '</div>' +
+      '<div style="margin-top:8px; border-top:1px solid #eee; padding-top:8px;">' + escapeHtml(body || '(empty)') + '</div>' +
+      '<div class="muted" style="margin-top:10px; font-size:12px;">Each recipient also gets their own unsubscribe link appended below the body.</div>';
+  }
+  broadcastSubjectEl.addEventListener('input', updateBroadcastPreview);
+  broadcastBodyEl.addEventListener('input', updateBroadcastPreview);
+  updateBroadcastPreview();
+
+  document.getElementById('broadcast-test-btn').addEventListener('click', function () {
+    var subject = broadcastSubjectEl.value.trim();
+    var body = broadcastBodyEl.value.trim();
+    if (!subject || !body) { alert('Subject and body are required.'); return; }
+    var btn = this;
+    btn.disabled = true;
+    broadcastStatusEl.textContent = 'Sending test...';
+    api('/api/admin/broadcast/test', { method: 'POST', body: JSON.stringify({ subject: subject, body: body }) })
+      .then(function () { broadcastStatusEl.textContent = 'Test sent to your own email.'; })
+      .catch(function (e) { broadcastStatusEl.textContent = ''; alert(e.message); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  document.getElementById('broadcast-send-btn').addEventListener('click', function () {
+    var subject = broadcastSubjectEl.value.trim();
+    var body = broadcastBodyEl.value.trim();
+    if (!subject || !body) { alert('Subject and body are required.'); return; }
+    if (!confirm('Send this to every user who has not unsubscribed? This cannot be recalled once sent.')) return;
+    var btn = this;
+    btn.disabled = true;
+    broadcastStatusEl.textContent = 'Sending...';
+    api('/api/admin/broadcast/send', { method: 'POST', body: JSON.stringify({ subject: subject, body: body, confirm: true }) })
+      .then(function (res) {
+        broadcastStatusEl.textContent = 'Sending to ' + res.recipientCount + ' recipients in the background.';
+        broadcastSubjectEl.value = '';
+        broadcastBodyEl.value = '';
+        updateBroadcastPreview();
+        loadBroadcastLog();
+      })
+      .catch(function (e) { broadcastStatusEl.textContent = ''; alert(e.message); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  function loadBroadcastLog() {
+    var content = document.getElementById('broadcast-log');
+    content.innerHTML = emptyState('Loading...');
+    api('/api/admin/broadcast/log?limit=' + PAGE_SIZE + '&offset=' + broadcastOffset)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No broadcasts sent yet.');
+        var html = '<table><thead><tr><th>Subject</th><th>Sent by</th><th>Recipients</th><th>Sent</th></tr></thead><tbody>';
+        rows.forEach(function (b) {
+          html += '<tr>'
+            + '<td>' + escapeHtml(b.subject) + '</td>'
+            + '<td>' + (b.sent_by_username ? '@' + escapeHtml(b.sent_by_username) : '<span class="muted">unknown</span>') + '</td>'
+            + '<td>' + b.recipient_count + '</td>'
+            + '<td>' + fmtDate(b.created_at) + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        renderPager(document.getElementById('broadcast-pager'), broadcastOffset, rows.length,
+          function () { broadcastOffset = Math.max(0, broadcastOffset - PAGE_SIZE); loadBroadcastLog(); },
+          function () { broadcastOffset += PAGE_SIZE; loadBroadcastLog(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Audit log -------------------------------------------------------------
+
+  var auditOffset = 0;
+  document.getElementById('audit-refresh').addEventListener('click', function () { auditOffset = 0; loadAuditLog(); });
+
+  function loadAuditLog() {
+    var content = document.getElementById('audit-content');
+    content.innerHTML = emptyState('Loading...');
+    api('/api/admin/audit-log?limit=' + PAGE_SIZE + '&offset=' + auditOffset)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No audit log entries yet.');
+        var html = '<table><thead><tr><th>Admin</th><th>Action</th><th>Target</th><th>Details</th><th>When</th></tr></thead><tbody>';
+        rows.forEach(function (l) {
+          html += '<tr>'
+            + '<td>' + (l.admin_username ? '@' + escapeHtml(l.admin_username) : '<span class="muted">unknown</span>') + '</td>'
+            + '<td>' + escapeHtml(l.action) + '</td>'
+            + '<td>' + (l.target_username ? '@' + escapeHtml(l.target_username) : '<span class="muted">none</span>') + '</td>'
+            + '<td>' + escapeHtml(l.details || '') + '</td>'
+            + '<td>' + fmtDate(l.created_at) + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        renderPager(document.getElementById('audit-pager'), auditOffset, rows.length,
+          function () { auditOffset = Math.max(0, auditOffset - PAGE_SIZE); loadAuditLog(); },
+          function () { auditOffset += PAGE_SIZE; loadAuditLog(); });
       })
       .catch(function (e) { content.innerHTML = emptyState(e.message); });
   }

@@ -312,6 +312,9 @@ export function canViewCompletion(completionId: string, viewerId?: string): bool
   if (!broadcast.boardId) return true
 
   const board = getBoardById(broadcast.boardId)
-  if (!board || board.visibility === 'public') return true
-  return Boolean(viewerId) && (viewerId === board.owner_account_id || isSubscribed(broadcast.boardId, viewerId!))
+  if (!board) return true
+  const isOwner = viewerId === board.owner_account_id
+  if (board.is_adult && !isOwner && (!viewerId || !hasOptedIntoAdultContent(viewerId))) return false
+  if (board.visibility === 'public') return true
+  return Boolean(viewerId) && (isOwner || isSubscribed(broadcast.boardId, viewerId!))
 }

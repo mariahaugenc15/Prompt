@@ -105,7 +105,20 @@ socialRouter.patch('/api/me/username', requireAuth, (req, res) => {
   }
 
   const changedAt = Date.now()
-  updateUsername.run(raw, normalized, changedAt, actor.id)
+  try {
+    updateUsername.run(raw, normalized, changedAt, actor.id)
+  } catch (err) {
+    // Same defensive pattern as promptRoutes.ts's completion insert: the
+    // pre-check above can go stale between read and write, so fall back to
+    // the same friendly error the pre-check itself returns rather than a
+    // raw 500 if the unique index ends up being the thing that catches it.
+    // SQLite's error message names table.column, never the index name.
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes('accounts.username_normalized')) {
+      return res.status(422).json({ errors: { username: 'That username is already taken.' } })
+    }
+    throw err
+  }
   res.json({ username: raw, usernameChangedAt: changedAt })
 })
 

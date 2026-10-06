@@ -149,6 +149,9 @@ boardsRouter.get('/api/boards/:id', (req, res) => {
   if (board.visibility === 'invite' && !view.isOwner && !view.isSubscribed) {
     return res.status(404).json({ errors: { form: 'No board with that id.' } })
   }
+  if (board.is_adult && !view.isOwner && (!viewerId || !hasOptedIntoAdultContent(viewerId))) {
+    return res.status(403).json({ errors: { form: 'This board is marked 18+. Opt in to adult content in your settings first.' } })
+  }
   res.json(view)
 })
 

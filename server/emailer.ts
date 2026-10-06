@@ -24,7 +24,7 @@ const FROM = process.env.SMTP_FROM ?? 'Prompt <no-reply@example.com>'
 // address has an account — see authRoutes.ts).
 export async function sendEmail(to: string, subject: string, text: string): Promise<void> {
   if (!transporter) {
-    console.log(`[dev email — SMTP not configured] To: ${to}\nSubject: ${subject}\n\n${text}`)
+    console.log(`[dev email, SMTP not configured] To: ${to}\nSubject: ${subject}\n\n${text}`)
     return
   }
   try {

@@ -267,7 +267,7 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
   const mediaType = rawMediaDataUrl ? (typeof req.body?.mediaType === 'string' ? req.body.mediaType : 'photo') : undefined
   if (mediaType === 'audio' && rawMediaDataUrl && decodedDataUrlByteLength(rawMediaDataUrl) > MAX_AUDIO_BYTES) {
     return res.status(422).json({
-      errors: { media: `That recording is too large (max ${Math.floor(MAX_AUDIO_BYTES / (1024 * 1024))}MB) — try a shorter one.` },
+      errors: { media: `That recording is too large (max ${Math.floor(MAX_AUDIO_BYTES / (1024 * 1024))}MB). Try a shorter one.` },
     })
   }
   const mediaDataUrl = rawMediaDataUrl ? saveDataUrlAsFile(rawMediaDataUrl, publicBaseUrl(req)) : undefined

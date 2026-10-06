@@ -207,7 +207,7 @@
         <button class="secondary" id="overview-refresh">Refresh</button>
       </div>
       <div id="overview-content" class="stat-grid"></div>
-      <div class="stat-note">Active means at least one signed-in request that day, not just a fresh login — a session can stay active for weeks between logins. Activity is only recorded from when this dashboard shipped, so daily/monthly figures will read low until that much history has built up.</div>
+      <div class="stat-note">Active means at least one signed-in request that day, not just a fresh login. A session can stay active for weeks between logins. Activity is only recorded from when this dashboard shipped, so daily/monthly figures will read low until that much history has built up.</div>
     </section>
 
     <section id="panel-verification" class="panel">
@@ -316,7 +316,7 @@
   }
 
   function fmtDate(ms) {
-    if (!ms) return '—';
+    if (!ms) return '–';
     var d = new Date(ms);
     return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
@@ -566,7 +566,7 @@
           html += '<tr>'
             + '<td><strong>' + escapeHtml(r.target_type) + '</strong><br><span class="muted" style="font-size:11px">' + escapeHtml(r.target_id) + '</span></td>'
             + '<td class="reason-text">' + escapeHtml(r.reason) + (r.resolution_note ? '<br><span class="muted">Resolved: ' + escapeHtml(r.resolution_note) + '</span>' : '') + '</td>'
-            + '<td>' + (r.reporter_username ? '@' + escapeHtml(r.reporter_username) : '<span class="muted">—</span>') + '<br><span class="muted" style="font-size:11px">' + escapeHtml(r.reporter_email || '') + '</span></td>'
+            + '<td>' + (r.reporter_username ? '@' + escapeHtml(r.reporter_username) : '<span class="muted">–</span>') + '<br><span class="muted" style="font-size:11px">' + escapeHtml(r.reporter_email || '') + '</span></td>'
             + '<td>' + fmtDate(r.created_at) + '</td>'
             + '<td><span class="badge ' + r.status + '">' + r.status + '</span></td>'
             + '<td><div class="row-actions" data-id="' + escapeHtml(r.id) + '">'
@@ -616,7 +616,7 @@
         rows.forEach(function (f) {
           html += '<tr>'
             + '<td class="reason-text">' + escapeHtml(f.message) + (f.resolution_note ? '<br><span class="muted">Resolved: ' + escapeHtml(f.resolution_note) + '</span>' : '') + '</td>'
-            + '<td>' + (f.author_username ? '@' + escapeHtml(f.author_username) : '<span class="muted">—</span>') + '<br><span class="muted" style="font-size:11px">' + escapeHtml(f.email) + '</span></td>'
+            + '<td>' + (f.author_username ? '@' + escapeHtml(f.author_username) : '<span class="muted">–</span>') + '<br><span class="muted" style="font-size:11px">' + escapeHtml(f.email) + '</span></td>'
             + '<td>' + fmtDate(f.created_at) + '</td>'
             + '<td><span class="badge ' + f.status + '">' + f.status + '</span></td>'
             + '<td><div class="row-actions" data-id="' + escapeHtml(f.id) + '">'
@@ -663,7 +663,7 @@
         rows.forEach(function (c) {
           html += '<tr>'
             + '<td class="reason-text">' + escapeHtml(c.text) + (c.is_removed ? '<br><span class="badge removed">removed' + (c.removed_by ? ' by admin' : ' by author') + '</span>' : '') + '</td>'
-            + '<td>' + (c.author_username ? '@' + escapeHtml(c.author_username) : '<span class="muted">—</span>') + '</td>'
+            + '<td>' + (c.author_username ? '@' + escapeHtml(c.author_username) : '<span class="muted">–</span>') + '</td>'
             + '<td><span class="muted" style="font-size:11px">' + escapeHtml(c.completion_id) + '</span></td>'
             + '<td>' + fmtDate(c.created_at) + '</td>'
             + '<td>' + (c.is_removed ? '' : '<div class="row-actions" data-id="' + escapeHtml(c.id) + '"><button class="danger" data-action="remove">Remove</button></div>') + '</td>'

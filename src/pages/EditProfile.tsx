@@ -335,7 +335,7 @@ export function EditProfile() {
         </span>
         <span className="flex-1">
           <span className="block text-sm font-medium">Invite friends to Prompt</span>
-          <span className="block text-xs text-ink-faint">prompt real life — share the link</span>
+          <span className="block text-xs text-ink-faint">prompt real life, share the link</span>
         </span>
         <span className="shrink-0 text-xs font-medium text-accent">{inviteCopied ? 'Copied!' : 'Share'}</span>
       </button>
@@ -383,7 +383,7 @@ export function EditProfile() {
           ) : (
             <p className="mb-2 flex items-center justify-between text-xs uppercase tracking-wider text-ink-faint">
               <span>
-                Account — @{me.username} ({me.accountType})
+                Account: @{me.username} ({me.accountType})
               </span>
               <button onClick={startEditingUsername} className="font-medium text-ink underline underline-offset-2">
                 Edit
@@ -652,7 +652,7 @@ export function EditProfile() {
 
       <section className="rounded-sm border border-line bg-card p-4">
         <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Send feedback</p>
-        <p className="mb-2 text-xs text-ink-faint">Bugs, ideas, anything — this goes straight to the people running Prompt.</p>
+        <p className="mb-2 text-xs text-ink-faint">Bugs, ideas, anything. This goes straight to the people running Prompt.</p>
         <textarea
           value={feedbackText}
           onChange={(e) => setFeedbackText(e.target.value)}
@@ -666,7 +666,7 @@ export function EditProfile() {
           disabled={!feedbackText.trim() || feedbackSending}
           className="mt-2 w-full rounded-sm bg-ink py-2 text-sm font-medium text-paper disabled:bg-line disabled:text-ink-faint"
         >
-          {feedbackSending ? 'Sending…' : feedbackSent ? 'Sent — thank you!' : 'Send feedback'}
+          {feedbackSending ? 'Sending…' : feedbackSent ? 'Sent, thank you!' : 'Send feedback'}
         </button>
       </section>
 
@@ -684,7 +684,7 @@ export function EditProfile() {
           <div className="rounded-sm border border-danger/40 bg-danger/5 p-3">
             <p className="text-sm text-ink">
               Sign out of this device? Your account, calendars, and boards are all saved to your account and
-              unaffected — you can log back in from any device.
+              unaffected. You can log back in from any device.
             </p>
             <div className="mt-3 flex gap-2">
               <button onClick={handleSignOut} className="flex-1 rounded-sm bg-danger py-2 text-sm font-medium text-paper">
@@ -839,7 +839,7 @@ function SecuritySection({
       <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Two-factor authentication</p>
       {totpEnabled ? (
         <>
-          <p className="mb-2 text-sm text-ink-soft">Enabled — a code from your authenticator app is required to log in.</p>
+          <p className="mb-2 text-sm text-ink-soft">Enabled: a code from your authenticator app is required to log in.</p>
           {disabling ? (
             <div className="flex flex-col gap-1.5">
               <input
@@ -995,7 +995,7 @@ function VerificationSection({
     return (
       <section className="rounded-sm border border-line bg-card p-4">
         <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Get verified</p>
-        <p className="text-sm text-ink-soft">Your request is in review — we'll follow up by email.</p>
+        <p className="text-sm text-ink-soft">Your request is in review. We'll follow up by email.</p>
       </section>
     )
   }
@@ -1004,7 +1004,7 @@ function VerificationSection({
     <section className="rounded-sm border border-line bg-card p-4">
       <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Get verified</p>
       <p className="mb-2 text-xs text-ink-faint">
-        For organizations and high-profile individuals (athletes, creators, public figures) — a reviewed badge so
+        For organizations and high-profile individuals (athletes, creators, public figures), a reviewed badge so
         people know who they're actually following.
       </p>
       {!totpEnabled ? (
@@ -1013,7 +1013,7 @@ function VerificationSection({
         </p>
       ) : notEnoughFollowers ? (
         <p className="rounded-sm bg-paper-dim p-2 text-xs text-ink-soft">
-          You need more than {status!.minFollowersRequired.toLocaleString()} followers to request verification — you
+          You need more than {status!.minFollowersRequired.toLocaleString()} followers to request verification. You
           currently have {status!.followerCount.toLocaleString()}.
         </p>
       ) : (

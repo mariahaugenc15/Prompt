@@ -157,7 +157,7 @@ boardsRouter.post('/api/boards/:id/subscribe', requireAuth, (req, res) => {
   const board = getBoardById(String(req.params.id))
   if (!board) return res.status(404).json({ errors: { form: 'No board with that id.' } })
   if (board.visibility !== 'public') {
-    return res.status(403).json({ errors: { form: 'This board is invite-only — ask the owner to add you.' } })
+    return res.status(403).json({ errors: { form: 'This board is invite-only. Ask the owner to add you.' } })
   }
   if (board.is_adult && !hasOptedIntoAdultContent(me.id)) {
     return res.status(403).json({ errors: { form: 'This board is marked 18+. Opt in to adult content in your settings first.' } })

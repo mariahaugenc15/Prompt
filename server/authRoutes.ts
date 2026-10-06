@@ -49,7 +49,7 @@ authRouter.post('/api/password-reset/request', (req, res) => {
   sendEmail(
     email,
     'Reset your Prompt password',
-    `Hi @${account.username},\n\nSomeone (hopefully you) asked to reset your Prompt password. This link works for the next hour:\n\n${resetUrl}\n\nIf you didn't ask for this, you can ignore this email — your password hasn't changed.`,
+    `Hi @${account.username},\n\nSomeone (hopefully you) asked to reset your Prompt password. This link works for the next hour:\n\n${resetUrl}\n\nIf you didn't ask for this, you can ignore this email. Your password hasn't changed.`,
   )
 
   respondOk()

@@ -12,7 +12,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'Prompt — Real prompts. Real life.',
+        name: 'Prompt: Real prompts. Real life.',
         short_name: 'Prompt',
         description: 'A social app built around real-world challenges instead of a feed to scroll.',
         start_url: '/',

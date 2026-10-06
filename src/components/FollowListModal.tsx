@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { CloseIcon } from './Icons'
 import { VerifiedBadge } from './VerifiedBadge'
+import { LoadingMark } from './LoadingMark'
 import type { PublicProfile } from '../lib/realAccountsApi'
 
 // The follow graph is one of the ways people find each other — see who an
@@ -31,7 +32,7 @@ export function FollowListModal({
         </div>
         <div className="flex-1 overflow-y-auto p-3">
           {loading ? (
-            <p className="text-sm text-ink-faint">Loading…</p>
+            <LoadingMark />
           ) : profiles.length === 0 ? (
             <p className="text-sm text-ink-faint">Nobody here yet.</p>
           ) : (

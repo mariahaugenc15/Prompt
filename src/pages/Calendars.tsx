@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { IndexCard } from '../components/IndexCard'
 import { CalendarIcon, PlusIcon, LockIcon } from '../components/Icons'
+import { LoadingMark } from '../components/LoadingMark'
 import { discoverCalendars, getMyCalendars, joinCalendar, type RealCalendar } from '../lib/calendarsApi'
 
 const DISCOVER_PAGE_SIZE = 20
@@ -120,9 +121,9 @@ export function Calendars() {
             <button
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+              className="flex items-center justify-center rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
             >
-              {loadingMore ? 'Loading…' : 'Load more'}
+              {loadingMore ? <LoadingMark size={14} /> : 'Load more'}
             </button>
           )}
         </div>

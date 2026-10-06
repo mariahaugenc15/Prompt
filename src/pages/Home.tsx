@@ -11,6 +11,7 @@ import { UnplugCompleteForm } from '../components/UnplugCompleteForm'
 import { SoundCompleteForm } from '../components/SoundCompleteForm'
 import { CompletionFeedCard } from '../components/CompletionFeedCard'
 import { PlusIcon, CloseIcon, BoardsIcon } from '../components/Icons'
+import { LoadingMark } from '../components/LoadingMark'
 import {
   getActiveBroadcasts,
   getCompletionScore,
@@ -436,9 +437,9 @@ export function Home() {
               <button
                 onClick={() => handleFeedLoadMore(feedTab)}
                 disabled={feedLoadingMore}
-                className="mt-1 w-full rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+                className="mt-1 flex w-full items-center justify-center rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
               >
-                {feedLoadingMore ? 'Loading…' : 'Load more'}
+                {feedLoadingMore ? <LoadingMark size={14} /> : 'Load more'}
               </button>
             )}
           </>

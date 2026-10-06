@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { BackIcon, BellIcon } from '../components/Icons'
+import { LoadingMark } from '../components/LoadingMark'
 import { enablePushNotifications, pushSupported } from '../lib/push'
 import {
   getNotificationPrefs,
@@ -117,7 +118,7 @@ export function Notifications() {
       <section>
         <p className="mb-2 text-xs uppercase tracking-wider text-ink-faint">Recent</p>
         {loading ? (
-          <p className="text-sm text-ink-faint">Loading…</p>
+          <LoadingMark />
         ) : items.length === 0 ? (
           <p className="text-sm text-ink-faint">Nothing yet.</p>
         ) : (

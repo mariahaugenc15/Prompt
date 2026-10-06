@@ -6,6 +6,7 @@ import { IndexCard } from '../components/IndexCard'
 import { ExploreChallengesList } from '../components/ExploreChallengesList'
 import { VerifiedBadge } from '../components/VerifiedBadge'
 import { SearchIcon, ShuffleIcon, CloseIcon, PlusIcon, LockIcon, BoardsIcon } from '../components/Icons'
+import { LoadingMark } from '../components/LoadingMark'
 import { listAccounts, searchAccounts, suggestedAccounts, type PublicProfile } from '../lib/realAccountsApi'
 import { discoverBoards, getMyBoards, searchBoards, subscribeBoard, type RealBoard } from '../lib/boardsApi'
 
@@ -262,9 +263,9 @@ export function Feed() {
                       <button
                         onClick={handleLoadMoreBoards}
                         disabled={loadingMoreBoards}
-                        className="rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
+                        className="flex items-center justify-center rounded-sm border border-line py-2 text-sm text-ink-soft disabled:opacity-50"
                       >
-                        {loadingMoreBoards ? 'Loading…' : 'Load more'}
+                        {loadingMoreBoards ? <LoadingMark size={14} /> : 'Load more'}
                       </button>
                     )}
                   </div>

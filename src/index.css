@@ -53,6 +53,30 @@
   }
   button {
     font-family: inherit;
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+}
+
+/* A tasteful hover lift on buttons and links, mouse/trackpad only — gated
+   on (hover: hover) and (pointer: fine) so touch devices (which report
+   hover states unreliably, and have no real "hover" to begin with) and
+   anyone relying on keyboard focus rather than a pointer are unaffected;
+   :focus-visible styling is untouched either way. */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled),
+  a {
+    transition: transform 150ms ease, opacity 150ms ease;
+  }
+  button:not(:disabled):hover,
+  a:hover {
+    transform: translateY(-1px);
+  }
+  button:not(:disabled):active,
+  a:active {
+    transform: translateY(0);
   }
 }
 

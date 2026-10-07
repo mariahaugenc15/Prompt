@@ -149,9 +149,14 @@ boardsRouter.get('/api/boards/:id', (req, res) => {
   if (board.visibility === 'invite' && !view.isOwner && !view.isSubscribed) {
     return res.status(404).json({ errors: { form: 'No board with that id.' } })
   }
-  if (board.is_adult && !view.isOwner && (!viewerId || !hasOptedIntoAdultContent(viewerId))) {
-    return res.status(403).json({ errors: { form: 'This board is marked 18+. Opt in to adult content in your settings first.' } })
-  }
+  // Deliberately NOT gating this on is_adult: this response is only ever
+  // metadata (name/description/icon/subscriber count), never the board's
+  // actual content, and BoardDetail.tsx needs exactly this to render its
+  // own blurred "This board is marked 18+" overlay with a way to opt in —
+  // the same graceful in-place prompt a 403 here would otherwise replace
+  // with a bare redirect to /feed and no explanation. The real gates are
+  // on /challenges (content) and /subscribe (joining) below, both of which
+  // already 403 a non-opted-in viewer.
   res.json(view)
 })
 

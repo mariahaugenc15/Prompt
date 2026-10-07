@@ -7,6 +7,7 @@ import { sendEmail } from './emailer.js'
 import { deactivateAccount } from './accountsRepo.js'
 import { createPendingLogin } from './pendingLoginRepo.js'
 import { removeSubscriptionsForAccount } from './pushRepo.js'
+import { removeApnsTokensForAccount } from './apnsRepo.js'
 import { normalizeEmail, validatePassword } from '../shared/signupValidation.js'
 
 export const authRouter = Router()
@@ -115,6 +116,7 @@ const rotateTokenAway = db.prepare('UPDATE accounts SET auth_token = ? WHERE id 
 authRouter.post('/api/logout', requireAuth, (req, res) => {
   rotateTokenAway.run(crypto.randomBytes(32).toString('hex'), req.account!.id)
   removeSubscriptionsForAccount(req.account!.id)
+  removeApnsTokensForAccount(req.account!.id)
   res.json({ ok: true })
 })
 
@@ -127,5 +129,6 @@ authRouter.post('/api/logout', requireAuth, (req, res) => {
 authRouter.delete('/api/me', requireAuth, (req, res) => {
   deactivateAccount(req.account!.id)
   removeSubscriptionsForAccount(req.account!.id)
+  removeApnsTokensForAccount(req.account!.id)
   res.json({ ok: true })
 })

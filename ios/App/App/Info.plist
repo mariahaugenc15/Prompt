@@ -72,5 +72,20 @@
 	<string>Prompt needs microphone access to record sound when you complete a prompt with video.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Prompt needs photo library access so you can choose an existing photo or video to complete a prompt or update your profile picture.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.promptsocial.app.widget</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>promptapp</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

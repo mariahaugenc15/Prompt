@@ -192,13 +192,20 @@ function inboxItem(row: InboxRow, isBroadcast: boolean) {
   }
 }
 
-promptRouter.get('/api/prompts/inbox', requireAuth, (req, res) => {
-  const me = req.account!
-  const oneToOne = (pendingOneToOne.all(me.id) as InboxRow[]).map((row) => inboxItem(row, false))
-  const orgBroadcasts = (activeOrgBroadcastsFromFollowed.all(me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
-  const boardBroadcasts = (activeBoardBroadcastsFromSubscribed.all(me.id, me.id, me.id) as InboxRow[]).map((row) => inboxItem(row, true))
+// Exported so other consumers of "what's waiting for this account to
+// respond to" (the widget snapshot endpoint) can reuse the exact same
+// query instead of re-deriving it.
+export function getInboxItems(accountId: string) {
+  const oneToOne = (pendingOneToOne.all(accountId) as InboxRow[]).map((row) => inboxItem(row, false))
+  const orgBroadcasts = (activeOrgBroadcastsFromFollowed.all(accountId, accountId) as InboxRow[]).map((row) => inboxItem(row, true))
+  const boardBroadcasts = (activeBoardBroadcastsFromSubscribed.all(accountId, accountId, accountId) as InboxRow[]).map((row) =>
+    inboxItem(row, true),
+  )
+  return [...oneToOne, ...orgBroadcasts, ...boardBroadcasts].sort((a, b) => b.createdAt - a.createdAt)
+}
 
-  res.json([...oneToOne, ...orgBroadcasts, ...boardBroadcasts].sort((a, b) => b.createdAt - a.createdAt))
+promptRouter.get('/api/prompts/inbox', requireAuth, (req, res) => {
+  res.json(getInboxItems(req.account!.id))
 })
 
 // --- Unsend (1:1 only, sender-only, still pending) ------------------------

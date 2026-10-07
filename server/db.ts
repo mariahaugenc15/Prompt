@@ -561,3 +561,20 @@ if (!accountColumns.has('broadcast_unsubscribed')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN broadcast_unsub_token TEXT`)
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_broadcast_unsub_token ON accounts(broadcast_unsub_token)`)
 }
+
+// Device tokens for the native iOS app's APNs channel — separate from
+// push_subscriptions above, which is Web Push (browser/PWA) and can't
+// reach a Capacitor-wrapped native app. One account can have several
+// tokens (one per installed device); keyed on the token itself so
+// re-registering the same device is an upsert, not a duplicate row. Used
+// to silently wake the app to refresh the home-screen widget's data
+// (server/apnsRepo.ts), not for user-visible notifications — those still
+// go through Web Push.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS apns_device_tokens (
+    device_token TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_apns_device_tokens_account ON apns_device_tokens(account_id);
+`)

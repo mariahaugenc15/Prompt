@@ -27,6 +27,7 @@ import { getMyActivity, getFollowingFeed, getCommunityFeed } from '../lib/feedAp
 import { getMyBoards, type RealBoard } from '../lib/boardsApi'
 import { monthCursorFromTimestamp } from '../lib/monthCursor'
 import { useCurrentMonthCursor } from '../lib/useCurrentMonthCursor'
+import { refreshWidgetNow } from '../lib/widgetBridge'
 
 const FEED_PAGE_SIZE = 20
 
@@ -205,6 +206,7 @@ export function Home() {
         setBroadcasts((prev) => prev.filter((b) => b.id !== completingBroadcast.id))
         setCompletingBroadcast(null)
         refreshActivity()
+        void refreshWidgetNow()
       }
     } finally {
       setCompletingBusy(false)
@@ -223,6 +225,7 @@ export function Home() {
         ),
       )
       refreshActivity()
+      void refreshWidgetNow()
     }
   }
 
@@ -236,6 +239,7 @@ export function Home() {
       // immediately rather than waiting out the next 15s poll, which would
       // otherwise still filter it out anyway (see the notes memo below).
       setOneToOne((prev) => prev.filter((p) => p.id !== item.id))
+      void refreshWidgetNow()
     }
   }
 

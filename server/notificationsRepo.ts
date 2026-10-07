@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { db } from './db.js'
 import { notifyAccount } from './pushRepo.js'
+import { sendWidgetRefreshPush } from './apnsRepo.js'
 
 export type NotificationEvent = 'new_follower' | 'new_prompt' | 'prompt_completed'
 
@@ -114,4 +115,9 @@ export function notifyForEvent(accountId: string, event: NotificationEvent, titl
   if (!allowedFor(getNotificationPrefs(accountId), event)) return
   insertNotification.run({ id: crypto.randomUUID(), accountId, event, title, body, url, createdAt: Date.now() })
   void notifyAccount(accountId, title, body, url)
+  // A silent APNs push to any registered native-app device, so the
+  // home-screen widget's "post-it notes" refresh close to immediately
+  // instead of waiting on iOS's own background-refresh schedule. A no-op
+  // wherever APNs isn't configured or the account has no device tokens.
+  void sendWidgetRefreshPush(accountId)
 }

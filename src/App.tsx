@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useStore } from './lib/store'
+import { configureWidget } from './lib/widgetBridge'
 import { BottomNav } from './components/BottomNav'
 import { AppHeader } from './components/AppHeader'
 import { RealShell } from './components/RealShell'
@@ -58,6 +59,19 @@ function MyPublicProfile() {
 }
 
 export default function App() {
+  const account = useStore((s) => s.account)
+  const loggedIn = useStore((s) => s.loggedIn)
+
+  // Re-seeds the native widget's shared data on every app launch while
+  // already signed in (not just right after login). The widget's shared
+  // App Group storage is separate from this app's own persisted zustand
+  // state, so a fresh install or a cleared container needs this to catch
+  // up even though "logged in" itself survived. A no-op everywhere but a
+  // native iOS build.
+  useEffect(() => {
+    if (loggedIn && account?.accountType === 'individual') void configureWidget(account.token)
+  }, [loggedIn, account])
+
   return (
     <Routes>
       <Route path="/invite" element={<InviteLanding />} />

@@ -87,5 +87,18 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Lets the app reach a plain-http://, non-TLS backend on the local
+		     network or loopback (e.g. VITE_API_BASE_URL=http://localhost:8787
+		     during development) without needing HTTPS there. iOS blocks this
+		     by default — ATS only ever exempts a real internet host when it's
+		     explicitly told to. This narrow exception only covers local/
+		     loopback addresses, not arbitrary remote hosts, so it doesn't
+		     weaken anything about talking to the real (https://) production
+		     backend once VITE_API_BASE_URL points there instead. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

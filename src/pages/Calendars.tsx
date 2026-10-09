@@ -5,6 +5,7 @@ import { IndexCard } from '../components/IndexCard'
 import { CalendarIcon, PlusIcon, LockIcon } from '../components/Icons'
 import { LoadingMark } from '../components/LoadingMark'
 import { discoverCalendars, getMyCalendars, joinCalendar, type RealCalendar } from '../lib/calendarsApi'
+import { useEffectGuard } from '../lib/useEffectGuard'
 
 const DISCOVER_PAGE_SIZE = 20
 
@@ -15,11 +16,16 @@ export function Calendars() {
   const [discoverHasMore, setDiscoverHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
 
+  const startGuard = useEffectGuard()
+
   function refresh() {
     if (!account) return
-    getMyCalendars(account.token).then((res) => setMine(res.ok ? res.data : []))
+    const isCurrent = startGuard()
+    getMyCalendars(account.token).then((res) => {
+      if (isCurrent()) setMine(res.ok ? res.data : [])
+    })
     discoverCalendars(account.token, 0, DISCOVER_PAGE_SIZE).then((res) => {
-      if (!res.ok) return
+      if (!res.ok || !isCurrent()) return
       setDiscover(res.data)
       setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
     })

@@ -26,6 +26,7 @@ import {
   type ReactionKind,
   type RealCalendar,
 } from '../lib/calendarsApi'
+import { useEffectGuard } from '../lib/useEffectGuard'
 
 export function CalendarDetail() {
   const { calendarId } = useParams()
@@ -38,15 +39,26 @@ export function CalendarDetail() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [cursor, setCursor] = useState<MonthCursor>(currentMonthCursor)
 
+  const startGuard = useEffectGuard()
+
   function refresh() {
     if (!calendarId) return
-    getCalendar(calendarId, account?.token).then((res) => setCalendar(res.ok ? res.data : 'not-found'))
-    getCalendarFeed(calendarId, account?.token).then((res) => setFeed(res.ok ? res.data : []))
+    const isCurrent = startGuard()
+    getCalendar(calendarId, account?.token).then((res) => {
+      if (isCurrent()) setCalendar(res.ok ? res.data : 'not-found')
+    })
+    getCalendarFeed(calendarId, account?.token).then((res) => {
+      if (isCurrent()) setFeed(res.ok ? res.data : [])
+    })
   }
 
   useEffect(refresh, [calendarId, account?.token])
   useEffect(() => {
-    if (account) getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
+    if (!account) return
+    const isCurrent = startGuard()
+    getMyCalendars(account.token).then((res) => {
+      if (isCurrent() && res.ok) setMyCalendars(res.data)
+    })
   }, [account])
   // Switching to a different calendar resets the cursor to its current
   // month rather than carrying over the last calendar's cursor.

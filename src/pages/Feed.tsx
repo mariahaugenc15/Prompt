@@ -9,6 +9,7 @@ import { SearchIcon, ShuffleIcon, CloseIcon, PlusIcon, LockIcon, BoardsIcon } fr
 import { LoadingMark } from '../components/LoadingMark'
 import { listAccounts, searchAccounts, suggestedAccounts, type PublicProfile } from '../lib/realAccountsApi'
 import { discoverBoards, getMyBoards, searchBoards, subscribeBoard, type RealBoard } from '../lib/boardsApi'
+import { useEffectGuard } from '../lib/useEffectGuard'
 
 const BOARD_CATEGORY_LABEL: Record<string, string> = {
   brand: 'Brand',
@@ -41,13 +42,16 @@ export function Feed() {
   const [allProfiles, setAllProfiles] = useState<PublicProfile[]>([])
   const [suggested, setSuggested] = useState<PublicProfile[]>([])
 
+  const startGuard = useEffectGuard()
+
   useEffect(() => {
+    const isCurrent = startGuard()
     listAccounts(account?.token).then((res) => {
-      if (res.ok) setAllProfiles(shuffled(res.data))
+      if (isCurrent() && res.ok) setAllProfiles(shuffled(res.data))
     })
     if (account) {
       suggestedAccounts(account.token).then((res) => {
-        if (res.ok) setSuggested(res.data)
+        if (isCurrent() && res.ok) setSuggested(res.data)
       })
     }
   }, [account])
@@ -67,9 +71,12 @@ export function Feed() {
 
   function refreshBoards() {
     if (!account) return
-    getMyBoards(account.token).then((res) => setMyBoards(res.ok ? res.data : []))
+    const isCurrent = startGuard()
+    getMyBoards(account.token).then((res) => {
+      if (isCurrent()) setMyBoards(res.ok ? res.data : [])
+    })
     discoverBoards(account.token, 0, DISCOVER_PAGE_SIZE).then((res) => {
-      if (!res.ok) return
+      if (!res.ok || !isCurrent()) return
       setDiscoverBoardsList(res.data)
       setDiscoverHasMore(res.data.length === DISCOVER_PAGE_SIZE)
     })

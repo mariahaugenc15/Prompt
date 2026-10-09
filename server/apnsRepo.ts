@@ -84,12 +84,18 @@ interface ApnsTokenRow {
 function sendOne(deviceToken: string, jwt: string): Promise<void> {
   return new Promise((resolve) => {
     let settled = false
+    const client = http2.connect(`https://${APNS_HOST}`)
+    // Every exit path (success or failure) goes through here so the
+    // HTTP/2 session is never left open — a session/stream-level error
+    // used to resolve the promise without ever closing the connection,
+    // leaking a socket on every failure (a brief Apple outage, a broken
+    // TLS handshake, a burst of stream resets from stale tokens).
     const finish = () => {
       if (settled) return
       settled = true
+      if (!client.destroyed) client.destroy()
       resolve()
     }
-    const client = http2.connect(`https://${APNS_HOST}`)
     client.on('error', finish)
     const req = client.request({
       ':method': 'POST',
@@ -119,7 +125,6 @@ function sendOne(deviceToken: string, jwt: string): Promise<void> {
       } else if (status && status !== 200) {
         console.error('APNs send failed', status, body)
       }
-      client.close()
       finish()
     })
     req.write(JSON.stringify({ aps: { 'content-available': 1 }, type: 'widget-refresh' }))

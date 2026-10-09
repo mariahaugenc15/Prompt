@@ -13,6 +13,7 @@ import {
   type NotificationPrefs,
   type NotificationItem,
 } from '../lib/notificationsApi'
+import { useEffectGuard } from '../lib/useEffectGuard'
 
 const TOGGLES: { key: keyof Omit<NotificationPrefs, 'master'>; label: string }[] = [
   { key: 'newFollower', label: 'New follower' },
@@ -29,12 +30,16 @@ export function Notifications() {
     pushSupported() ? (Notification.permission === 'granted' ? 'on' : 'idle') : 'unsupported',
   )
 
+  const startGuard = useEffectGuard()
+
   useEffect(() => {
     if (!account) return
+    const isCurrent = startGuard()
     getNotificationPrefs(account.token).then((res) => {
-      if (res.ok) setPrefs(res.data)
+      if (isCurrent() && res.ok) setPrefs(res.data)
     })
     getNotifications(account.token).then((res) => {
+      if (!isCurrent()) return
       if (res.ok) setItems(res.data.items)
       setLoading(false)
     })

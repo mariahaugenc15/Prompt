@@ -28,6 +28,7 @@ import { getMyBoards, type RealBoard } from '../lib/boardsApi'
 import { monthCursorFromTimestamp } from '../lib/monthCursor'
 import { useCurrentMonthCursor } from '../lib/useCurrentMonthCursor'
 import { refreshWidgetNow } from '../lib/widgetBridge'
+import { useEffectGuard } from '../lib/useEffectGuard'
 
 const FEED_PAGE_SIZE = 20
 
@@ -86,25 +87,29 @@ export function Home() {
   const [feedLoadingMore, setFeedLoadingMore] = useState(false)
   const [myBoards, setMyBoards] = useState<RealBoard[]>([])
 
+  const startGuard = useEffectGuard()
+
   function refreshActivity() {
     if (!account) return
-    getMyActivity(account.token).then((res) => { if (res.ok) setActivity(res.data) })
-    getCompletionScore(account.token).then((res) => { if (res.ok) setScore(res.data.score) })
+    const isCurrent = startGuard()
+    getMyActivity(account.token).then((res) => { if (isCurrent() && res.ok) setActivity(res.data) })
+    getCompletionScore(account.token).then((res) => { if (isCurrent() && res.ok) setScore(res.data.score) })
   }
 
   useEffect(() => {
     if (!account) return
-    getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
-    getMyBoards(account.token).then((res) => { if (res.ok) setMyBoards(res.data) })
-    getMe(account.token).then((res) => { if (res.ok) setAccountCreatedAt(res.data.createdAt) })
+    const isCurrent = startGuard()
+    getMyCalendars(account.token).then((res) => { if (isCurrent() && res.ok) setMyCalendars(res.data) })
+    getMyBoards(account.token).then((res) => { if (isCurrent() && res.ok) setMyBoards(res.data) })
+    getMe(account.token).then((res) => { if (isCurrent() && res.ok) setAccountCreatedAt(res.data.createdAt) })
     refreshActivity()
     getFollowingFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
-      if (!res.ok) return
+      if (!res.ok || !isCurrent()) return
       setFollowingFeed(res.data)
       setFollowingHasMore(res.data.length === FEED_PAGE_SIZE)
     })
     getCommunityFeed(account.token, 0, FEED_PAGE_SIZE).then((res) => {
-      if (!res.ok) return
+      if (!res.ok || !isCurrent()) return
       setCommunityFeed(res.data)
       setCommunityHasMore(res.data.length === FEED_PAGE_SIZE)
     })

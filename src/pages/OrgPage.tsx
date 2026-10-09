@@ -33,6 +33,7 @@ import {
 } from '../lib/realAccountsApi'
 import { getPublicActivity } from '../lib/feedApi'
 import { getMyCalendars, reactToCompletion, tagCompletion, type CompletionView, type ReactionKind, type RealCalendar } from '../lib/calendarsApi'
+import { useEffectGuard } from '../lib/useEffectGuard'
 
 export function OrgPage() {
   const { username = '' } = useParams()
@@ -66,10 +67,19 @@ export function OrgPage() {
   const isOwner = account?.accountType === 'organization' && account.username === username
   const isSelf = account?.username === username
 
+  const startGuard = useEffectGuard()
+
   function refresh() {
-    getProfile(username, account?.token).then((res) => setProfile(res.ok ? res.data : 'not-found'))
-    getOrganizationBroadcasts(username).then((res) => setBroadcasts(res.ok ? res.data : []))
-    getPublicActivity(username, account?.token).then((res) => setActivity(res.ok ? res.data : []))
+    const isCurrent = startGuard()
+    getProfile(username, account?.token).then((res) => {
+      if (isCurrent()) setProfile(res.ok ? res.data : 'not-found')
+    })
+    getOrganizationBroadcasts(username).then((res) => {
+      if (isCurrent()) setBroadcasts(res.ok ? res.data : [])
+    })
+    getPublicActivity(username, account?.token).then((res) => {
+      if (isCurrent()) setActivity(res.ok ? res.data : [])
+    })
   }
 
   useEffect(refresh, [username, account?.token])
@@ -81,7 +91,10 @@ export function OrgPage() {
 
   useEffect(() => {
     if (!account) return
-    getMyCalendars(account.token).then((res) => { if (res.ok) setMyCalendars(res.data) })
+    const isCurrent = startGuard()
+    getMyCalendars(account.token).then((res) => {
+      if (isCurrent() && res.ok) setMyCalendars(res.data)
+    })
   }, [account?.token])
 
   async function handleReact(completionId: string, kind: ReactionKind | 'pin') {
@@ -107,8 +120,10 @@ export function OrgPage() {
   function openList(which: 'followers' | 'following') {
     setListOpen(which)
     setListLoading(true)
+    const isCurrent = startGuard()
     const fetcher = which === 'followers' ? getFollowers : getFollowing
     fetcher(username, account?.token).then((res) => {
+      if (!isCurrent()) return
       setListProfiles(res.ok ? res.data : [])
       setListLoading(false)
     })

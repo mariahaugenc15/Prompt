@@ -1,7 +1,6 @@
 import Foundation
 import Capacitor
 import UIKit
-import UserNotifications
 
 // Bridges the web app to the native widget pipeline. The web app already
 // has an authenticated API client and knows the signed-in account's
@@ -53,19 +52,21 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         WidgetDataStore.refresh { call.resolve() }
     }
 
-    // Requests notification permission and, if granted, registers for
-    // remote notifications. The resulting device token is handled in
-    // AppDelegate.swift and sent to the server from there.
+    // Registers for remote notifications so the server can send the
+    // silent (content-available) push that refreshes the widget in the
+    // background. Deliberately NOT gated on requestAuthorization/
+    // alert-sound-badge permission: that permission is for *visible*
+    // notifications (banners, sounds, badges), which this feature never
+    // shows. A silent push needs only registerForRemoteNotifications(),
+    // and Apple delivers it regardless of whether the user has granted
+    // or denied visible-notification permission. Gating this behind
+    // that permission meant anyone who tapped "Don't Allow" (a common
+    // choice for an app with nothing visible to notify about) never got
+    // a device token at all, silently breaking the entire feature.
     @objc func registerForPush(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-                DispatchQueue.main.async {
-                    if granted {
-                        UIApplication.shared.registerForRemoteNotifications()
-                    }
-                    call.resolve(["granted": granted])
-                }
-            }
+            UIApplication.shared.registerForRemoteNotifications()
+            call.resolve()
         }
     }
 }

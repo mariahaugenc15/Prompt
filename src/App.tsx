@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useStore } from './lib/store'
 import { configureWidget } from './lib/widgetBridge'
@@ -62,13 +62,21 @@ export default function App() {
   const account = useStore((s) => s.account)
   const loggedIn = useStore((s) => s.loggedIn)
 
-  // Re-seeds the native widget's shared data on every app launch while
-  // already signed in (not just right after login). The widget's shared
-  // App Group storage is separate from this app's own persisted zustand
-  // state, so a fresh install or a cleared container needs this to catch
-  // up even though "logged in" itself survived. A no-op everywhere but a
-  // native iOS build.
+  // Re-seeds the native widget's shared data once, on app launch, while
+  // already signed in (not after every subsequent account change, which
+  // store.ts's setAccount already handles directly — running this again
+  // on every account mutation after launch too, e.g. an unrelated
+  // username change, would double that network/native work). The
+  // ranOnce ref guards that regardless of how many times loggedIn/
+  // account change later. The widget's shared App Group storage is
+  // separate from this app's own persisted zustand state, so a fresh
+  // install or a cleared container needs this to catch up even though
+  // "logged in" itself survived. A no-op everywhere but a native iOS
+  // build.
+  const configuredWidgetOnLaunch = useRef(false)
   useEffect(() => {
+    if (configuredWidgetOnLaunch.current) return
+    configuredWidgetOnLaunch.current = true
     if (loggedIn && account?.accountType === 'individual') void configureWidget(account.token)
   }, [loggedIn, account])
 

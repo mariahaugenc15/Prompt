@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { fileToCompressedDataUrl } from '../lib/media'
+import { useEffectGuard } from '../lib/useEffectGuard'
 import type { PromptPermission } from '../lib/types'
 import { BackIcon, CalendarIcon, CameraIcon, LockIcon, BoardsIcon, ShareIcon, BellIcon } from '../components/Icons'
 import { VerifiedBadge } from '../components/VerifiedBadge'
@@ -62,15 +63,21 @@ export function EditProfile() {
   const [unsendingId, setUnsendingId] = useState<string | null>(null)
   const [declinedReceived, setDeclinedReceived] = useState<OneToOneHistoryItem[]>([])
 
+  const startGuard = useEffectGuard()
+
   function refreshProfile() {
     if (!account) return
-    getProfile(account.username, account.token).then((res) => setProfile(res.ok ? res.data : null))
+    const isCurrent = startGuard()
+    getProfile(account.username, account.token).then((res) => {
+      if (isCurrent()) setProfile(res.ok ? res.data : null)
+    })
   }
 
   function refreshSent() {
     if (!account) return
+    const isCurrent = startGuard()
     getPromptHistory(account.token).then((res) => {
-      if (!res.ok) return
+      if (!res.ok || !isCurrent()) return
       setSentPending(res.data.oneToOne.filter((p) => p.senderUsername === account.username && p.status === 'pending'))
       // A declined prompt is deliberately kept out of Home's fridge-note
       // stack (see Home.tsx's notes memo) but the record itself isn't
@@ -81,14 +88,32 @@ export function EditProfile() {
 
   useEffect(() => {
     if (!account) return
-    getMe(account.token).then((res) => setMe(res.ok ? res.data : null))
+    // Every fetch below is keyed to this one run of the effect — if the
+    // signed-in account changes again before a response lands (switching
+    // accounts quickly enough that the previous account's request is
+    // still in flight), isCurrent() stops a late response from the old
+    // account overwriting state that belongs to the new one.
+    const isCurrent = startGuard()
+    getMe(account.token).then((res) => {
+      if (isCurrent()) setMe(res.ok ? res.data : null)
+    })
     refreshProfile()
     refreshSent()
-    getFollowing(account.username, account.token).then((res) => setFollowingList(res.ok ? res.data : []))
-    getBlockedAccounts(account.token).then((res) => setBlockedList(res.ok ? res.data : []))
-    getMyCalendars(account.token).then((res) => setMyCalendars(res.ok ? res.data : []))
-    getMyBoards(account.token).then((res) => setMyBoards(res.ok ? res.data : []))
-    getCompletionScore(account.token).then((res) => setScore(res.ok ? res.data : null))
+    getFollowing(account.username, account.token).then((res) => {
+      if (isCurrent()) setFollowingList(res.ok ? res.data : [])
+    })
+    getBlockedAccounts(account.token).then((res) => {
+      if (isCurrent()) setBlockedList(res.ok ? res.data : [])
+    })
+    getMyCalendars(account.token).then((res) => {
+      if (isCurrent()) setMyCalendars(res.ok ? res.data : [])
+    })
+    getMyBoards(account.token).then((res) => {
+      if (isCurrent()) setMyBoards(res.ok ? res.data : [])
+    })
+    getCompletionScore(account.token).then((res) => {
+      if (isCurrent()) setScore(res.ok ? res.data : null)
+    })
   }, [account])
 
   async function handleUnsend(id: string) {

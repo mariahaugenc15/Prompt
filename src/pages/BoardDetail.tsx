@@ -10,6 +10,7 @@ import { ReactionBar } from '../components/ReactionBar'
 import { CompletionDetailModal } from '../components/CompletionDetailModal'
 import { reactToCompletion, type ReactionKind } from '../lib/calendarsApi'
 import { getMe } from '../lib/realAccountsApi'
+import { useEffectGuard } from '../lib/useEffectGuard'
 import {
   getBoard,
   getBoardChallenges,
@@ -101,10 +102,17 @@ export function BoardDetail() {
   const [topFans, setTopFans] = useState<TopFan[]>([])
   const [topFansVisBusy, setTopFansVisBusy] = useState(false)
 
+  const startGuard = useEffectGuard()
+
   function refresh() {
     if (!boardId) return
-    getBoard(boardId, account?.token).then((res) => setBoard(res.ok ? res.data : 'not-found'))
-    getBoardChallenges(boardId, account?.token).then((res) => setChallenges(res.ok ? res.data : []))
+    const isCurrent = startGuard()
+    getBoard(boardId, account?.token).then((res) => {
+      if (isCurrent()) setBoard(res.ok ? res.data : 'not-found')
+    })
+    getBoardChallenges(boardId, account?.token).then((res) => {
+      if (isCurrent()) setChallenges(res.ok ? res.data : [])
+    })
   }
 
   useEffect(refresh, [boardId, account?.token])
@@ -115,11 +123,21 @@ export function BoardDetail() {
   useEffect(() => {
     if (!boardId || !account) return
     if (!boardIsOwner && !boardTopFansPublic) return
-    getTopFans(boardId, account.token).then((res) => setTopFans(res.ok ? res.data : []))
+    const isCurrent = startGuard()
+    getTopFans(boardId, account.token).then((res) => {
+      if (isCurrent()) setTopFans(res.ok ? res.data : [])
+    })
   }, [boardId, account, boardIsOwner, boardTopFansPublic])
 
+  // adultOptedIn gates the 18+ blur overlay below — a stale response
+  // here isn't just cosmetic, it could show a previous (opted-in)
+  // account's gate state to a new account that hasn't opted in.
   useEffect(() => {
-    if (account) getMe(account.token).then((res) => { if (res.ok) setAdultOptedIn(res.data.adultContentOptIn) })
+    if (!account) return
+    const isCurrent = startGuard()
+    getMe(account.token).then((res) => {
+      if (isCurrent() && res.ok) setAdultOptedIn(res.data.adultContentOptIn)
+    })
   }, [account])
 
   // Tap-to-confirm resets per board visited, not just per app session.

@@ -394,14 +394,6 @@ export function EditProfile() {
             My page
           </Link>
           {me.accountType === 'individual' && (
-            <Link
-              to="/real/send"
-              className="mt-2 block rounded-sm border border-line py-2 text-center text-sm text-ink-soft"
-            >
-              Send to a username
-            </Link>
-          )}
-          {me.accountType === 'individual' && (
             <div className="mt-3 border-t border-line pt-3">
               <p className="mb-1.5 text-xs text-ink-faint">Who can send @{me.username} a prompt</p>
               <div className="flex gap-1.5">

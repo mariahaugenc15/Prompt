@@ -9,25 +9,30 @@ import App from './App.tsx'
 // that alone never refreshes an already-open tab — a pinned/standalone
 // install can sit on a stale JS bundle indefinitely, silently missing
 // fixes (a feature that works server-side just never appears) until
-// someone thinks to force-quit and relaunch it. Reloading once, the
-// moment a new service worker actually takes control, keeps a running
-// app from ever being stuck on old code for more than a few seconds.
+// someone thinks to force-quit and relaunch it.
 //
-// "controllerchange" also fires the very first time any service worker
-// ever takes control of a page that loaded with none — i.e. a fresh
-// install's first launch, not an update replacing an already-running
-// version. Reloading then (mid-login, mid-signup, whatever the user
-// happens to be doing seconds after first opening the app) silently
-// wipes their in-progress session, not something that needs fixing.
-// hadController distinguishes the two: only reload when this page was
-// already under some service worker's control to begin with.
+// Reloading the instant "controllerchange" fires is tempting but unsafe:
+// that event fires whenever a new service worker takes over, including
+// mid-session after an unrelated earlier install/update left one already
+// registered — there's no reliable way to tell "this is nothing, ignore
+// it" from "this just replaced a stale one" from inside this listener.
+// Either way, an immediate reload can land in the middle of whatever the
+// user happens to be doing right then (typing a password, mid-submit)
+// and silently wipe it. Instead, just remember an update is waiting, and
+// only apply it once the app is backgrounded (visibilitychange to
+// hidden) — nothing is visibly interrupted either way, since nobody's
+// looking at the screen at that moment, and the fresh version is simply
+// there the next time they open the app.
 if ('serviceWorker' in navigator) {
-  const hadController = Boolean(navigator.serviceWorker.controller)
-  let reloaded = false
+  let updateWaiting = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloaded) return
-    reloaded = true
-    window.location.reload()
+    updateWaiting = true
+  })
+  document.addEventListener('visibilitychange', () => {
+    if (updateWaiting && document.visibilityState === 'hidden') {
+      updateWaiting = false
+      window.location.reload()
+    }
   })
 }
 

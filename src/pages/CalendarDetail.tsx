@@ -39,7 +39,11 @@ export function CalendarDetail() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [cursor, setCursor] = useState<MonthCursor>(currentMonthCursor)
 
+  // Separate instances: both effects fire on the same mount, so sharing
+  // one guard would let whichever fires second invalidate the other's
+  // still-pending fetch.
   const startGuard = useEffectGuard()
+  const startMyCalendarsGuard = useEffectGuard()
 
   function refresh() {
     if (!calendarId) return
@@ -55,7 +59,7 @@ export function CalendarDetail() {
   useEffect(refresh, [calendarId, account?.token])
   useEffect(() => {
     if (!account) return
-    const isCurrent = startGuard()
+    const isCurrent = startMyCalendarsGuard()
     getMyCalendars(account.token).then((res) => {
       if (isCurrent() && res.ok) setMyCalendars(res.data)
     })

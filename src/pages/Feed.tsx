@@ -43,6 +43,11 @@ export function Feed() {
   const [suggested, setSuggested] = useState<PublicProfile[]>([])
 
   const startGuard = useEffectGuard()
+  // Separate instance from startGuard: this effect and refreshBoards'
+  // effect both fire on the same mount (both depend on `account`), so
+  // sharing one guard would let whichever starts second invalidate the
+  // other's still-pending fetch.
+  const startBoardsGuard = useEffectGuard()
 
   useEffect(() => {
     const isCurrent = startGuard()
@@ -71,7 +76,7 @@ export function Feed() {
 
   function refreshBoards() {
     if (!account) return
-    const isCurrent = startGuard()
+    const isCurrent = startBoardsGuard()
     getMyBoards(account.token).then((res) => {
       if (isCurrent()) setMyBoards(res.ok ? res.data : [])
     })

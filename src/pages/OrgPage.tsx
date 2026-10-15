@@ -67,7 +67,13 @@ export function OrgPage() {
   const isOwner = account?.accountType === 'organization' && account.username === username
   const isSelf = account?.username === username
 
+  // Separate instances: refresh, the myCalendars effect, and openList can
+  // all be in flight at once (refresh and myCalendars both fire on the
+  // same mount), so sharing one guard would let whichever starts last
+  // invalidate the others' still-pending fetches.
   const startGuard = useEffectGuard()
+  const startMyCalendarsGuard = useEffectGuard()
+  const startListGuard = useEffectGuard()
 
   function refresh() {
     const isCurrent = startGuard()
@@ -91,7 +97,7 @@ export function OrgPage() {
 
   useEffect(() => {
     if (!account) return
-    const isCurrent = startGuard()
+    const isCurrent = startMyCalendarsGuard()
     getMyCalendars(account.token).then((res) => {
       if (isCurrent() && res.ok) setMyCalendars(res.data)
     })
@@ -120,7 +126,7 @@ export function OrgPage() {
   function openList(which: 'followers' | 'following') {
     setListOpen(which)
     setListLoading(true)
-    const isCurrent = startGuard()
+    const isCurrent = startListGuard()
     const fetcher = which === 'followers' ? getFollowers : getFollowing
     fetcher(username, account?.token).then((res) => {
       if (!isCurrent()) return

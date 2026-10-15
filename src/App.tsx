@@ -5,7 +5,6 @@ import { configureWidget } from './lib/widgetBridge'
 import { BottomNav } from './components/BottomNav'
 import { AppHeader } from './components/AppHeader'
 import { RealShell } from './components/RealShell'
-import { AmbientBackground } from './components/AmbientBackground'
 import { LoginFlip } from './pages/LoginFlip'
 import { InviteLanding } from './pages/InviteLanding'
 import { Home } from './pages/Home'
@@ -30,7 +29,6 @@ import { RealSend } from './pages/RealSend'
 function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="relative mx-auto flex min-h-screen min-h-dvh w-full max-w-xl flex-col bg-paper">
-      <AmbientBackground />
       <div className="relative z-10 flex min-h-screen min-h-dvh flex-col">
         <AppHeader />
         <div className="flex-1 pb-4">{children}</div>

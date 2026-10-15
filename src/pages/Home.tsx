@@ -88,10 +88,16 @@ export function Home() {
   const [myBoards, setMyBoards] = useState<RealBoard[]>([])
 
   const startGuard = useEffectGuard()
+  // Its own guard instance: refreshActivity runs both inside the big
+  // account-load effect below and standalone (after a react/complete/
+  // decline), so it needs independence from that effect's own calls to
+  // startGuard() — otherwise whichever one starts second invalidates the
+  // other's still-pending fetch even though nothing it's loading changed.
+  const startActivityGuard = useEffectGuard()
 
   function refreshActivity() {
     if (!account) return
-    const isCurrent = startGuard()
+    const isCurrent = startActivityGuard()
     getMyActivity(account.token).then((res) => { if (isCurrent() && res.ok) setActivity(res.data) })
     getCompletionScore(account.token).then((res) => { if (isCurrent() && res.ok) setScore(res.data.score) })
   }

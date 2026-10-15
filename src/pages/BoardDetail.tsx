@@ -102,7 +102,13 @@ export function BoardDetail() {
   const [topFans, setTopFans] = useState<TopFan[]>([])
   const [topFansVisBusy, setTopFansVisBusy] = useState(false)
 
+  // Each of these three effects can be in flight at the same time (all
+  // three fire on the same mount), so each needs its own guard instance
+  // — sharing one would let whichever effect starts last invalidate the
+  // others' still-pending fetches.
   const startGuard = useEffectGuard()
+  const startTopFansGuard = useEffectGuard()
+  const startAdultOptInGuard = useEffectGuard()
 
   function refresh() {
     if (!boardId) return
@@ -123,7 +129,7 @@ export function BoardDetail() {
   useEffect(() => {
     if (!boardId || !account) return
     if (!boardIsOwner && !boardTopFansPublic) return
-    const isCurrent = startGuard()
+    const isCurrent = startTopFansGuard()
     getTopFans(boardId, account.token).then((res) => {
       if (isCurrent()) setTopFans(res.ok ? res.data : [])
     })
@@ -134,7 +140,7 @@ export function BoardDetail() {
   // account's gate state to a new account that hasn't opted in.
   useEffect(() => {
     if (!account) return
-    const isCurrent = startGuard()
+    const isCurrent = startAdultOptInGuard()
     getMe(account.token).then((res) => {
       if (isCurrent() && res.ok) setAdultOptedIn(res.data.adultContentOptIn)
     })

@@ -64,10 +64,16 @@ export function EditProfile() {
   const [declinedReceived, setDeclinedReceived] = useState<OneToOneHistoryItem[]>([])
 
   const startGuard = useEffectGuard()
+  // Separate instances: refreshProfile, refreshSent, and the main effect
+  // below all fire together on the same account-load pass. Sharing one
+  // guard across them would let whichever one calls startGuard() last
+  // invalidate the still-pending fetches the earlier ones just started.
+  const startProfileGuard = useEffectGuard()
+  const startSentGuard = useEffectGuard()
 
   function refreshProfile() {
     if (!account) return
-    const isCurrent = startGuard()
+    const isCurrent = startProfileGuard()
     getProfile(account.username, account.token).then((res) => {
       if (isCurrent()) setProfile(res.ok ? res.data : null)
     })
@@ -75,7 +81,7 @@ export function EditProfile() {
 
   function refreshSent() {
     if (!account) return
-    const isCurrent = startGuard()
+    const isCurrent = startSentGuard()
     getPromptHistory(account.token).then((res) => {
       if (!res.ok || !isCurrent()) return
       setSentPending(res.data.oneToOne.filter((p) => p.senderUsername === account.username && p.status === 'pending'))
@@ -264,9 +270,22 @@ export function EditProfile() {
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   async function handleSignOut() {
-    if (account) await logout(account.token)
+    // Signing out is a local, device-only action (the confirmation copy
+    // promises exactly that: "log back in from any device"), so it must
+    // not get stuck behind the server call that revokes the token. If
+    // that request throws — a dropped connection, a brief backend outage
+    // — this still has to clear local state and leave; the token simply
+    // stays valid until it naturally rotates on next login.
+    if (account) {
+      try {
+        await logout(account.token)
+      } catch {
+        // best-effort token revocation; sign out locally regardless
+      }
+    }
     signOut()
     navigate('/')
   }
@@ -274,10 +293,17 @@ export function EditProfile() {
   async function handleDeleteAccount() {
     if (!account) return
     setDeleting(true)
+    setDeleteError(null)
     try {
-      await deleteMyAccount(account.token)
+      const res = await deleteMyAccount(account.token)
+      if (!res.ok) {
+        setDeleteError(res.errors.form ?? 'Could not delete your account. Please try again.')
+        return
+      }
       signOut()
       navigate('/')
+    } catch {
+      setDeleteError('Could not reach the server. Check your connection and try again.')
     } finally {
       setDeleting(false)
     }
@@ -730,6 +756,7 @@ export function EditProfile() {
               able to log back in. Prompts and completions you were part of stay visible to the people they
               involved, attributed to a deleted account, rather than disappearing from their history.
             </p>
+            {deleteError && <p className="mt-2 text-xs text-danger">{deleteError}</p>}
             <div className="mt-3 flex gap-2">
               <button
                 onClick={handleDeleteAccount}

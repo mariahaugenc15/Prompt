@@ -901,6 +901,43 @@ db.exec(`
 // getStampBook, which stays exactly as Phase 8 left it.
 insertStampDefinition.run({ id: 'stamp-week_winner-default', category: 'week_winner' })
 
+// Team challenge (v2, Phase 13.3) — same board-as-group-container reuse
+// decision as 13.2's weekly game (see board_games's comment above), run
+// over a creator-chosen fixed period rather than a rolling week.
+// Membership is a flat two-table split (a team, and who's on it) since a
+// challenge's teams don't persist beyond that one challenge the way a
+// board's own membership does.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS team_challenges (
+    id TEXT PRIMARY KEY,
+    board_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    period_start INTEGER NOT NULL,
+    period_end INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_challenges_board ON team_challenges(board_id, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS challenge_teams (
+    id TEXT PRIMARY KEY,
+    challenge_id TEXT NOT NULL,
+    name TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_challenge_teams_challenge ON challenge_teams(challenge_id);
+
+  CREATE TABLE IF NOT EXISTS challenge_team_members (
+    team_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    PRIMARY KEY (team_id, account_id)
+  );
+`)
+// A team challenge's own "winner" stamp, distinct from the weekly game's
+// "week_winner" (same reuse pattern as that one — see its comment above;
+// this is a second, separate achievement, not a reuse of the same badge).
+insertStampDefinition.run({ id: 'stamp-team_winner-default', category: 'team_winner' })
+
 // One row per (board, account), overwritten daily by gameJobs.ts's daily
 // check — what makes "you were passed" (13.4) a once-a-day comparison
 // against yesterday's rank instead of a real-time check on every single

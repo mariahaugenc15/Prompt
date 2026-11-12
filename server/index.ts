@@ -27,6 +27,8 @@ import { groupPromptsRouter } from './groupPromptsRoutes.js'
 import { registerSealedRevealSweep } from './groupPromptsJobs.js'
 import { gameRouter } from './gameRoutes.js'
 import { registerGameDailyJob } from './gameJobs.js'
+import { teamChallengeRouter } from './teamChallengeRoutes.js'
+import { registerTeamChallengeSweep } from './teamChallengeJobs.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mediaDir } from './mediaStore.js'
@@ -125,10 +127,12 @@ app.use(suggestionsRouter)
 app.use(recapRouter)
 app.use(groupPromptsRouter)
 app.use(gameRouter)
+app.use(teamChallengeRouter)
 
 registerMonthlyRecapPushJob()
 registerSealedRevealSweep()
 registerGameDailyJob()
+registerTeamChallengeSweep()
 startScheduler()
 
 // Self-contained admin dashboard (no build step) — served as a static file

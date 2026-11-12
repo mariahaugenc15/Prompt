@@ -43,7 +43,9 @@ function isValidTimezone(tz: unknown): tz is string {
 // board surface already does (boardsRoutes.ts's /api/boards/:id/challenges)
 // — not gating this would mean the game leaderboard leaks a hint that an
 // adult board exists and is active to someone who hasn't opted in.
-function checkBoardAccess(boardId: string, viewerId: string | undefined): { ok: true; board: ReturnType<typeof getBoardById> } | { ok: false; status: number; message: string } {
+// Exported for teamChallengeRoutes.ts, which needs the exact same 18+/
+// invite-board gate for its own board-scoped endpoints.
+export function checkBoardAccess(boardId: string, viewerId: string | undefined): { ok: true; board: ReturnType<typeof getBoardById> } | { ok: false; status: number; message: string } {
   const board = getBoardById(boardId)
   if (!board) return { ok: false, status: 404, message: 'No board with that id.' }
   if (board.visibility === 'invite' && (!viewerId || (board.owner_account_id !== viewerId && !getSubscriberIds(board.id).includes(viewerId)))) {

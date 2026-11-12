@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import crypto from 'node:crypto'
+import { parseBuffer } from 'music-metadata'
 import { db } from './db.js'
 import { requireAuth } from './auth.js'
 import { canBroadcast, canCompleteBroadcast, canReceiveOneToOne, canSendOneToOne } from './permissions.js'
@@ -20,14 +21,39 @@ type Category = (typeof CATEGORIES)[number]
 // A client-side-only limit isn't a real limit, so this is checked again
 // here regardless of what the client already enforced.
 const MAX_AUDIO_BYTES = 6 * 1024 * 1024
-const DATA_URL_BASE64_RE = /^data:[^;,]+(?:;charset=[^;,]+)?;base64,(.+)$/s
+// Matches src/lib/media.ts's MAX_AUDIO_DURATION_SECONDS (the client
+// auto-stops recording at this point). The byte cap above is a generous
+// proxy for this at typical voice-recording bitrates, but a crafted
+// low-bitrate upload could stay under it while running far longer, so
+// this actually measures the decoded duration rather than inferring it.
+const MAX_AUDIO_DURATION_SECONDS = 120
+const DATA_URL_RE = /^data:([^;,]+)(?:;charset=[^;,]+)?;base64,(.+)$/s
 
 function decodedDataUrlByteLength(dataUrl: string): number {
-  const match = DATA_URL_BASE64_RE.exec(dataUrl)
+  const match = DATA_URL_RE.exec(dataUrl)
   if (!match) return 0
-  const base64 = match[1]
+  const base64 = match[2]
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
   return Math.floor((base64.length * 3) / 4) - padding
+}
+
+// Decodes and actually probes the audio container/codec for its real
+// duration rather than trusting anything the client claims. Returns
+// undefined if the data URL can't be parsed or the format can't be read,
+// which callers treat as a rejection (fail closed) — standard formats
+// from MediaRecorder (webm/opus, mp4/aac) and typical picked files
+// (m4a, mp3, wav) all parse fine, so this only ever rejects something
+// genuinely unreadable or deliberately malformed.
+async function audioDurationSeconds(dataUrl: string): Promise<number | undefined> {
+  const match = DATA_URL_RE.exec(dataUrl)
+  if (!match) return undefined
+  const [, mimeType, base64] = match
+  try {
+    const metadata = await parseBuffer(Buffer.from(base64, 'base64'), mimeType)
+    return metadata.format.duration
+  } catch {
+    return undefined
+  }
 }
 
 function validatePromptBody(body: unknown): { category: Category; text: string } | { error: string } {
@@ -255,7 +281,7 @@ const insertCompletion = db.prepare(`
   VALUES (@id, @promptId, @completerAccountId, @mediaType, @mediaDataUrl, @autoCaption, @userCaption, @createdAt)
 `)
 
-promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
+promptRouter.post('/api/prompts/:id/complete', requireAuth, async (req, res) => {
   const me = req.account!
   const prompt = getPromptById.get(String(req.params.id)) as Record<string, unknown> | undefined
   if (!prompt) return res.status(404).json({ errors: { form: 'Prompt not found.' } })
@@ -272,10 +298,18 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, (req, res) => {
     return res.status(422).json({ errors: { media: 'Photo or video proof is required.' } })
   }
   const mediaType = rawMediaDataUrl ? (typeof req.body?.mediaType === 'string' ? req.body.mediaType : 'photo') : undefined
-  if (mediaType === 'audio' && rawMediaDataUrl && decodedDataUrlByteLength(rawMediaDataUrl) > MAX_AUDIO_BYTES) {
-    return res.status(422).json({
-      errors: { media: `That recording is too large (max ${Math.floor(MAX_AUDIO_BYTES / (1024 * 1024))}MB). Try a shorter one.` },
-    })
+  if (mediaType === 'audio' && rawMediaDataUrl) {
+    if (decodedDataUrlByteLength(rawMediaDataUrl) > MAX_AUDIO_BYTES) {
+      return res.status(422).json({
+        errors: { media: `That recording is too large (max ${Math.floor(MAX_AUDIO_BYTES / (1024 * 1024))}MB). Try a shorter one.` },
+      })
+    }
+    const duration = await audioDurationSeconds(rawMediaDataUrl)
+    if (duration === undefined || duration > MAX_AUDIO_DURATION_SECONDS) {
+      return res.status(422).json({
+        errors: { media: `That recording is too long (max ${MAX_AUDIO_DURATION_SECONDS} seconds). Try a shorter one.` },
+      })
+    }
   }
   const mediaDataUrl = rawMediaDataUrl ? saveDataUrlAsFile(rawMediaDataUrl, publicBaseUrl(req)) : undefined
 

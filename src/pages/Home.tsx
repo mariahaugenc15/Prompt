@@ -25,6 +25,7 @@ import {
 import { reactToCompletion, tagCompletion, getMyCalendars, type CompletionView, type ReactionKind, type RealCalendar } from '../lib/calendarsApi'
 import { getMyActivity, getFollowingFeed, getCommunityFeed } from '../lib/feedApi'
 import { getMyBoards, type RealBoard } from '../lib/boardsApi'
+import { getReceivedGroupPrompts } from '../lib/groupPromptsApi'
 import { monthCursorFromTimestamp } from '../lib/monthCursor'
 import { useCurrentMonthCursor } from '../lib/useCurrentMonthCursor'
 import { refreshWidgetNow } from '../lib/widgetBridge'
@@ -74,6 +75,11 @@ export function Home() {
   const [score, setScore] = useState<number | null>(null)
   const [oneToOne, setOneToOne] = useState<OneToOneHistoryItem[]>([])
   const [broadcasts, setBroadcasts] = useState<ActiveBroadcastItem[]>([])
+  // Group prompts needing this account's attention — excluded from the
+  // ordinary corkboard entirely (see server/promptRoutes.ts's
+  // pendingOneToOne) since a sealed/group item needs its own dedicated
+  // card, not a plain note with no indication other people are involved.
+  const [pendingGroupCount, setPendingGroupCount] = useState(0)
   const [completingBroadcast, setCompletingBroadcast] = useState<ActiveBroadcastItem | null>(null)
   const [completingBusy, setCompletingBusy] = useState(false)
   const seenPendingIds = useRef<Set<string> | null>(null)
@@ -158,8 +164,19 @@ export function Home() {
     if (!account) return
     let cancelled = false
     async function poll() {
-      const [historyRes, broadcastRes] = await Promise.all([getPromptHistory(account!.token), getActiveBroadcasts(account!.token)])
+      const [historyRes, broadcastRes, groupRes] = await Promise.all([
+        getPromptHistory(account!.token),
+        getActiveBroadcasts(account!.token),
+        getReceivedGroupPrompts(account!.token),
+      ])
       if (cancelled) return
+
+      if (groupRes.ok) {
+        // Only counts ones this account still needs to answer — a group
+        // prompt someone's already completed and is just waiting on
+        // others for isn't something to put an action badge on.
+        setPendingGroupCount(groupRes.data.filter((g) => g.myStatus === 'pending' && !g.cancelled).length)
+      }
 
       if (historyRes.ok) {
         const received = historyRes.data.oneToOne.filter((item) => item.recipientUsername === account!.username)
@@ -397,9 +414,24 @@ export function Home() {
       </div>
 
       <div className="px-4">
-        <Link to="/groups" className="text-xs text-ink-faint underline underline-offset-2">
-          Group prompts
-        </Link>
+        {pendingGroupCount > 0 ? (
+          <Link
+            to="/groups"
+            className="flex items-center justify-between rounded-sm border border-dashed border-accent bg-accent-soft/40 p-3 text-sm"
+          >
+            <span>
+              <span className="block text-[10px] uppercase tracking-wide text-accent">Group prompts waiting</span>
+              <span className="mt-1 block font-serif text-base text-ink">
+                {pendingGroupCount} waiting on your answer
+              </span>
+            </span>
+            <span className="text-xs text-ink-faint underline underline-offset-2">Open</span>
+          </Link>
+        ) : (
+          <Link to="/groups" className="text-xs text-ink-faint underline underline-offset-2">
+            Group prompts
+          </Link>
+        )}
       </div>
 
       <div className="px-4">

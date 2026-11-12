@@ -156,6 +156,20 @@ describe('Phase 12: sealed group prompts never leak before reveal', () => {
     const anonRes = await fetch(`${BASE}/api/prompt-groups/${groupId}`)
     expect(anonRes.status).toBe(401)
 
+    // --- Role 8: the sender's own /api/prompts/history (a route that
+    // predates Phase 12 and reads completion content via its own query,
+    // not canViewCompletion) must not leak it either. This endpoint
+    // shipped with exactly this leak during development: it's the Home
+    // screen's own data source, not some obscure admin path. A group
+    // prompt is excluded from this endpoint entirely now (it has its own
+    // dedicated surface), so it shouldn't appear here at all, sealed or
+    // not, let alone with its content attached. ---
+    const senderHistory = await (
+      await fetch(`${BASE}/api/prompts/history`, { headers: { Authorization: `Bearer ${sender.token}` } })
+    ).json() as any
+    const aFromHistory = senderHistory.oneToOne.find((r: { id: string }) => r.id === aPromptId)
+    expect(aFromHistory).toBeUndefined()
+
     // A can always see their own content.
     const aOwnView = await (
       await fetch(`${BASE}/api/prompt-groups/${groupId}`, { headers: { Authorization: `Bearer ${a.token}` } })

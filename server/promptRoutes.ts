@@ -10,7 +10,7 @@ import { reactionCounts, toggleReaction } from './reactionsRepo.js'
 import { notifyForEvent } from './notificationsRepo.js'
 import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
-import { canViewCompletion } from './completionsRepo.js'
+import { canViewCompletion, rowIsSealedHidden } from './completionsRepo.js'
 import { awardStamp } from './stampsRepo.js'
 import { sanitizeNoteStyle } from './noteStyle.js'
 import { getGroupById, maybeRevealIfGroupComplete } from './groupPromptsRepo.js'
@@ -168,13 +168,21 @@ promptRouter.post('/api/prompts/broadcast', requireAuth, (req, res) => {
 // from someone I follow, or from a board I subscribe to, that I haven't
 // completed yet.
 
+// group_id IS NULL excludes a group/sealed prompt from the ordinary
+// corkboard inbox entirely (Phase 12 added after this query already
+// existed) — it has its own dedicated flow (GET /api/prompt-groups/received,
+// src/pages/GroupPrompts.tsx) with the sealed-card/waiting-on-others
+// messaging this plain note UI has no way to show. Without this filter a
+// pending group member's row would render here as an ordinary note with
+// no indication other people are involved at all, and then show up a
+// second time, looking unrelated, in the group prompts list.
 const pendingOneToOne = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt, p.status,
          p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting,
          a.username AS senderUsername, a.first_name, a.organization_name
   FROM prompts p
   JOIN accounts a ON a.id = p.sender_account_id
-  WHERE p.is_broadcast = 0 AND p.recipient_account_id = ? AND p.status = 'pending'
+  WHERE p.is_broadcast = 0 AND p.recipient_account_id = ? AND p.status = 'pending' AND p.group_id IS NULL
   ORDER BY p.created_at DESC
 `)
 
@@ -492,12 +500,20 @@ const oneToOneHistory = db.prepare(`
          p.completion_user_caption AS userCaption, p.completion_media_type AS mediaType,
          p.completion_media_data_url AS mediaDataUrl, p.note_color AS noteColor, p.note_sticker AS noteSticker,
          p.note_handwriting AS noteHandwriting, p.created_at AS createdAt, p.completed_at AS completedAt,
+         p.group_id AS groupId, p.recipient_account_id AS recipientAccountId,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          recipient.username AS recipientUsername
   FROM prompts p
   JOIN accounts sender ON sender.id = p.sender_account_id
   JOIN accounts recipient ON recipient.id = p.recipient_account_id
-  WHERE p.is_broadcast = 0 AND (p.sender_account_id = ? OR p.recipient_account_id = ?)
+  -- group_id IS NULL: a group/sealed prompt is excluded from this legacy
+  -- "my 1:1 notes" endpoint entirely, not just content-stripped. It has
+  -- its own dedicated surface (GET /api/prompt-groups/*,
+  -- src/pages/GroupPrompts.tsx) with the sealed-card/waiting-on-others
+  -- messaging this plain note UI can't show; without this exclusion it
+  -- rendered twice, once here as a note with no indication other people
+  -- were involved, and once there with full context.
+  WHERE p.is_broadcast = 0 AND p.group_id IS NULL AND (p.sender_account_id = ? OR p.recipient_account_id = ?)
   ORDER BY p.created_at DESC
 `)
 
@@ -527,6 +543,8 @@ interface OneToOneHistoryRow {
   noteHandwriting: string | null
   createdAt: number
   completedAt: number | null
+  groupId: string | null
+  recipientAccountId: string | null
   senderUsername: string
   senderFirstName: string | null
   senderOrgName: string | null
@@ -535,24 +553,35 @@ interface OneToOneHistoryRow {
 
 promptRouter.get('/api/prompts/history', requireAuth, (req, res) => {
   const me = req.account!
-  const oneToOne = (oneToOneHistory.all(me.id, me.id) as OneToOneHistoryRow[]).map((row) => ({
-    id: row.id,
-    category: row.category,
-    promptText: row.promptText,
-    status: row.status,
-    autoCaption: row.autoCaption ?? undefined,
-    userCaption: row.userCaption ?? undefined,
-    mediaType: row.mediaType ?? undefined,
-    mediaDataUrl: row.mediaDataUrl ?? undefined,
-    noteColor: row.noteColor ?? undefined,
-    noteSticker: row.noteSticker ?? undefined,
-    noteHandwriting: row.noteHandwriting ?? undefined,
-    createdAt: row.createdAt,
-    completedAt: row.completedAt ?? undefined,
-    senderUsername: row.senderUsername,
-    senderDisplayName: row.senderFirstName ?? row.senderOrgName ?? row.senderUsername,
-    recipientUsername: row.recipientUsername,
-  }))
+  const oneToOne = (oneToOneHistory.all(me.id, me.id) as OneToOneHistoryRow[]).map((row) => {
+    // Belt and suspenders: the query above already excludes every
+    // group_id row outright, so `hidden` should never actually be true
+    // here. Kept anyway, exactly because this endpoint is the one that
+    // shipped the real leak during development (a second, unsynchronized
+    // copy of "is this sealed" logic that nobody thought to apply here) —
+    // if a future change ever loosens that WHERE clause, this is a second
+    // independent gate standing between a sealed response and the
+    // sender's own history view, not just a comment hoping it stays right.
+    const hidden = rowIsSealedHidden(row.groupId, row.recipientAccountId, me.id)
+    return {
+      id: row.id,
+      category: row.category,
+      promptText: row.promptText,
+      status: row.status,
+      autoCaption: hidden ? undefined : (row.autoCaption ?? undefined),
+      userCaption: hidden ? undefined : (row.userCaption ?? undefined),
+      mediaType: hidden ? undefined : (row.mediaType ?? undefined),
+      mediaDataUrl: hidden ? undefined : (row.mediaDataUrl ?? undefined),
+      noteColor: row.noteColor ?? undefined,
+      noteSticker: row.noteSticker ?? undefined,
+      noteHandwriting: row.noteHandwriting ?? undefined,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt ?? undefined,
+      senderUsername: row.senderUsername,
+      senderDisplayName: row.senderFirstName ?? row.senderOrgName ?? row.senderUsername,
+      recipientUsername: row.recipientUsername,
+    }
+  })
   const broadcasts = broadcastHistory.all(me.id, me.id)
   res.json({ oneToOne, broadcasts })
 })

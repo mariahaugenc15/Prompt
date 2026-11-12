@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
 import { CATEGORY_ICON, BackIcon, CloseIcon } from '../components/Icons'
 import { sendGroupPrompt, type DeadlineHours } from '../lib/groupPromptsApi'
+import { searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
 
 const DEADLINE_OPTIONS: { hours: DeadlineHours; label: string }[] = [
   { hours: 24, label: '24 hours' },
@@ -28,9 +29,38 @@ export function GroupSend() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
 
-  function addRecipient() {
-    const username = recipientInput.trim().replace(/^@/, '').toLowerCase()
+  // Same live, debounced username search RealSend and Feed already use —
+  // picking a suggestion is exact and typo-free, which matters even more
+  // here than on a 1:1 send since a group has 2-10 names to get right
+  // instead of one.
+  const [suggestions, setSuggestions] = useState<PublicProfile[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const q = recipientInput.trim().toLowerCase()
+
+  useEffect(() => {
+    if (q.length < 2) {
+      setSuggestions([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      searchAccounts(q, account?.token).then((res) => {
+        if (!cancelled) setSuggestions(res.ok ? res.data : [])
+      })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [q, account?.token])
+
+  function addRecipient(rawUsername: string) {
+    const username = rawUsername.trim().replace(/^@/, '').toLowerCase()
     if (!username) return
+    if (account && username === account.username.toLowerCase()) {
+      setErrors((p) => ({ ...p, recipientUsernames: 'You cannot prompt yourself.' }))
+      return
+    }
     if (recipients.includes(username)) {
       setErrors((p) => ({ ...p, recipientUsernames: 'Already added.' }))
       return
@@ -41,6 +71,7 @@ export function GroupSend() {
     }
     setRecipients((p) => [...p, username])
     setRecipientInput('')
+    setShowSuggestions(false)
     setErrors((p) => ({ ...p, recipientUsernames: '' }))
   }
 
@@ -92,25 +123,52 @@ export function GroupSend() {
         <p className="text-xs text-ink-faint">Address 2 to {MAX_RECIPIENTS} people with one prompt, each tracked separately.</p>
       </div>
 
-      <div className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">
+      <div className="relative flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">
         Recipients
         <div className="flex gap-2">
           <input
             value={recipientInput}
-            onChange={(e) => setRecipientInput(e.target.value)}
+            onChange={(e) => {
+              setRecipientInput(e.target.value)
+              setShowSuggestions(true)
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
-                addRecipient()
+                addRecipient(recipientInput)
               }
             }}
             placeholder="username"
             className="flex-1 rounded-sm border border-line bg-card p-2.5 text-base normal-case tracking-normal outline-none focus:border-line-strong"
           />
-          <button type="button" onClick={addRecipient} className="rounded-sm border border-line px-3 text-sm text-ink-soft">
+          <button type="button" onClick={() => addRecipient(recipientInput)} className="rounded-sm border border-line px-3 text-sm text-ink-soft">
             Add
           </button>
         </div>
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute left-0 right-0 top-full z-10 mt-1 flex flex-col overflow-hidden rounded-sm border border-line bg-card shadow-note">
+            {suggestions
+              .filter((p) => !recipients.includes(p.username.toLowerCase()) && p.username.toLowerCase() !== account.username.toLowerCase())
+              .map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => addRecipient(p.username)}
+                  className="flex items-center gap-2.5 px-3 py-2 text-left normal-case tracking-normal hover:bg-paper-dim"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-paper-dim font-serif text-xs">
+                    {p.displayName.charAt(0).toUpperCase()}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-medium leading-tight">{p.displayName}</span>
+                    <span className="block text-xs text-ink-faint">@{p.username}</span>
+                  </span>
+                </button>
+              ))}
+          </div>
+        )}
         {errors.recipientUsernames && <span className="text-danger normal-case tracking-normal">{errors.recipientUsernames}</span>}
         {recipients.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1.5">

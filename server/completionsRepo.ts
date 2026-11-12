@@ -68,7 +68,15 @@ interface OneToOneRow {
 // applies before a row is allowed to reach a viewer (12.3). A row with no
 // group_id (an ordinary 1:1 prompt, the overwhelming majority) is never
 // hidden by this — it only ever does something for a group-member row.
-function rowIsSealedHidden(groupId: string | null, recipientAccountId: string | null, viewerId: string | undefined): boolean {
+// Exported for every other direct-SQL path that reads a 1:1 prompt's
+// completion content outside this file's own feed functions (so far,
+// promptRoutes.ts's /api/prompts/history) — this used to exist only as a
+// private helper here, which is exactly how /api/prompts/history ended up
+// shipping without it: a second query reading the same columns had no
+// reason to know this check existed at all. There is now exactly one
+// implementation of "is this row's content still sealed from this
+// viewer," never a second one to fall out of sync.
+export function rowIsSealedHidden(groupId: string | null, recipientAccountId: string | null, viewerId: string | undefined): boolean {
   if (!groupId) return false
   const seal = groupSealState(groupId)
   if (!seal || !seal.sealed || seal.revealedAt) return false

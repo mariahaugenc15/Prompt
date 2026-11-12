@@ -244,6 +244,7 @@ const deleteActivityDaysStmt = db.prepare('DELETE FROM activity_days WHERE accou
 const deletePushSubsStmt = db.prepare('DELETE FROM push_subscriptions WHERE account_id = ?')
 const deleteApnsTokensStmt = db.prepare('DELETE FROM apns_device_tokens WHERE account_id = ?')
 const deleteNotificationsStmt = db.prepare('DELETE FROM notifications WHERE account_id = ?')
+const deleteNotificationPrefsStmt = db.prepare('DELETE FROM notification_prefs WHERE account_id = ?')
 const deletePendingLoginsStmt = db.prepare('DELETE FROM pending_logins WHERE account_id = ?')
 const deleteVerificationRequestsStmt = db.prepare('DELETE FROM verification_requests WHERE account_id = ?')
 const removeOwnCommentsStmt = db.prepare(
@@ -273,6 +274,7 @@ export function permanentlyDeleteAccount(accountId: string): void {
   deletePushSubsStmt.run(accountId)
   deleteApnsTokensStmt.run(accountId)
   deleteNotificationsStmt.run(accountId)
+  deleteNotificationPrefsStmt.run(accountId)
   deletePendingLoginsStmt.run(accountId)
   deleteVerificationRequestsStmt.run(accountId)
   removeOwnCommentsStmt.run(accountId)

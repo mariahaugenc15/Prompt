@@ -12,41 +12,38 @@ export interface NotificationPrefs {
   promptCompleted: boolean
 }
 
-interface PrefsRow {
-  notify_master: number
-  notify_new_follower: number
-  notify_new_prompt: number
-  notify_prompt_completed: number
-}
+// Maps each NotificationPrefs field to its row key in notification_prefs
+// (server/db.ts). Adding a future notification type (Phase 11's monthly
+// recap, Phase 12's sealed-prompt-opened, Phase 13's game updates) means
+// adding one entry here and to NotificationPrefs, never a migration.
+const PREF_FIELDS: { field: keyof NotificationPrefs; event: string }[] = [
+  { field: 'master', event: 'master' },
+  { field: 'newFollower', event: 'new_follower' },
+  { field: 'newPrompt', event: 'new_prompt' },
+  { field: 'promptCompleted', event: 'prompt_completed' },
+]
 
-const getPrefsStmt = db.prepare(
-  'SELECT notify_master, notify_new_follower, notify_new_prompt, notify_prompt_completed FROM accounts WHERE id = ?',
-)
+const getAllPrefsStmt = db.prepare('SELECT event, enabled FROM notification_prefs WHERE account_id = ?')
 
 export function getNotificationPrefs(accountId: string): NotificationPrefs {
-  const row = getPrefsStmt.get(accountId) as PrefsRow | undefined
-  return {
-    master: Boolean(row?.notify_master ?? 1),
-    newFollower: Boolean(row?.notify_new_follower ?? 1),
-    newPrompt: Boolean(row?.notify_new_prompt ?? 1),
-    promptCompleted: Boolean(row?.notify_prompt_completed ?? 1),
-  }
+  // No row for an event means "on" (see db.ts's migration comment) — same
+  // default the old fixed columns used, so an account with nothing ever
+  // explicitly set behaves exactly as before.
+  const enabled = new Map((getAllPrefsStmt.all(accountId) as { event: string; enabled: number }[]).map((r) => [r.event, Boolean(r.enabled)]))
+  const prefs = {} as NotificationPrefs
+  for (const { field, event } of PREF_FIELDS) prefs[field] = enabled.get(event) ?? true
+  return prefs
 }
 
-const setPrefsStmt = db.prepare(`
-  UPDATE accounts
-  SET notify_master = @master, notify_new_follower = @newFollower, notify_new_prompt = @newPrompt, notify_prompt_completed = @promptCompleted
-  WHERE id = @accountId
+const upsertPrefStmt = db.prepare(`
+  INSERT INTO notification_prefs (account_id, event, enabled) VALUES (@accountId, @event, @enabled)
+  ON CONFLICT(account_id, event) DO UPDATE SET enabled = @enabled
 `)
 
 export function setNotificationPrefs(accountId: string, prefs: NotificationPrefs): void {
-  setPrefsStmt.run({
-    accountId,
-    master: prefs.master ? 1 : 0,
-    newFollower: prefs.newFollower ? 1 : 0,
-    newPrompt: prefs.newPrompt ? 1 : 0,
-    promptCompleted: prefs.promptCompleted ? 1 : 0,
-  })
+  for (const { field, event } of PREF_FIELDS) {
+    upsertPrefStmt.run({ accountId, event, enabled: prefs[field] ? 1 : 0 })
+  }
 }
 
 function allowedFor(prefs: NotificationPrefs, event: NotificationEvent): boolean {

@@ -496,12 +496,51 @@ db.exec(`
 // Per-event notification preferences (v2, Phase 4) — one master switch plus
 // one per event, each defaulting to on so existing users keep the behavior
 // they already had rather than going silent on upgrade.
+//
+// The original shape (below) was one fixed column per event on accounts —
+// wrong per the spec's own requirement that this model be "rows or keys,
+// not new columns" so later phases (11: monthly recap, 12: sealed prompt
+// opened, 13: game updates) can add a notification type without a schema
+// migration. Superseded by notification_prefs below; these columns are
+// kept only as the source for the one-time backfill and are no longer
+// written to.
 if (!accountColumns.has('notify_master')) {
   db.exec(`ALTER TABLE accounts ADD COLUMN notify_master INTEGER NOT NULL DEFAULT 1`)
   db.exec(`ALTER TABLE accounts ADD COLUMN notify_new_follower INTEGER NOT NULL DEFAULT 1`)
   db.exec(`ALTER TABLE accounts ADD COLUMN notify_new_prompt INTEGER NOT NULL DEFAULT 1`)
   db.exec(`ALTER TABLE accounts ADD COLUMN notify_prompt_completed INTEGER NOT NULL DEFAULT 1`)
 }
+
+// Row-per-event notification preferences (server/notificationsRepo.ts).
+// No row for a given (account, event) means "on" — the same default the
+// old columns used — so adding a new event type later (Phase 11/12/13)
+// needs no migration, just a new event string. Only accounts that ever
+// explicitly turned something off get a row at all.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notification_prefs (
+    account_id TEXT NOT NULL,
+    event TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (account_id, event)
+  );
+`)
+// One-time backfill from the old columns, for any account that had
+// explicitly turned something off before this table existed. Safe to run
+// on every boot: INSERT OR IGNORE only ever inserts the row once (the
+// primary key already exists after the first run), and it only considers
+// accounts where the old column is still 0, so an account that re-enables
+// something afterward (deleting or updating its new-table row) is never
+// reset back to disabled by a later restart.
+db.exec(`
+  INSERT OR IGNORE INTO notification_prefs (account_id, event, enabled)
+    SELECT id, 'master', 0 FROM accounts WHERE notify_master = 0;
+  INSERT OR IGNORE INTO notification_prefs (account_id, event, enabled)
+    SELECT id, 'new_follower', 0 FROM accounts WHERE notify_new_follower = 0;
+  INSERT OR IGNORE INTO notification_prefs (account_id, event, enabled)
+    SELECT id, 'new_prompt', 0 FROM accounts WHERE notify_new_prompt = 0;
+  INSERT OR IGNORE INTO notification_prefs (account_id, event, enabled)
+    SELECT id, 'prompt_completed', 0 FROM accounts WHERE notify_prompt_completed = 0;
+`)
 
 // The in-app notification list (v2, Phase 4) — a persisted record of the
 // same events that can also go out as push, so there's somewhere to see

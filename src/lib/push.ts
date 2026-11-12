@@ -1,4 +1,5 @@
 import { getPushPublicKey, subscribeToPush } from './realAccountsApi'
+import { isNativeIOS, requestNativeNotificationPermission } from './widgetBridge'
 
 // A VAPID public key arrives from the server as URL-safe base64 (see
 // pushRepo.ts / web-push's own format) — the Push API wants raw bytes.
@@ -17,6 +18,16 @@ export type PushEnableResult = 'subscribed' | 'denied' | 'unsupported' | 'error'
 // or silently ignore a permission prompt fired from a page-load effect,
 // and it's a worse experience even when they don't.
 export async function enablePushNotifications(token: string): Promise<PushEnableResult> {
+  // The Web Push path below (Notification/ServiceWorker/PushManager)
+  // never reaches a Capacitor-wrapped native app — iOS's WKWebView
+  // doesn't implement it. The native equivalent is a real APNs device
+  // token gated on the same OS notification-permission dialog, requested
+  // here instead.
+  if (isNativeIOS()) {
+    const granted = await requestNativeNotificationPermission()
+    return granted ? 'subscribed' : 'denied'
+  }
+
   if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return 'unsupported'
   }
@@ -45,5 +56,6 @@ export async function enablePushNotifications(token: string): Promise<PushEnable
 }
 
 export function pushSupported(): boolean {
+  if (isNativeIOS()) return true
   return typeof Notification !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window
 }

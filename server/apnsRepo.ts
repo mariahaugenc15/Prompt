@@ -55,16 +55,19 @@ function authToken(): string {
 }
 
 const upsertToken = db.prepare(`
-  INSERT INTO apns_device_tokens (device_token, account_id, created_at)
-  VALUES (@deviceToken, @accountId, @createdAt)
-  ON CONFLICT(device_token) DO UPDATE SET account_id = @accountId
+  INSERT INTO apns_device_tokens (device_token, account_id, created_at, visible_push_enabled)
+  VALUES (@deviceToken, @accountId, @createdAt, @visiblePushEnabled)
+  ON CONFLICT(device_token) DO UPDATE SET account_id = @accountId, visible_push_enabled = @visiblePushEnabled
 `)
 const deleteToken = db.prepare('DELETE FROM apns_device_tokens WHERE device_token = ?')
 const deleteTokensForAccount = db.prepare('DELETE FROM apns_device_tokens WHERE account_id = ?')
 const tokensForAccount = db.prepare('SELECT device_token FROM apns_device_tokens WHERE account_id = ?')
+const visiblePushTokensForAccount = db.prepare(
+  'SELECT device_token FROM apns_device_tokens WHERE account_id = ? AND visible_push_enabled = 1',
+)
 
-export function saveApnsToken(accountId: string, deviceToken: string): void {
-  upsertToken.run({ deviceToken, accountId, createdAt: Date.now() })
+export function saveApnsToken(accountId: string, deviceToken: string, visiblePushEnabled: boolean): void {
+  upsertToken.run({ deviceToken, accountId, createdAt: Date.now(), visiblePushEnabled: visiblePushEnabled ? 1 : 0 })
 }
 
 export function removeApnsToken(deviceToken: string): void {
@@ -81,7 +84,13 @@ interface ApnsTokenRow {
   device_token: string
 }
 
-function sendOne(deviceToken: string, jwt: string): Promise<void> {
+interface ApnsSendOptions {
+  pushType: 'background' | 'alert'
+  priority: '5' | '10'
+  payload: Record<string, unknown>
+}
+
+function sendOne(deviceToken: string, jwt: string, options: ApnsSendOptions): Promise<void> {
   return new Promise((resolve) => {
     let settled = false
     const client = http2.connect(`https://${APNS_HOST}`)
@@ -102,10 +111,8 @@ function sendOne(deviceToken: string, jwt: string): Promise<void> {
       ':path': `/3/device/${deviceToken}`,
       authorization: `bearer ${jwt}`,
       'apns-topic': APNS_BUNDLE_ID,
-      // "background" (silent) push: no banner/sound, just wakes the app to
-      // run its background-fetch handler, see AppDelegate.swift.
-      'apns-push-type': 'background',
-      'apns-priority': '5',
+      'apns-push-type': options.pushType,
+      'apns-priority': options.priority,
     })
     let status = 0
     let body = ''
@@ -127,7 +134,7 @@ function sendOne(deviceToken: string, jwt: string): Promise<void> {
       }
       finish()
     })
-    req.write(JSON.stringify({ aps: { 'content-available': 1 }, type: 'widget-refresh' }))
+    req.write(JSON.stringify(options.payload))
     req.end()
   })
 }
@@ -141,5 +148,37 @@ export async function sendWidgetRefreshPush(accountId: string): Promise<void> {
   const rows = tokensForAccount.all(accountId) as ApnsTokenRow[]
   if (rows.length === 0) return
   const jwt = authToken()
-  await Promise.all(rows.map((row) => sendOne(row.device_token, jwt)))
+  await Promise.all(
+    rows.map((row) =>
+      sendOne(row.device_token, jwt, {
+        pushType: 'background',
+        priority: '5',
+        payload: { aps: { 'content-available': 1 }, type: 'widget-refresh' },
+      }),
+    ),
+  )
+}
+
+// A real, user-visible alert (banner + sound) for the three Phase 4
+// events (new follower, new prompt received, prompt completed) — the
+// native-iOS counterpart to pushRepo.ts's Web Push notifyAccount, which
+// never reaches a Capacitor-wrapped app. Only sent to devices whose user
+// has actually granted notification permission (visible_push_enabled);
+// every other registered device still gets the silent widget-refresh
+// push via sendWidgetRefreshPush, called alongside this at the same
+// notifyForEvent call site.
+export async function sendAlertPush(accountId: string, title: string, body: string, url: string): Promise<void> {
+  if (!configured) return
+  const rows = visiblePushTokensForAccount.all(accountId) as ApnsTokenRow[]
+  if (rows.length === 0) return
+  const jwt = authToken()
+  await Promise.all(
+    rows.map((row) =>
+      sendOne(row.device_token, jwt, {
+        pushType: 'alert',
+        priority: '10',
+        payload: { aps: { alert: { title, body }, sound: 'default' }, type: 'app-notification', url },
+      }),
+    ),
+  )
 }

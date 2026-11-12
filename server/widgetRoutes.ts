@@ -46,7 +46,13 @@ widgetRouter.post('/api/widget/apns-register', requireAuth, (req, res) => {
   if (!/^[0-9a-f]{64}$/i.test(token)) {
     return res.status(422).json({ errors: { form: 'A valid device token is required.' } })
   }
-  saveApnsToken(req.account!.id, token.toLowerCase())
+  // Whether this device's user has actually granted notification
+  // permission (AppDelegate.swift reads this live from
+  // UNUserNotificationCenter at registration time) — gates the
+  // user-visible alert push separately from the always-on silent
+  // widget-refresh push, see apnsRepo.ts.
+  const visiblePushEnabled = req.body?.visiblePushEnabled === true
+  saveApnsToken(req.account!.id, token.toLowerCase(), visiblePushEnabled)
   res.status(201).json({ ok: true })
 })
 

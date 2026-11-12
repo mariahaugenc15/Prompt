@@ -5,7 +5,8 @@ interface WidgetBridgePlugin {
   configure(options: { authToken: string; apiBaseURL: string }): Promise<void>
   clearAuth(): Promise<void>
   refreshNow(): Promise<void>
-  registerForPush(): Promise<{ granted: boolean }>
+  registerForPush(): Promise<void>
+  requestNotificationPermission(): Promise<{ granted: boolean }>
 }
 
 const WidgetBridge = registerPlugin<WidgetBridgePlugin>('WidgetBridge')
@@ -17,7 +18,7 @@ const WidgetBridge = registerPlugin<WidgetBridgePlugin>('WidgetBridge')
 // WidgetBridgePlugin.swift). Every function here is a no-op in the
 // browser/PWA build, where there's no native widget to feed. Capacitor
 // simply has nothing registered under this plugin name there.
-function isNativeIOS(): boolean {
+export function isNativeIOS(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios'
 }
 
@@ -55,5 +56,24 @@ export async function refreshWidgetNow(): Promise<void> {
     await WidgetBridge.refreshNow()
   } catch {
     // best-effort
+  }
+}
+
+// Asks for the permission that gates a real, visible push notification
+// (banner/sound/badge) — distinct from configureWidget's unconditional
+// registerForPush, which only needs a device token for the silent
+// widget-refresh push and deliberately never prompts. Only ever called
+// from a user gesture (the Notifications screen's "Turn on push"
+// button), same rule src/lib/push.ts follows for the web/VAPID path:
+// iOS shows its permission dialog at most once, so firing it from a
+// page-load effect burns that one shot before the user has any context
+// for what they're being asked.
+export async function requestNativeNotificationPermission(): Promise<boolean> {
+  if (!isNativeIOS()) return false
+  try {
+    const { granted } = await WidgetBridge.requestNotificationPermission()
+    return granted
+  } catch {
+    return false
   }
 }

@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import { BackIcon, BellIcon } from '../components/Icons'
 import { LoadingMark } from '../components/LoadingMark'
 import { enablePushNotifications, pushSupported } from '../lib/push'
+import { isNativeIOS } from '../lib/widgetBridge'
 import {
   getNotificationPrefs,
   setNotificationPrefs,
@@ -26,9 +27,18 @@ export function Notifications() {
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null)
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [notifStatus, setNotifStatus] = useState<'idle' | 'busy' | 'on' | 'denied' | 'unsupported'>(() =>
-    pushSupported() ? (Notification.permission === 'granted' ? 'on' : 'idle') : 'unsupported',
-  )
+  const [notifStatus, setNotifStatus] = useState<'idle' | 'busy' | 'on' | 'denied' | 'unsupported'>(() => {
+    if (!pushSupported()) return 'unsupported'
+    // There's no synchronous way to read iOS's actual authorization
+    // status here (it's an async native call, and the web Notification
+    // global this checks for the browser/PWA path below doesn't exist in
+    // the native WKWebView at all) — 'idle' is safe either way: tapping
+    // "Turn on push" when already granted just re-confirms instantly
+    // without showing a dialog again, rather than risking a crash reading
+    // a global that isn't there.
+    if (isNativeIOS()) return 'idle'
+    return Notification.permission === 'granted' ? 'on' : 'idle'
+  })
 
   const startGuard = useEffectGuard()
 

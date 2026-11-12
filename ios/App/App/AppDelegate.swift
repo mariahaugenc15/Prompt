@@ -1,13 +1,18 @@
 import UIKit
 import Capacitor
+import UserNotifications
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Without this, iOS suppresses a push's banner/sound entirely
+        // while the app is in the foreground — willPresent below is what
+        // makes a visible alert push actually show up as a banner even
+        // when the user already has the app open.
+        UNUserNotificationCenter.current().delegate = self
         return true
     }
 
@@ -33,17 +38,35 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
 
-    // MARK: - Push notifications (silent widget refresh)
+    // MARK: - Push notifications
     //
-    // This app's push notifications exist for exactly one purpose right
-    // now: waking the app in the background to refresh the home-screen
-    // widget's data (server/apnsRepo.ts sends these). There's no
-    // user-visible alert/sound/badge here, that's a separate concern
-    // (Web Push, for the browser/PWA build, already handles those).
+    // Two kinds share the same device token: a silent background push
+    // that always fires (server/apnsRepo.ts's sendWidgetRefreshPush, used
+    // to keep the home-screen widget current), and a real user-visible
+    // alert push (sendAlertPush) for new follower / new prompt / prompt
+    // completed, sent only to devices whose user has actually granted
+    // notification permission. The server decides which devices qualify
+    // from the visiblePushEnabled flag registered below, read fresh from
+    // UNUserNotificationCenter every time (rather than cached locally) so
+    // a permission the user later revokes in Settings is picked up the
+    // next time this fires, without this app needing to detect that itself.
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let tokenHex = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        registerDeviceTokenWithServer(tokenHex)
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let visiblePushEnabled = settings.authorizationStatus == .authorized
+            self.registerDeviceTokenWithServer(tokenHex, visiblePushEnabled: visiblePushEnabled)
+        }
+    }
+
+    // Lets a visible alert push actually show its banner/sound while the
+    // app is open, which iOS otherwise suppresses by default.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge])
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
@@ -63,7 +86,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    private func registerDeviceTokenWithServer(_ tokenHex: String) {
+    private func registerDeviceTokenWithServer(_ tokenHex: String, visiblePushEnabled: Bool) {
         guard let authToken = WidgetDataStore.authToken,
               let base = WidgetDataStore.apiBaseURL,
               let url = URL(string: "\(base)/api/widget/apns-register")
@@ -72,7 +95,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         request.httpMethod = "POST"
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: ["deviceToken": tokenHex])
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "deviceToken": tokenHex,
+            "visiblePushEnabled": visiblePushEnabled,
+        ])
         URLSession.shared.dataTask(with: request).resume()
     }
 

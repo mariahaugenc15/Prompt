@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import UIKit
+import UserNotifications
 
 // Bridges the web app to the native widget pipeline. The web app already
 // has an authenticated API client and knows the signed-in account's
@@ -22,6 +23,7 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "clearAuth", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "refreshNow", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "registerForPush", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
     ]
 
     // Called once after login (and again on app launch while already
@@ -67,6 +69,23 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             UIApplication.shared.registerForRemoteNotifications()
             call.resolve()
+        }
+    }
+
+    // Called from a user gesture (the Notifications screen's "Turn on
+    // push" button, never automatically — see src/lib/push.ts for the
+    // same rule on the web side) to ask for the permission that actually
+    // gates a visible banner/sound/badge. Re-registering for remote
+    // notifications afterward re-triggers AppDelegate's
+    // didRegisterForRemoteNotificationsWithDeviceToken, which reads the
+    // fresh authorization status and reports it to the server — this
+    // method itself never talks to the server directly.
+    @objc func requestNotificationPermission(_ call: CAPPluginCall) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            DispatchQueue.main.async {
+                UIApplication.shared.registerForRemoteNotifications()
+                call.resolve(["granted": granted])
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { db } from './db.js'
 import { notifyAccount } from './pushRepo.js'
-import { sendWidgetRefreshPush } from './apnsRepo.js'
+import { sendWidgetRefreshPush, sendAlertPush } from './apnsRepo.js'
 
 export type NotificationEvent = 'new_follower' | 'new_prompt' | 'prompt_completed'
 
@@ -114,10 +114,17 @@ export function markAllNotificationsRead(accountId: string): void {
 export function notifyForEvent(accountId: string, event: NotificationEvent, title: string, body: string, url = '/'): void {
   if (!allowedFor(getNotificationPrefs(accountId), event)) return
   insertNotification.run({ id: crypto.randomUUID(), accountId, event, title, body, url, createdAt: Date.now() })
+  // Web Push reaches a browser or installed PWA; it never reaches a
+  // Capacitor-wrapped native app (see apnsRepo.ts's module comment), so
+  // the native-iOS equivalent is the separate sendAlertPush call below.
   void notifyAccount(accountId, title, body, url)
-  // A silent APNs push to any registered native-app device, so the
-  // home-screen widget's "post-it notes" refresh close to immediately
-  // instead of waiting on iOS's own background-refresh schedule. A no-op
-  // wherever APNs isn't configured or the account has no device tokens.
+  // A real, user-visible alert push for any native-app device whose user
+  // granted notification permission.
+  void sendAlertPush(accountId, title, body, url)
+  // A silent APNs push to every registered native-app device regardless
+  // of that permission, so the home-screen widget's "post-it notes"
+  // refresh close to immediately instead of waiting on iOS's own
+  // background-refresh schedule. A no-op wherever APNs isn't configured
+  // or the account has no device tokens.
   void sendWidgetRefreshPush(accountId)
 }

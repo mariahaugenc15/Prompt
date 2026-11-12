@@ -54,6 +54,19 @@ are the one piece worth sharing as-is: `event_prompts.category` and
 type and completion shape so the same capture components can be reused
 without modification.
 
+An event prompt answered by every guest and `guest_content_visibility`
+flipped to host-only-until-the-event-ends is the same shape as a Phase 12
+sealed group prompt (hidden from everyone but its author until a shared
+moment, then opened to the group at once) with the event's `ends_at` as
+the deadline. It is deliberately not built on Phase 12's `prompt_groups`
+directly: that table assumes every member is a real account with a
+`recipient_account_id`, which an unauthenticated, name-only guest doesn't
+have. The smallest version below skips sealing entirely (host-only is
+already the only visibility v1 needs), but if a future version wants
+guests to unlock each other's answers together, the right move is
+teaching `prompt_groups` to accept a guest row as a recipient rather than
+giving events a second, parallel sealing implementation.
+
 ## Guest-content privacy defaults
 
 - An event is **host-only by default**: only the host can see submissions as

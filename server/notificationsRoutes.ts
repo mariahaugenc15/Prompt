@@ -25,6 +25,7 @@ notificationsRouter.patch('/api/me/notification-prefs', requireAuth, (req, res) 
     promptCompleted: typeof body.promptCompleted === 'boolean' ? body.promptCompleted : current.promptCompleted,
     monthlyRecap: typeof body.monthlyRecap === 'boolean' ? body.monthlyRecap : current.monthlyRecap,
     sealedReveal: typeof body.sealedReveal === 'boolean' ? body.sealedReveal : current.sealedReveal,
+    gameUpdates: typeof body.gameUpdates === 'boolean' ? body.gameUpdates : current.gameUpdates,
   }
   setNotificationPrefs(req.account!.id, next)
   res.json(next)

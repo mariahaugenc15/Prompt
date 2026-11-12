@@ -44,6 +44,7 @@ import {
   adminSetSuggestionEnabled,
   adminUpdateSuggestion,
 } from './suggestionsRepo.js'
+import { adminListGames, setGameDisabledByAdmin } from './gameRepo.js'
 
 export const adminRouter = Router()
 
@@ -301,6 +302,26 @@ adminRouter.post('/api/admin/suggestions/:id/toggle', (req, res) => {
   if (!existing) return res.status(404).json({ errors: { form: 'No suggestion with that id.' } })
   adminSetSuggestionEnabled(id, !existing.enabled)
   res.json({ ok: true, enabled: !existing.enabled })
+})
+
+// --- Group games (Phase 13) moderation --------------------------------
+
+adminRouter.get('/api/admin/games', (_req, res) => {
+  res.json(adminListGames())
+})
+
+adminRouter.post('/api/admin/games/:boardId/disable', (req, res) => {
+  const boardId = String(req.params.boardId)
+  setGameDisabledByAdmin(boardId, true)
+  recordAuditLog({ adminAccountId: req.account!.id, action: 'disable_game', details: `board ${boardId}` })
+  res.json({ ok: true })
+})
+
+adminRouter.post('/api/admin/games/:boardId/enable', (req, res) => {
+  const boardId = String(req.params.boardId)
+  setGameDisabledByAdmin(boardId, false)
+  recordAuditLog({ adminAccountId: req.account!.id, action: 'enable_game', details: `board ${boardId}` })
+  res.json({ ok: true })
 })
 
 // --- Audit log ---------------------------------------------------------

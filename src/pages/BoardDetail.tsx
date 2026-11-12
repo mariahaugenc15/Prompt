@@ -6,6 +6,7 @@ import type { Category } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
 import { CATEGORY_ICON, LockIcon, PinIcon, ShuffleIcon } from '../components/Icons'
 import { getSuggestion, SUGGESTION_PACKS, SUGGESTION_PACK_LABEL, type SuggestionPack, type Suggestion } from '../lib/suggestionsApi'
+import { BoardGame } from '../components/BoardGame'
 import { AudioProofPlayer } from '../components/AudioProofPlayer'
 import { ReactionBar } from '../components/ReactionBar'
 import { CompletionDetailModal } from '../components/CompletionDetailModal'
@@ -416,6 +417,8 @@ export function BoardDetail() {
           </div>
         </section>
       )}
+
+      <BoardGame boardId={board.id} isOwner={Boolean(board.isOwner)} myUsername={account?.username} token={account?.token} />
 
       {(boardIsOwner || boardTopFansPublic) && topFans.length > 0 && (
         <section>

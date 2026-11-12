@@ -45,6 +45,34 @@ export function awardStamp(accountId: string, completionId: string, category: st
   })
 }
 
+// Phase 13's "week winner" (and any future non-completion achievement
+// stamp): same table, same award-once idempotency as awardStamp above,
+// but keyed by an arbitrary achievement key (a game_weeks.id) instead of
+// a real completion id, and counted separately from getStampBook's
+// per-completion-visibility-checked view — see db.ts's week_winner seed
+// comment for why these never go through getStampBook.
+export function awardAchievementStamp(accountId: string, achievementKey: string, category: string): void {
+  const definition = getDefaultDefinitionStmt.get(category) as StampDefinitionRow | undefined
+  if (!definition) return
+  insertUserStamp.run({
+    id: crypto.randomUUID(),
+    accountId,
+    stampDefinitionId: definition.id,
+    completionId: achievementKey,
+    earnedAt: Date.now(),
+  })
+}
+
+const countAchievementStmt = db.prepare(`
+  SELECT COUNT(*) AS n FROM user_stamps us
+  JOIN stamp_definitions sd ON sd.id = us.stamp_definition_id
+  WHERE us.account_id = ? AND sd.category = ?
+`)
+
+export function countAchievementStamps(accountId: string, category: string): number {
+  return (countAchievementStmt.get(accountId, category) as { n: number }).n
+}
+
 export interface StampBookEntry {
   category: StampCategory
   count: number

@@ -200,6 +200,7 @@
       <button data-tab="feedback">Feedback</button>
       <button data-tab="comments">Comments</button>
       <button data-tab="suggestions">Suggestions</button>
+      <button data-tab="games">Games</button>
       <button data-tab="accounts">Accounts</button>
       <button data-tab="broadcast">Broadcast</button>
       <button data-tab="audit">Audit Log</button>
@@ -282,6 +283,13 @@
       </div>
       <div id="suggestions-content"></div>
       <div class="pager" id="suggestions-pager"></div>
+    </section>
+
+    <section id="panel-games" class="panel">
+      <div class="toolbar">
+        <button class="secondary" id="games-refresh">Refresh</button>
+      </div>
+      <div id="games-content"></div>
     </section>
 
     <section id="panel-accounts" class="panel">
@@ -448,6 +456,7 @@
     feedback: document.getElementById('panel-feedback'),
     comments: document.getElementById('panel-comments'),
     suggestions: document.getElementById('panel-suggestions'),
+    games: document.getElementById('panel-games'),
     accounts: document.getElementById('panel-accounts'),
     broadcast: document.getElementById('panel-broadcast'),
     audit: document.getElementById('panel-audit'),
@@ -470,6 +479,7 @@
     else if (activeTab === 'feedback') loadFeedback();
     else if (activeTab === 'comments') loadComments();
     else if (activeTab === 'suggestions') loadSuggestions();
+    else if (activeTab === 'games') loadGames();
     else if (activeTab === 'accounts') loadAccounts();
     else if (activeTab === 'broadcast') loadBroadcastLog();
     else if (activeTab === 'audit') loadAuditLog();
@@ -781,6 +791,47 @@
         renderPager(document.getElementById('suggestions-pager'), suggestionsOffset, rows.length,
           function () { suggestionsOffset = Math.max(0, suggestionsOffset - PAGE_SIZE); loadSuggestions(); },
           function () { suggestionsOffset += PAGE_SIZE; loadSuggestions(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Group games (Phase 13) moderation --------------------------------
+
+  document.getElementById('games-refresh').addEventListener('click', function () { loadGames(); });
+
+  function loadGames() {
+    var content = document.getElementById('games-content');
+    content.innerHTML = emptyState('Loading…');
+    api('/api/admin/games')
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No boards have turned on a game yet.');
+        var html = '<table><thead><tr><th>Board</th><th>Timezone</th><th>Ranks</th><th>Status</th><th></th></tr></thead><tbody>';
+        rows.forEach(function (g) {
+          html += '<tr data-board-id="' + escapeHtml(g.boardId) + '">'
+            + '<td>' + escapeHtml(g.boardName) + '</td>'
+            + '<td>' + escapeHtml(g.timezone) + '</td>'
+            + '<td>' + (g.hideRanks ? 'hidden' : 'visible') + '</td>'
+            + '<td>' + (g.disabledByAdmin ? '<span class="badge removed">disabled by admin</span>' : (g.enabled ? '<span class="badge approved">enabled</span>' : '<span class="muted">off</span>')) + '</td>'
+            + '<td>' + (g.disabledByAdmin
+                ? '<button class="secondary" data-action="enable">Re-enable</button>'
+                : '<button class="danger" data-action="disable">Disable</button>') + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        content.querySelectorAll('[data-action="disable"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Disable this board\'s game for moderation?')) return;
+            var boardId = btn.closest('tr').getAttribute('data-board-id');
+            api('/api/admin/games/' + boardId + '/disable', { method: 'POST' }).then(loadGames).catch(function (e) { alert(e.message); });
+          });
+        });
+        content.querySelectorAll('[data-action="enable"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var boardId = btn.closest('tr').getAttribute('data-board-id');
+            api('/api/admin/games/' + boardId + '/enable', { method: 'POST' }).then(loadGames).catch(function (e) { alert(e.message); });
+          });
+        });
       })
       .catch(function (e) { content.innerHTML = emptyState(e.message); });
   }

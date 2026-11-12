@@ -838,3 +838,81 @@ db.exec(`
     PRIMARY KEY (job_name, period_key)
   );
 `)
+
+// Weekly leaderboard game (v2, Phase 13.2). 13.1's reuse decision: a
+// board is the group container here, not Phase 12's prompt_groups — a
+// prompt_groups row is scoped to one single prompt with no lasting
+// membership, the wrong shape for an ongoing weekly game, while a board
+// already has exactly what this needs (an owner who can configure it,
+// a persistent member list via board_subscribers, an existing 18+ flag
+// to extend the Phase 5 visibility rule to). See gameRoutes.ts and
+// gameRepo.ts.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS board_games (
+    board_id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    timezone TEXT NOT NULL DEFAULT 'UTC',
+    hide_ranks INTEGER NOT NULL DEFAULT 0,
+    disabled_by_admin INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+`)
+
+// One row per week a board's game has run, past or current — "keep a
+// history of past weeks" made literal rather than re-derived. ended_at
+// null means still the current week. UNIQUE(board_id, week_start) is
+// what makes starting a new week idempotent: the rollover job can be
+// retried freely and will never create two rows for the same week.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS game_weeks (
+    id TEXT PRIMARY KEY,
+    board_id TEXT NOT NULL,
+    week_start INTEGER NOT NULL,
+    week_end INTEGER NOT NULL,
+    ended_at INTEGER,
+    created_at INTEGER NOT NULL,
+    UNIQUE (board_id, week_start)
+  );
+  CREATE INDEX IF NOT EXISTS idx_game_weeks_board ON game_weeks(board_id, week_start DESC);
+`)
+
+// 13.4: "members can opt out of a game... without leaving the group."
+// An opted-out member's completions still happen normally; they're just
+// excluded from scoring and the leaderboard.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS game_opt_outs (
+    board_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (board_id, account_id)
+  );
+`)
+
+// "Week winner" (13.2) reuses the Phase 8 stamp system at the data layer
+// exactly as the spec asks — same stamp_definitions/user_stamps tables,
+// same award-once-per-key idempotency. It deliberately isn't added to
+// src/lib/types.ts's Category union (that type is "a prompt's category,"
+// used all over the send/complete flow) or rendered in the Stamps book
+// grid, which is built around exactly those 5 categories and whose
+// getStampBook() visibility check assumes every stamp's completion_id is
+// a real completion row. A week-winner "completion_id" is actually a
+// game_weeks.id, so it is shown only from the game's own leaderboard UI,
+// via stampsRepo.ts's countAchievementStamps — never through
+// getStampBook, which stays exactly as Phase 8 left it.
+insertStampDefinition.run({ id: 'stamp-week_winner-default', category: 'week_winner' })
+
+// One row per (board, account), overwritten daily by gameJobs.ts's daily
+// check — what makes "you were passed" (13.4) a once-a-day comparison
+// against yesterday's rank instead of a real-time check on every single
+// completion, which is what actually throttles it rather than a
+// time-based cooldown. week_id lets the check recognize a stale snapshot
+// from a week that already ended and skip comparing against it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS game_rank_snapshots (
+    board_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    week_id TEXT NOT NULL,
+    rank INTEGER NOT NULL,
+    PRIMARY KEY (board_id, account_id)
+  );
+`)

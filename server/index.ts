@@ -25,6 +25,8 @@ import { startScheduler } from './scheduler.js'
 import { registerMonthlyRecapPushJob } from './recapJobs.js'
 import { groupPromptsRouter } from './groupPromptsRoutes.js'
 import { registerSealedRevealSweep } from './groupPromptsJobs.js'
+import { gameRouter } from './gameRoutes.js'
+import { registerGameDailyJob } from './gameJobs.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mediaDir } from './mediaStore.js'
@@ -122,9 +124,11 @@ app.use(stampsRouter)
 app.use(suggestionsRouter)
 app.use(recapRouter)
 app.use(groupPromptsRouter)
+app.use(gameRouter)
 
 registerMonthlyRecapPushJob()
 registerSealedRevealSweep()
+registerGameDailyJob()
 startScheduler()
 
 // Self-contained admin dashboard (no build step) — served as a static file

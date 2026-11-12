@@ -3,7 +3,16 @@ import { db } from './db.js'
 import { notifyAccount } from './pushRepo.js'
 import { sendWidgetRefreshPush, sendAlertPush } from './apnsRepo.js'
 
-export type NotificationEvent = 'new_follower' | 'new_prompt' | 'prompt_completed' | 'monthly_recap' | 'sealed_reveal'
+export type NotificationEvent =
+  | 'new_follower'
+  | 'new_prompt'
+  | 'prompt_completed'
+  | 'monthly_recap'
+  | 'sealed_reveal'
+  | 'game_started'
+  | 'game_week_ended'
+  | 'game_overtaken'
+  | 'game_winner'
 
 export interface NotificationPrefs {
   master: boolean
@@ -12,12 +21,16 @@ export interface NotificationPrefs {
   promptCompleted: boolean
   monthlyRecap: boolean
   sealedReveal: boolean
+  gameUpdates: boolean
 }
 
 // Maps each NotificationPrefs field to its row key in notification_prefs
-// (server/db.ts). Adding a future notification type (Phase 13's game
-// updates) means adding one entry here and to NotificationPrefs, never a
-// migration.
+// (server/db.ts). Adding a future notification type means adding one
+// entry here and to NotificationPrefs, never a migration. The four
+// Phase 13 game events (started, week ended, overtaken, winner) share a
+// single gameUpdates toggle rather than one each — the spec's own
+// "throttle them so they are never spammy" is best served by one clear
+// on/off for "game stuff" instead of four separate switches to manage.
 const PREF_FIELDS: { field: keyof NotificationPrefs; event: string }[] = [
   { field: 'master', event: 'master' },
   { field: 'newFollower', event: 'new_follower' },
@@ -25,6 +38,7 @@ const PREF_FIELDS: { field: keyof NotificationPrefs; event: string }[] = [
   { field: 'promptCompleted', event: 'prompt_completed' },
   { field: 'monthlyRecap', event: 'monthly_recap' },
   { field: 'sealedReveal', event: 'sealed_reveal' },
+  { field: 'gameUpdates', event: 'game_updates' },
 ]
 
 const getAllPrefsStmt = db.prepare('SELECT event, enabled FROM notification_prefs WHERE account_id = ?')
@@ -56,6 +70,7 @@ function allowedFor(prefs: NotificationPrefs, event: NotificationEvent): boolean
   if (event === 'new_prompt') return prefs.newPrompt
   if (event === 'monthly_recap') return prefs.monthlyRecap
   if (event === 'sealed_reveal') return prefs.sealedReveal
+  if (event === 'game_started' || event === 'game_week_ended' || event === 'game_overtaken' || event === 'game_winner') return prefs.gameUpdates
   return prefs.promptCompleted
 }
 

@@ -627,3 +627,70 @@ const apnsTokenColumns = new Set(
 if (!apnsTokenColumns.has('visible_push_enabled')) {
   db.exec(`ALTER TABLE apns_device_tokens ADD COLUMN visible_push_enabled INTEGER NOT NULL DEFAULT 0`)
 }
+
+// Stamps (v2, Phase 8) — one ink-stamp design per category, earned on
+// completion. stamp_definitions is deliberately not just a hardcoded list
+// of 5 categories: season lets a future seasonal set ("snap" with
+// season='winter-2026') add new art for an existing category without a
+// schema change, and art_ref is a free-form pointer the client can use to
+// pick different stamp art per definition later (today it's just the
+// category name, since there's only one design per category). season is
+// '' rather than NULL for "no season" specifically so the UNIQUE
+// constraint below actually enforces one evergreen definition per
+// category — SQLite treats NULL as distinct from itself in a UNIQUE
+// index, so two NULL-season rows for the same category wouldn't collide,
+// silently allowing duplicates.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS stamp_definitions (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    season TEXT NOT NULL DEFAULT '',
+    art_ref TEXT,
+    UNIQUE(category, season)
+  );
+`)
+const insertStampDefinition = db.prepare(
+  `INSERT OR IGNORE INTO stamp_definitions (id, category, season, art_ref) VALUES (@id, @category, '', @category)`,
+)
+for (const category of ['snap', 'sound', 'show', 'share', 'unplug']) {
+  insertStampDefinition.run({ id: `stamp-${category}-default`, category })
+}
+
+// user_stamps.completion_id holds the same dual-purpose id
+// completionsRepo.ts's canViewCompletion already reasons about (a 1:1
+// completion's prompts.id, or a broadcast's prompt_completions.id) —
+// reusing that existing identifier rather than inventing a third id
+// space, and letting stampsRepo.ts's visibility check reuse
+// canViewCompletion directly instead of re-deriving who can see what.
+// The UNIQUE constraint is what makes awarding idempotent: a retried
+// completion request, or the backfill below running again, can never
+// create a second stamp for the same completion.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_stamps (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    stamp_definition_id TEXT NOT NULL,
+    completion_id TEXT NOT NULL,
+    earned_at INTEGER NOT NULL,
+    UNIQUE(account_id, completion_id, stamp_definition_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_stamps_account ON user_stamps(account_id);
+`)
+// Backfills a stamp for every completion that already existed before
+// this feature shipped, so v1 history shows up immediately rather than
+// only completions made from today onward. Safe to run on every boot:
+// INSERT OR IGNORE plus the UNIQUE constraint above means a completion
+// that already has its stamp is silently skipped.
+db.exec(`
+  INSERT OR IGNORE INTO user_stamps (id, account_id, stamp_definition_id, completion_id, earned_at)
+  SELECT lower(hex(randomblob(16))), p.recipient_account_id, sd.id, p.id, p.completed_at
+  FROM prompts p
+  JOIN stamp_definitions sd ON sd.category = p.category AND sd.season = ''
+  WHERE p.is_broadcast = 0 AND p.status = 'completed' AND p.recipient_account_id IS NOT NULL;
+
+  INSERT OR IGNORE INTO user_stamps (id, account_id, stamp_definition_id, completion_id, earned_at)
+  SELECT lower(hex(randomblob(16))), pc.completer_account_id, sd.id, pc.id, pc.created_at
+  FROM prompt_completions pc
+  JOIN prompts p ON p.id = pc.prompt_id
+  JOIN stamp_definitions sd ON sd.category = p.category AND sd.season = '';
+`)

@@ -11,6 +11,7 @@ import { notifyForEvent } from './notificationsRepo.js'
 import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
 import { canViewCompletion } from './completionsRepo.js'
+import { awardStamp } from './stampsRepo.js'
 
 export const promptRouter = Router()
 
@@ -347,6 +348,7 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, async (req, res) => 
     if (sender.id !== me.id) {
       notifyForEvent(sender.id, 'prompt_completed', `${me.displayName} completed your prompt`, prompt.prompt_text as string)
     }
+    awardStamp(me.id, id, prompt.category as string)
 
     return res.status(201).json({
       promptId: prompt.id,
@@ -377,6 +379,7 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, async (req, res) => 
   })
 
   notifyForEvent(sender.id, 'prompt_completed', `${me.displayName} completed your prompt`, prompt.prompt_text as string)
+  awardStamp(me.id, prompt.id as string, prompt.category as string)
 
   res.status(200).json({
     promptId: prompt.id,

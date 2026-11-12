@@ -29,6 +29,7 @@ import { monthCursorFromTimestamp } from '../lib/monthCursor'
 import { useCurrentMonthCursor } from '../lib/useCurrentMonthCursor'
 import { refreshWidgetNow } from '../lib/widgetBridge'
 import { useEffectGuard } from '../lib/useEffectGuard'
+import { StampMoment, type StampMomentState } from '../components/StampMoment'
 
 const FEED_PAGE_SIZE = 20
 
@@ -59,6 +60,7 @@ export function Home() {
 
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [stampMoment, setStampMoment] = useState<StampMomentState | null>(null)
 
   // The newest month the scrollable calendar feed shows — advances on its
   // own at midnight (see useCurrentMonthCursor), rather than ever being
@@ -215,6 +217,7 @@ export function Home() {
       const res = await completePrompt(completingBroadcast.id, input, account.token)
       if (res.ok) {
         setBroadcasts((prev) => prev.filter((b) => b.id !== completingBroadcast.id))
+        setStampMoment({ category: completingBroadcast.category, key: completingBroadcast.id })
         setCompletingBroadcast(null)
         refreshActivity()
         void refreshWidgetNow()
@@ -235,6 +238,7 @@ export function Home() {
             : p,
         ),
       )
+      setStampMoment({ category: item.category, key: item.id })
       refreshActivity()
       void refreshWidgetNow()
     }
@@ -339,6 +343,7 @@ export function Home() {
 
   return (
     <div className="flex flex-col gap-4">
+      <StampMoment moment={stampMoment} onDone={() => setStampMoment(null)} />
       <FridgeNoteStack notes={notes} onOpen={setOpenNoteId} />
 
       <div className="flex items-center justify-between px-4 pt-2">

@@ -208,6 +208,11 @@ export function OrgPage() {
               <button onClick={() => openList('following')} className="text-ink-soft underline underline-offset-2">
                 {profile.followingCount} following
               </button>
+              {profile.accountType === 'individual' && (
+                <Link to={`/stamps/${username}`} className="text-ink-soft underline underline-offset-2">
+                  Stamps
+                </Link>
+              )}
             </div>
           )}
           {profile && profile.bio && <p className="mt-1 text-sm text-ink-soft">{profile.bio}</p>}

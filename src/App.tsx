@@ -25,6 +25,8 @@ import { Terms } from './pages/Terms'
 import { Privacy } from './pages/Privacy'
 import { OrgPage } from './pages/OrgPage'
 import { RealSend } from './pages/RealSend'
+import { StampsBook } from './pages/StampsBook'
+import { StampSvgFilters } from './components/Stamp'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -79,7 +81,9 @@ export default function App() {
   }, [loggedIn, account])
 
   return (
-    <Routes>
+    <>
+      <StampSvgFilters />
+      <Routes>
       <Route path="/invite" element={<InviteLanding />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/login" element={<Login />} />
@@ -92,6 +96,14 @@ export default function App() {
         element={
           <RealShell>
             <OrgPage />
+          </RealShell>
+        }
+      />
+      <Route
+        path="/stamps/:username"
+        element={
+          <RealShell>
+            <StampsBook />
           </RealShell>
         }
       />
@@ -192,6 +204,7 @@ export default function App() {
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }

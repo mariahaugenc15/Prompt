@@ -48,6 +48,10 @@ export function EditProfile() {
   const setAccount = useStore((s) => s.setAccount)
   const hideCompletionScore = useStore((s) => s.hideCompletionScore)
   const setHideCompletionScore = useStore((s) => s.setHideCompletionScore)
+  const stampHapticsEnabled = useStore((s) => s.stampHapticsEnabled)
+  const setStampHapticsEnabled = useStore((s) => s.setStampHapticsEnabled)
+  const stampSoundEnabled = useStore((s) => s.stampSoundEnabled)
+  const setStampSoundEnabled = useStore((s) => s.setStampSoundEnabled)
 
   const displayName = account ? (account.firstName ?? account.organizationName ?? account.username) : 'You'
   const handle = account ? `@${account.username}` : '@you'
@@ -444,6 +448,12 @@ export function EditProfile() {
           <Link to={`/o/${me.username}`} className="block rounded-sm border border-ink py-2 text-center text-sm font-medium">
             My page
           </Link>
+          <Link
+            to={`/stamps/${me.username}`}
+            className="mt-1.5 block rounded-sm border border-line py-2 text-center text-sm text-ink-soft"
+          >
+            My stamps
+          </Link>
           {me.accountType === 'individual' && (
             <div className="mt-3 border-t border-line pt-3">
               <p className="mb-1.5 text-xs text-ink-faint">Who can send @{me.username} a prompt</p>
@@ -582,6 +592,28 @@ export function EditProfile() {
             type="checkbox"
             checked={hideCompletionScore}
             onChange={(e) => setHideCompletionScore(e.target.checked)}
+            className="h-4 w-4 accent-[var(--color-accent)]"
+          />
+        </label>
+      </section>
+
+      <section className="rounded-sm border border-line bg-card p-4">
+        <p className="mb-1 text-xs uppercase tracking-wider text-ink-faint">Stamp feedback</p>
+        <label className="flex items-center justify-between border-t border-line py-2.5 text-sm">
+          Haptic on stamp
+          <input
+            type="checkbox"
+            checked={stampHapticsEnabled}
+            onChange={(e) => setStampHapticsEnabled(e.target.checked)}
+            className="h-4 w-4 accent-[var(--color-accent)]"
+          />
+        </label>
+        <label className="flex items-center justify-between border-t border-line pt-2.5 text-sm">
+          Sound on stamp
+          <input
+            type="checkbox"
+            checked={stampSoundEnabled}
+            onChange={(e) => setStampSoundEnabled(e.target.checked)}
             className="h-4 w-4 accent-[var(--color-accent)]"
           />
         </label>

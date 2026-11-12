@@ -1,7 +1,7 @@
 import clsx from 'clsx'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import type { CompletionView } from '../lib/calendarsApi'
-import { CATEGORY_ICON } from './Icons'
+import { Stamp } from './Stamp'
 import { useTodayKey } from '../lib/useTodayKey'
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -40,6 +40,7 @@ export function CalendarGrid({
 }) {
   const cells = buildMonthCells(year, month)
   const today = useTodayKey()
+  const reduceMotion = Boolean(useReducedMotion())
   const byDay = new Map<string, CompletionView[]>()
   for (const c of completions) {
     const list = byDay.get(c.dayKey) ?? []
@@ -94,12 +95,11 @@ export function CalendarGrid({
                   {cover && (
                     <motion.span
                       key={cover.id}
-                      initial={{ scale: 0, rotate: -8, opacity: 0 }}
-                      animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 18 }}
-                      className="text-ink-soft"
                     >
-                      <CATEGORY_ICON category={cover.category} size={compact ? 12 : 14} />
+                      <Stamp category={cover.category} seed={cover.id} size={compact ? 11 : 13} reduceMotion={reduceMotion} />
                     </motion.span>
                   )}
                 </AnimatePresence>

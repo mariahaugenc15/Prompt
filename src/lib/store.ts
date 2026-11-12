@@ -9,9 +9,19 @@ interface AppState {
 
   hideCompletionScore: boolean
 
+  // Phase 8's stamp moment, and per Phase 7's general rule that every
+  // sound or haptic needs its own on/off toggle. Device-level rather than
+  // account-level (not reset on sign-out, unlike hideCompletionScore
+  // above) — same reasoning as a phone's own haptics/sound settings,
+  // which don't change because a different app account signed in.
+  stampHapticsEnabled: boolean
+  stampSoundEnabled: boolean
+
   setAccount: (account: SignupSuccess) => void
   signOut: () => void
   setHideCompletionScore: (v: boolean) => void
+  setStampHapticsEnabled: (v: boolean) => void
+  setStampSoundEnabled: (v: boolean) => void
 }
 
 // Everything sign-out resets back to — the same shape a brand-new visitor
@@ -26,6 +36,8 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       ...freshDeviceState,
+      stampHapticsEnabled: true,
+      stampSoundEnabled: true,
 
       // Organizations get their own real page (Section 8.3), not the
       // personal calendar — so only an individual's sign-up/login grants
@@ -49,6 +61,8 @@ export const useStore = create<AppState>()(
       },
 
       setHideCompletionScore: (v) => set({ hideCompletionScore: v }),
+      setStampHapticsEnabled: (v) => set({ stampHapticsEnabled: v }),
+      setStampSoundEnabled: (v) => set({ stampSoundEnabled: v }),
     }),
     {
       name: 'prompt-app-store',

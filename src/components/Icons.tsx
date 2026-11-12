@@ -259,6 +259,67 @@ export function PlusIcon(props: IconProps) {
   )
 }
 
+// Note stickers (Phase 9.1) — a small curated set of line-work doodles,
+// same stroke-based style as every icon above, picked for the sticky
+// note customizer rather than reusing the category icons (those already
+// mean something specific).
+export function StarDoodleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3.5 14.4 9.6 21 10.2 16 14.4 17.6 20.8 12 17.3 6.4 20.8 8 14.4 3 10.2 9.6 9.6Z" />
+    </svg>
+  )
+}
+
+export function HeartDoodleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 20.3S3.5 14.9 3.5 8.9C3.5 5.9 5.8 4 8.3 4c1.6 0 3 .8 3.7 2.1C12.7 4.8 14.1 4 15.7 4c2.5 0 4.8 1.9 4.8 4.9 0 6-8.5 11.4-8.5 11.4Z" />
+    </svg>
+  )
+}
+
+export function CloudDoodleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7 17a4 4 0 0 1-.6-7.95A5 5 0 0 1 16 8.1 4.5 4.5 0 0 1 17.5 17H7Z" />
+    </svg>
+  )
+}
+
+export function BoltDoodleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M13 2 4 14h6l-1 8 9-12h-6Z" />
+    </svg>
+  )
+}
+
+export function SparkleDoodleIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3v5M12 16v5M3 12h5M16 12h5M6 6l3 3M15 15l3 3M18 6l-3 3M9 15l-3 3" />
+    </svg>
+  )
+}
+
+export function NOTE_STICKER_ICON({ sticker, ...props }: IconProps & { sticker: string }) {
+  switch (sticker) {
+    case 'star':
+      return <StarDoodleIcon {...props} />
+    case 'heart':
+      return <HeartDoodleIcon {...props} />
+    case 'cloud':
+      return <CloudDoodleIcon {...props} />
+    case 'bolt':
+      return <BoltDoodleIcon {...props} />
+    case 'sparkle':
+      return <SparkleDoodleIcon {...props} />
+    default:
+      return null
+  }
+}
+
 export function CATEGORY_ICON({ category, ...props }: IconProps & { category: string }) {
   switch (category) {
     case 'snap':

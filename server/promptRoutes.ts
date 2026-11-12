@@ -12,6 +12,7 @@ import { publicBaseUrl, saveDataUrlAsFile } from './mediaStore.js'
 import { isBlockedEitherWay } from './blocksRepo.js'
 import { canViewCompletion } from './completionsRepo.js'
 import { awardStamp } from './stampsRepo.js'
+import { sanitizeNoteStyle } from './noteStyle.js'
 
 export const promptRouter = Router()
 
@@ -73,8 +74,8 @@ function autoCaptionFor(senderName: string, promptText: string): string {
 }
 
 const insertPrompt = db.prepare(`
-  INSERT INTO prompts (id, sender_account_id, recipient_account_id, is_broadcast, category, prompt_text, status, created_at)
-  VALUES (@id, @senderAccountId, @recipientAccountId, @isBroadcast, @category, @text, @status, @createdAt)
+  INSERT INTO prompts (id, sender_account_id, recipient_account_id, is_broadcast, category, prompt_text, status, note_color, note_sticker, note_handwriting, created_at)
+  VALUES (@id, @senderAccountId, @recipientAccountId, @isBroadcast, @category, @text, @status, @noteColor, @noteSticker, @noteHandwriting, @createdAt)
 `)
 
 // --- Send a 1:1 prompt -------------------------------------------------
@@ -105,6 +106,7 @@ promptRouter.post('/api/prompts', requireAuth, (req, res) => {
 
   const parsed = validatePromptBody(req.body)
   if ('error' in parsed) return res.status(422).json({ errors: { text: parsed.error } })
+  const noteStyle = sanitizeNoteStyle(req.body)
 
   const id = crypto.randomUUID()
   insertPrompt.run({
@@ -115,6 +117,7 @@ promptRouter.post('/api/prompts', requireAuth, (req, res) => {
     category: parsed.category,
     text: parsed.text,
     status: 'pending',
+    ...noteStyle,
     createdAt: Date.now(),
   })
 
@@ -127,6 +130,7 @@ promptRouter.post('/api/prompts', requireAuth, (req, res) => {
     status: 'pending',
     senderUsername: sender.username,
     recipientUsername: recipient.username,
+    ...noteStyle,
   })
 })
 
@@ -149,6 +153,9 @@ promptRouter.post('/api/prompts/broadcast', requireAuth, (req, res) => {
     category: parsed.category,
     text: parsed.text,
     status: 'active',
+    noteColor: null,
+    noteSticker: null,
+    noteHandwriting: null,
     createdAt: Date.now(),
   })
 
@@ -162,6 +169,7 @@ promptRouter.post('/api/prompts/broadcast', requireAuth, (req, res) => {
 
 const pendingOneToOne = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt, p.status,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting,
          a.username AS senderUsername, a.first_name, a.organization_name
   FROM prompts p
   JOIN accounts a ON a.id = p.sender_account_id
@@ -171,6 +179,7 @@ const pendingOneToOne = db.prepare(`
 
 const activeOrgBroadcastsFromFollowed = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt, p.board_id AS boardId,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting,
          a.username AS senderUsername, a.first_name, a.organization_name
   FROM prompts p
   JOIN accounts a ON a.id = p.sender_account_id
@@ -182,6 +191,7 @@ const activeOrgBroadcastsFromFollowed = db.prepare(`
 
 const activeBoardBroadcastsFromSubscribed = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.created_at AS createdAt, p.board_id AS boardId,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting,
          a.username AS senderUsername, a.first_name, a.organization_name, b.name AS boardName
   FROM prompts p
   JOIN accounts a ON a.id = p.sender_account_id
@@ -198,6 +208,9 @@ interface InboxRow {
   category: string
   text: string
   createdAt: number
+  noteColor: string | null
+  noteSticker: string | null
+  noteHandwriting: string | null
   senderUsername: string
   first_name: string | null
   organization_name: string | null
@@ -212,6 +225,9 @@ function inboxItem(row: InboxRow, isBroadcast: boolean) {
     category: row.category,
     text: row.text,
     createdAt: row.createdAt,
+    noteColor: row.noteColor ?? undefined,
+    noteSticker: row.noteSticker ?? undefined,
+    noteHandwriting: row.noteHandwriting ?? undefined,
     senderUsername: row.senderUsername,
     senderDisplayName: row.first_name ?? row.organization_name ?? row.senderUsername,
     boardId: row.boardId ?? undefined,
@@ -450,7 +466,8 @@ promptRouter.get('/api/organizations/:username/broadcasts', (req, res) => {
 const oneToOneHistory = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS promptText, p.status, p.completion_auto_caption AS autoCaption,
          p.completion_user_caption AS userCaption, p.completion_media_type AS mediaType,
-         p.completion_media_data_url AS mediaDataUrl, p.created_at AS createdAt, p.completed_at AS completedAt,
+         p.completion_media_data_url AS mediaDataUrl, p.note_color AS noteColor, p.note_sticker AS noteSticker,
+         p.note_handwriting AS noteHandwriting, p.created_at AS createdAt, p.completed_at AS completedAt,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          recipient.username AS recipientUsername
   FROM prompts p
@@ -481,6 +498,9 @@ interface OneToOneHistoryRow {
   userCaption: string | null
   mediaType: string | null
   mediaDataUrl: string | null
+  noteColor: string | null
+  noteSticker: string | null
+  noteHandwriting: string | null
   createdAt: number
   completedAt: number | null
   senderUsername: string
@@ -500,6 +520,9 @@ promptRouter.get('/api/prompts/history', requireAuth, (req, res) => {
     userCaption: row.userCaption ?? undefined,
     mediaType: row.mediaType ?? undefined,
     mediaDataUrl: row.mediaDataUrl ?? undefined,
+    noteColor: row.noteColor ?? undefined,
+    noteSticker: row.noteSticker ?? undefined,
+    noteHandwriting: row.noteHandwriting ?? undefined,
     createdAt: row.createdAt,
     completedAt: row.completedAt ?? undefined,
     senderUsername: row.senderUsername,

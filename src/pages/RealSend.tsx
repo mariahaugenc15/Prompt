@@ -3,9 +3,21 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
-import { CATEGORY_ICON, BackIcon } from '../components/Icons'
+import { CATEGORY_ICON, BackIcon, NOTE_STICKER_ICON } from '../components/Icons'
 import { sendOneToOnePrompt, searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
 import { SentFlyAway } from '../components/SentFlyAway'
+import {
+  NOTE_COLORS,
+  NOTE_COLOR_HEX,
+  NOTE_COLOR_LABEL,
+  NOTE_STICKERS,
+  NOTE_HANDWRITING_STYLES,
+  NOTE_HANDWRITING_FONT,
+  NOTE_HANDWRITING_LABEL,
+  type NoteColor,
+  type NoteSticker,
+  type NoteHandwriting,
+} from '../lib/noteStyle'
 
 export function RealSend() {
   const account = useStore((s) => s.account)
@@ -18,6 +30,15 @@ export function RealSend() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
+
+  // Phase 9.1 — collapsed by default so styling never slows down the
+  // common case of just sending a plain prompt. Default color stays the
+  // original yellow; sticker and handwriting are opt-in and unset (plain
+  // look) until the sender actually picks one.
+  const [stylingOpen, setStylingOpen] = useState(false)
+  const [noteColor, setNoteColor] = useState<NoteColor>('butter')
+  const [noteSticker, setNoteSticker] = useState<NoteSticker | undefined>(undefined)
+  const [noteHandwriting, setNoteHandwriting] = useState<NoteHandwriting | undefined>(undefined)
 
   // Live suggestions as you type, same debounced search Feed.tsx uses —
   // picking one fills in the exact username so you never have to remember
@@ -58,7 +79,19 @@ export function RealSend() {
     setErrors({})
     setSubmitting(true)
     try {
-      const res = await sendOneToOnePrompt({ recipientUsername: recipientUsername.trim(), category, text: text.trim() }, account!.token)
+      const res = await sendOneToOnePrompt(
+        {
+          recipientUsername: recipientUsername.trim(),
+          category,
+          text: text.trim(),
+          // Only sent when styling was actually opened — otherwise the
+          // note is unstyled (matches the default look) rather than
+          // explicitly "butter", so a user who never touches styling
+          // behaves identically to one sent before this feature existed.
+          ...(stylingOpen ? { noteColor, noteSticker, noteHandwriting } : {}),
+        },
+        account!.token,
+      )
       if (!res.ok) {
         setErrors(res.errors)
         return
@@ -161,6 +194,114 @@ export function RealSend() {
         {errors.text && <span className="text-danger normal-case tracking-normal">{errors.text}</span>}
       </label>
 
+      {!stylingOpen ? (
+        <button
+          onClick={() => setStylingOpen(true)}
+          className="self-start text-xs text-ink-faint underline underline-offset-2"
+        >
+          Style your note
+        </button>
+      ) : (
+        <div className="rounded-sm border border-line bg-card p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs uppercase tracking-wider text-ink-faint">Style your note</p>
+            <button onClick={() => setStylingOpen(false)} className="text-xs text-ink-faint underline underline-offset-2">
+              Hide
+            </button>
+          </div>
+
+          <p className="mb-1.5 text-[11px] uppercase tracking-wide text-ink-faint">Color</p>
+          <div className="mb-3 flex gap-2">
+            {NOTE_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={NOTE_COLOR_LABEL[c]}
+                onClick={() => setNoteColor(c)}
+                style={{ backgroundColor: NOTE_COLOR_HEX[c] }}
+                className={clsx(
+                  'h-8 w-8 rounded-full border-2 transition',
+                  noteColor === c ? 'border-ink' : 'border-line',
+                )}
+              />
+            ))}
+          </div>
+
+          <p className="mb-1.5 text-[11px] uppercase tracking-wide text-ink-faint">Sticker (optional)</p>
+          <div className="mb-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setNoteSticker(undefined)}
+              className={clsx(
+                'flex h-8 w-8 items-center justify-center rounded-full border text-[10px] text-ink-faint',
+                !noteSticker ? 'border-ink' : 'border-line',
+              )}
+            >
+              None
+            </button>
+            {NOTE_STICKERS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setNoteSticker(s)}
+                className={clsx(
+                  'flex h-8 w-8 items-center justify-center rounded-full border text-ink-soft',
+                  noteSticker === s ? 'border-ink' : 'border-line',
+                )}
+              >
+                <NOTE_STICKER_ICON sticker={s} size={14} />
+              </button>
+            ))}
+          </div>
+
+          <p className="mb-1.5 text-[11px] uppercase tracking-wide text-ink-faint">Handwriting</p>
+          <div className="mb-4 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setNoteHandwriting(undefined)}
+              className={clsx(
+                'rounded-full border px-2.5 py-1 text-xs',
+                !noteHandwriting ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
+              )}
+            >
+              Default
+            </button>
+            {NOTE_HANDWRITING_STYLES.map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => setNoteHandwriting(h)}
+                style={{ fontFamily: NOTE_HANDWRITING_FONT[h] }}
+                className={clsx(
+                  'rounded-full border px-2.5 py-1 text-xs',
+                  noteHandwriting === h ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
+                )}
+              >
+                {NOTE_HANDWRITING_LABEL[h]}
+              </button>
+            ))}
+          </div>
+
+          <p className="mb-1.5 text-[11px] uppercase tracking-wide text-ink-faint">Preview</p>
+          <div
+            style={{ backgroundColor: NOTE_COLOR_HEX[noteColor] }}
+            className="relative w-40 rounded-sm border border-line p-3 shadow-note"
+          >
+            {noteSticker && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-line bg-paper text-ink-soft">
+                <NOTE_STICKER_ICON sticker={noteSticker} size={12} />
+              </span>
+            )}
+            <p
+              className="line-clamp-3 font-serif text-sm text-ink"
+              style={{ fontFamily: noteHandwriting ? NOTE_HANDWRITING_FONT[noteHandwriting] : undefined }}
+            >
+              {text.trim() || 'Your prompt will look like this.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {errors.form && <p className="text-sm text-danger">{errors.form}</p>}
 
       <button
@@ -171,7 +312,14 @@ export function RealSend() {
         {sent ? 'Sent!' : submitting ? 'Sending…' : 'Send prompt'}
       </button>
 
-      {sent && <SentFlyAway onComplete={() => navigate('/')} />}
+      {sent && (
+        <SentFlyAway
+          onComplete={() => navigate('/')}
+          noteColor={stylingOpen ? noteColor : undefined}
+          noteSticker={stylingOpen ? noteSticker : undefined}
+          noteHandwriting={stylingOpen ? noteHandwriting : undefined}
+        />
+      )}
     </div>
   )
 }

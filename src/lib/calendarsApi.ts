@@ -24,6 +24,9 @@ export interface CompletionView {
   userCaption?: string
   mediaType?: string
   mediaDataUrl?: string
+  noteColor?: string
+  noteSticker?: string
+  noteHandwriting?: string
   createdAt: number
   dayKey: string
   senderUsername?: string

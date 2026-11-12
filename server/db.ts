@@ -189,6 +189,19 @@ if (!promptColumns.has('board_id')) {
 if (!promptColumns.has('cadence')) {
   db.exec(`ALTER TABLE prompts ADD COLUMN cadence TEXT`)
 }
+// Sticky-note customization (v2, Phase 9.1) — all three nullable, and
+// NULL is exactly "unstyled": every prompt sent before this feature
+// existed has NULL here and renders with the same default look (plain
+// yellow, no sticker, the existing serif font) it always had. The
+// allowed-value sets live in src/lib/noteStyle.ts (client) and
+// server/noteStyle.ts (server sanitizer, mirrors it exactly) rather than
+// a CHECK constraint, so a future addition to the palette/sticker set
+// doesn't need a migration — only those two files change.
+if (!promptColumns.has('note_color')) {
+  db.exec(`ALTER TABLE prompts ADD COLUMN note_color TEXT`)
+  db.exec(`ALTER TABLE prompts ADD COLUMN note_sticker TEXT`)
+  db.exec(`ALTER TABLE prompts ADD COLUMN note_handwriting TEXT`)
+}
 
 // Boards: a named public/private group any real account can create, find,
 // and join — the server-backed record of a board's existence and

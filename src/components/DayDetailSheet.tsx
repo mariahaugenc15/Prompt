@@ -3,7 +3,8 @@ import { motion } from 'framer-motion'
 import type { CompletionView, ReactionKind, RealCalendar } from '../lib/calendarsApi'
 import { CATEGORY_META } from '../lib/types'
 import { ReportButton } from './ReportButton'
-import { CATEGORY_ICON, CloseIcon, FlagIcon, PinIcon } from './Icons'
+import { CATEGORY_ICON, NOTE_STICKER_ICON, CloseIcon, FlagIcon, PinIcon } from './Icons'
+import { NOTE_HANDWRITING_FONT, isNoteHandwriting, isNoteSticker } from '../lib/noteStyle'
 import { AudioProofPlayer } from './AudioProofPlayer'
 import { ReactionBar } from './ReactionBar'
 import { CompletionComments } from './CompletionComments'
@@ -88,18 +89,24 @@ function CompletionCard({
   const meta = CATEGORY_META[completion.category]
   const [editingTags, setEditingTags] = useState(false)
 
+  const sticker = isNoteSticker(completion.noteSticker) ? completion.noteSticker : undefined
+  const handwritingFont = isNoteHandwriting(completion.noteHandwriting) ? NOTE_HANDWRITING_FONT[completion.noteHandwriting] : undefined
+
   return (
     <div className="rounded-sm border border-line bg-card p-4">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-ink-faint">
           <CATEGORY_ICON category={completion.category} size={13} />
           {meta.label}
+          {sticker && <NOTE_STICKER_ICON sticker={sticker} size={12} className="text-ink-faint" />}
         </span>
         {completion.boardName && (
           <span className="text-[10px] uppercase tracking-wide text-ink-faint">{completion.boardName}</span>
         )}
       </div>
-      <p className="mt-2 font-serif text-base leading-snug">{completion.text}</p>
+      <p className="mt-2 font-serif text-base leading-snug" style={{ fontFamily: handwritingFont }}>
+        {completion.text}
+      </p>
       <p className="mt-1.5 flex items-center gap-1 text-xs text-ink-faint">
         <FlagIcon size={12} />
         {completion.isSelfSent ? 'Your own board' : `From ${completion.senderDisplayName ?? 'someone'}`}

@@ -289,6 +289,9 @@ export function Home() {
         detailSourceLabel: `From ${item.senderDisplayName}`,
         onAccept: () => { setOpenNoteId(null); setCompletingOneToOne(item) },
         onDecline: () => handleDeclineOneToOne(item),
+        noteColor: item.noteColor,
+        noteSticker: item.noteSticker,
+        noteHandwriting: item.noteHandwriting,
       }))
     const broadcastNotes: FridgeNoteViewModel[] = broadcasts.map((item) => ({
       id: item.id,
@@ -299,6 +302,9 @@ export function Home() {
       stackLabel: item.boardName ?? item.senderDisplayName,
       detailSourceLabel: item.boardName ? `From ${item.boardName}` : `From ${item.senderDisplayName}`,
       onAccept: () => { setOpenNoteId(null); setCompletingBroadcast(item) },
+      noteColor: item.noteColor,
+      noteSticker: item.noteSticker,
+      noteHandwriting: item.noteHandwriting,
     }))
     return [...broadcastNotes, ...oneToOneNotes]
   }, [oneToOne, broadcasts])

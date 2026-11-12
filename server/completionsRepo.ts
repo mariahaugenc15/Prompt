@@ -14,6 +14,9 @@ export interface CompletionView {
   userCaption?: string
   mediaType?: string
   mediaDataUrl?: string
+  noteColor?: string
+  noteSticker?: string
+  noteHandwriting?: string
   createdAt: number
   dayKey: string
   senderUsername?: string
@@ -41,6 +44,9 @@ interface OneToOneRow {
   userCaption: string | null
   mediaType: string | null
   mediaDataUrl: string | null
+  noteColor: string | null
+  noteSticker: string | null
+  noteHandwriting: string | null
   createdAt: number
   senderUsername: string
   senderFirstName: string | null
@@ -59,7 +65,8 @@ interface BroadcastRow extends OneToOneRow {
 
 const oneToOneByRecipient = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.completion_auto_caption AS autoCaption, p.completion_user_caption AS userCaption,
-         p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl, p.completed_at AS createdAt,
+         p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting, p.completed_at AS createdAt,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
   FROM prompts p
@@ -71,7 +78,8 @@ const oneToOneByRecipient = db.prepare(`
 
 const oneToOneByFollowedRecipients = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.completion_auto_caption AS autoCaption, p.completion_user_caption AS userCaption,
-         p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl, p.completed_at AS createdAt,
+         p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting, p.completed_at AS createdAt,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
   FROM prompts p
@@ -84,7 +92,9 @@ const oneToOneByFollowedRecipients = db.prepare(`
 
 const broadcastByCompleter = db.prepare(`
   SELECT c.id, p.category, p.prompt_text AS text, c.auto_caption AS autoCaption, c.user_caption AS userCaption,
-         c.media_type AS mediaType, c.media_data_url AS mediaDataUrl, c.created_at AS createdAt, p.board_id AS boardId, b.name AS boardName,
+         c.media_type AS mediaType, c.media_data_url AS mediaDataUrl,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting,
+         c.created_at AS createdAt, p.board_id AS boardId, b.name AS boardName,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
   FROM prompt_completions c
@@ -98,7 +108,9 @@ const broadcastByCompleter = db.prepare(`
 
 const broadcastByBoardIds = db.prepare(`
   SELECT c.id, p.category, p.prompt_text AS text, c.auto_caption AS autoCaption, c.user_caption AS userCaption,
-         c.media_type AS mediaType, c.media_data_url AS mediaDataUrl, c.created_at AS createdAt, p.board_id AS boardId, b.name AS boardName,
+         c.media_type AS mediaType, c.media_data_url AS mediaDataUrl,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting,
+         c.created_at AS createdAt, p.board_id AS boardId, b.name AS boardName,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName,
          p.sender_account_id AS senderAccountId, c.completer_account_id AS completerAccountId
@@ -126,6 +138,9 @@ function normalizeOneToOne(row: OneToOneRow, viewerId?: string): CompletionView 
     userCaption: row.userCaption ?? undefined,
     mediaType: row.mediaType ?? undefined,
     mediaDataUrl: row.mediaDataUrl ?? undefined,
+    noteColor: row.noteColor ?? undefined,
+    noteSticker: row.noteSticker ?? undefined,
+    noteHandwriting: row.noteHandwriting ?? undefined,
     createdAt: row.createdAt,
     dayKey: dayKeyFor(row.createdAt),
     senderUsername: row.senderUsername,
@@ -152,6 +167,9 @@ function normalizeBroadcast(row: BroadcastRow, viewerId?: string): CompletionVie
     userCaption: row.userCaption ?? undefined,
     mediaType: row.mediaType ?? undefined,
     mediaDataUrl: row.mediaDataUrl ?? undefined,
+    noteColor: row.noteColor ?? undefined,
+    noteSticker: row.noteSticker ?? undefined,
+    noteHandwriting: row.noteHandwriting ?? undefined,
     createdAt: row.createdAt,
     dayKey: dayKeyFor(row.createdAt),
     senderUsername: row.senderUsername,
@@ -237,7 +255,8 @@ export function calendarFeed(calendarId: string, viewerId?: string, limit = 500,
       .prepare(
         `
     SELECT p.id, p.category, p.prompt_text AS text, p.completion_auto_caption AS autoCaption, p.completion_user_caption AS userCaption,
-           p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl, p.completed_at AS createdAt,
+           p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting, p.completed_at AS createdAt,
            sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
            completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
     FROM prompts p
@@ -255,7 +274,9 @@ export function calendarFeed(calendarId: string, viewerId?: string, limit = 500,
       .prepare(
         `
     SELECT c.id, p.category, p.prompt_text AS text, c.auto_caption AS autoCaption, c.user_caption AS userCaption,
-           c.media_type AS mediaType, c.media_data_url AS mediaDataUrl, c.created_at AS createdAt, p.board_id AS boardId, b.name AS boardName,
+           c.media_type AS mediaType, c.media_data_url AS mediaDataUrl,
+         p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting,
+         c.created_at AS createdAt, p.board_id AS boardId, b.name AS boardName,
            sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
            completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
     FROM prompt_completions c

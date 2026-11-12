@@ -40,6 +40,9 @@ export interface OneToOneHistoryItem {
   userCaption?: string
   mediaType?: string
   mediaDataUrl?: string
+  noteColor?: string
+  noteSticker?: string
+  noteHandwriting?: string
   createdAt: number
   completedAt?: number
   senderUsername: string
@@ -240,7 +243,14 @@ export function setMyProfileVisibility(profileVisibility: 'public' | 'private', 
 }
 
 export function sendOneToOnePrompt(
-  input: { recipientUsername: string; category: Category; text: string },
+  input: {
+    recipientUsername: string
+    category: Category
+    text: string
+    noteColor?: string
+    noteSticker?: string
+    noteHandwriting?: string
+  },
   token: string,
 ) {
   return call<{ id: string; status: string }>('/api/prompts', token, { method: 'POST', body: JSON.stringify(input) })
@@ -263,6 +273,9 @@ export interface ActiveBroadcastItem {
   category: Category
   text: string
   createdAt: number
+  noteColor?: string
+  noteSticker?: string
+  noteHandwriting?: string
   senderUsername: string
   senderDisplayName: string
   boardId?: string

@@ -377,6 +377,7 @@ export function Home() {
           oldestCursor={oldestCursor}
           completions={activity}
           onDayClick={setSelectedDay}
+          token={account?.token}
         />
       </div>
 

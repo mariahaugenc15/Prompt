@@ -8,9 +8,10 @@ export interface NotificationPrefs {
   newFollower: boolean
   newPrompt: boolean
   promptCompleted: boolean
+  monthlyRecap: boolean
 }
 
-export type NotificationEvent = 'new_follower' | 'new_prompt' | 'prompt_completed'
+export type NotificationEvent = 'new_follower' | 'new_prompt' | 'prompt_completed' | 'monthly_recap'
 
 export interface NotificationItem {
   id: string

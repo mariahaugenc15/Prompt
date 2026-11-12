@@ -26,6 +26,7 @@ import { Privacy } from './pages/Privacy'
 import { OrgPage } from './pages/OrgPage'
 import { RealSend } from './pages/RealSend'
 import { StampsBook } from './pages/StampsBook'
+import { MonthlyRecap } from './pages/MonthlyRecap'
 import { StampSvgFilters } from './components/Stamp'
 
 function Shell({ children }: { children: ReactNode }) {
@@ -104,6 +105,14 @@ export default function App() {
         element={
           <RealShell>
             <StampsBook />
+          </RealShell>
+        }
+      />
+      <Route
+        path="/recap/:monthKey"
+        element={
+          <RealShell>
+            <MonthlyRecap />
           </RealShell>
         }
       />

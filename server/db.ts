@@ -740,3 +740,33 @@ const insertManySuggestions = db.transaction((rows: typeof seedSuggestions) => {
   for (const row of rows) insertSuggestion.run({ ...row, createdAt: now })
 })
 insertManySuggestions(seedSuggestions)
+
+// Monthly recap (v2, Phase 11). A month's figures never change once the
+// month has fully elapsed (every timestamp they're computed from is in
+// the past and immutable), so this is a true cache, not a TTL'd one:
+// compute once per (account, month), store it, and every later request
+// for that same month is a straight read. See recapRepo.ts.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS monthly_recaps (
+    account_id TEXT NOT NULL,
+    month_key TEXT NOT NULL,
+    data TEXT NOT NULL,
+    computed_at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, month_key)
+  );
+`)
+
+// Generic idempotency ledger for scheduler.ts's daily jobs (first the
+// monthly recap push below, later Phase 12's sealed-reveal sweep and
+// Phase 13's weekly rollover). period_key is whatever the job considers
+// "this run" (a date, a week id, etc.) — INSERT OR IGNORE plus the
+// primary key is what makes claiming a run safe under a restart or a
+// slow tick landing on the same target minute twice.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS job_runs (
+    job_name TEXT NOT NULL,
+    period_key TEXT NOT NULL,
+    ran_at INTEGER NOT NULL,
+    PRIMARY KEY (job_name, period_key)
+  );
+`)

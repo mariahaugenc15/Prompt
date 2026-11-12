@@ -3,24 +3,26 @@ import { db } from './db.js'
 import { notifyAccount } from './pushRepo.js'
 import { sendWidgetRefreshPush, sendAlertPush } from './apnsRepo.js'
 
-export type NotificationEvent = 'new_follower' | 'new_prompt' | 'prompt_completed'
+export type NotificationEvent = 'new_follower' | 'new_prompt' | 'prompt_completed' | 'monthly_recap'
 
 export interface NotificationPrefs {
   master: boolean
   newFollower: boolean
   newPrompt: boolean
   promptCompleted: boolean
+  monthlyRecap: boolean
 }
 
 // Maps each NotificationPrefs field to its row key in notification_prefs
-// (server/db.ts). Adding a future notification type (Phase 11's monthly
-// recap, Phase 12's sealed-prompt-opened, Phase 13's game updates) means
-// adding one entry here and to NotificationPrefs, never a migration.
+// (server/db.ts). Adding a future notification type (Phase 12's
+// sealed-prompt-opened, Phase 13's game updates) means adding one entry
+// here and to NotificationPrefs, never a migration.
 const PREF_FIELDS: { field: keyof NotificationPrefs; event: string }[] = [
   { field: 'master', event: 'master' },
   { field: 'newFollower', event: 'new_follower' },
   { field: 'newPrompt', event: 'new_prompt' },
   { field: 'promptCompleted', event: 'prompt_completed' },
+  { field: 'monthlyRecap', event: 'monthly_recap' },
 ]
 
 const getAllPrefsStmt = db.prepare('SELECT event, enabled FROM notification_prefs WHERE account_id = ?')
@@ -50,6 +52,7 @@ function allowedFor(prefs: NotificationPrefs, event: NotificationEvent): boolean
   if (!prefs.master) return false
   if (event === 'new_follower') return prefs.newFollower
   if (event === 'new_prompt') return prefs.newPrompt
+  if (event === 'monthly_recap') return prefs.monthlyRecap
   return prefs.promptCompleted
 }
 

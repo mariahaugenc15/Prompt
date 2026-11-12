@@ -156,8 +156,9 @@
     font-size: 14px;
     font-weight: 500;
     text-decoration: none;
-    cursor: default;
+    transition: transform 0.15s ease, background 0.15s ease;
   }
+  .badge-store:hover { background: #38342d; transform: translateY(-1px); }
   .badge-store svg { flex: none; }
   .badge-store .lines { text-align: left; line-height: 1.2; }
   .badge-store .lines .small { font-size: 10px; opacity: 0.75; display: block; }
@@ -454,7 +455,7 @@
       <path d="M12 2c-3.3 0-6 2.5-6 6 0 4.2 6 12 6 12s6-7.8 6-12c0-3.5-2.7-6-6-6Z" />
       <circle cx="12" cy="8" r="2.2" />
     </svg>
-    <p>Coming soon to the App Store</p>
+    <p>Now available on the App Store</p>
     <span class="note-small">Get back to real life</span>
   </div>
 </div>
@@ -467,15 +468,15 @@
     Prompt is the app that gets you off the feed and into your own life. Send a friend a real prompt, complete
     the ones sent to you, and build a calendar of what you actually did, not what you liked.
   </p>
-  <span class="badge-store" aria-label="Available on the App Store (coming soon)">
+  <a class="badge-store" href="APP_STORE_URL" target="_blank" rel="noopener" aria-label="Download Prompt on the App Store">
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M16.365 1.43c0 1.14-.464 2.16-1.213 2.912-.837.85-2.15 1.51-3.24 1.43-.13-1.09.43-2.24 1.19-2.98.83-.83 2.25-1.44 3.26-1.36zM20.53 17.16c-.5 1.15-.74 1.66-1.38 2.68-.9 1.42-2.16 3.19-3.73 3.2-1.39.02-1.75-.9-3.63-.9-1.88 0-2.28.88-3.66.92-1.56.06-2.75-1.53-3.65-2.95C2.62 17.4 1.4 13.05 3.07 10.1c.83-1.47 2.32-2.4 3.94-2.42 1.39-.03 2.7.94 3.55.94.84 0 2.43-1.16 4.1-.99.7.03 2.66.28 3.92 2.1-3.55 1.94-2.94 6.42 1.95 7.43z" fill="currentColor"/>
     </svg>
     <span class="lines">
-      <span class="small">Available on the</span>
+      <span class="small">Download on the</span>
       <span class="big">App Store</span>
     </span>
-  </span>
+  </a>
 </section>
 
 <section class="origin">
@@ -503,9 +504,14 @@
       <div class="walkthrough-sticky">
         <div class="wshot-stack">
           <img class="wshot active" data-index="0" src="/landing/feature-send.jpg" alt="Sending a prompt in the app" />
-          <img class="wshot" data-index="1" src="/landing/feature-completion.jpg" alt="Detail view of a completed prompt with photo" />
-          <img class="wshot" data-index="2" src="/landing/feature-calendar.jpg" alt="Home screen with calendar and completion score" />
-          <img class="wshot" data-index="3" src="/landing/feature-boards.jpg" alt="A board with a challenge and submission gallery" />
+          <img class="wshot" data-index="1" src="/landing/feature-idea.jpg" alt="The idea generator and note-styling options when composing a prompt" />
+          <img class="wshot" data-index="2" src="/landing/feature-completion.jpg" alt="Detail view of a completed prompt with photo" />
+          <img class="wshot" data-index="3" src="/landing/feature-calendar.jpg" alt="Home screen with calendar and completion score" />
+          <img class="wshot" data-index="4" src="/landing/feature-stamps.jpg" alt="A collection of stamps earned for completed prompts" />
+          <img class="wshot" data-index="5" src="/landing/feature-group.jpg" alt="A sealed group prompt waiting on everyone to answer" />
+          <img class="wshot" data-index="6" src="/landing/feature-recap.jpg" alt="A monthly recap of completions and stats" />
+          <img class="wshot" data-index="7" src="/landing/feature-boards.jpg" alt="A board with a challenge and submission gallery" />
+          <img class="wshot" data-index="8" src="/landing/feature-game.jpg" alt="A board's weekly leaderboard and team challenge" />
         </div>
       </div>
 
@@ -522,8 +528,20 @@
         </div>
 
         <div class="wstep" data-index="1">
-          <div class="wstep-shot"><img src="/landing/feature-completion.jpg" alt="Detail view of a completed prompt with photo" loading="lazy" /></div>
+          <div class="wstep-shot"><img src="/landing/feature-idea.jpg" alt="The idea generator and note-styling options when composing a prompt" loading="lazy" /></div>
           <span class="wstep-num">2</span>
+          <p class="eyebrow">Stuck on what to send?</p>
+          <h2>Need an idea? Shuffle one up</h2>
+          <p>
+            Pick a mood, Chill, Brave, Silly, or Outdoors, and shuffle through ready-made prompts until one
+            fits. Then style the note itself: a color, a sticker, a handwriting font, before it lands in
+            their inbox.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="2">
+          <div class="wstep-shot"><img src="/landing/feature-completion.jpg" alt="Detail view of a completed prompt with photo" loading="lazy" /></div>
+          <span class="wstep-num">3</span>
           <p class="eyebrow">Real, not curated</p>
           <h2>Proof, not a highlight reel</h2>
           <p>
@@ -532,9 +550,9 @@
           </p>
         </div>
 
-        <div class="wstep" data-index="2">
+        <div class="wstep" data-index="3">
           <div class="wstep-shot"><img src="/landing/feature-calendar.jpg" alt="Home screen with calendar and completion score" loading="lazy" /></div>
-          <span class="wstep-num">3</span>
+          <span class="wstep-num">4</span>
           <p class="eyebrow">Your calendar</p>
           <h2>A record of what you actually did</h2>
           <p>
@@ -543,14 +561,58 @@
           </p>
         </div>
 
-        <div class="wstep" data-index="3">
+        <div class="wstep" data-index="4">
+          <div class="wstep-shot"><img src="/landing/feature-stamps.jpg" alt="A collection of stamps earned for completed prompts" loading="lazy" /></div>
+          <span class="wstep-num">5</span>
+          <p class="eyebrow">Stamps</p>
+          <h2>A stamp for every kind of prompt you complete</h2>
+          <p>
+            One ink stamp per category, Snap it, Sound it, Show it, Share it, Unplug it, collected the first
+            time you complete that kind. A small, tangible record of what you've actually done.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="5">
+          <div class="wstep-shot"><img src="/landing/feature-group.jpg" alt="A sealed group prompt waiting on everyone to answer" loading="lazy" /></div>
+          <span class="wstep-num">6</span>
+          <p class="eyebrow">Group prompts</p>
+          <h2>Seal it until everyone's answered</h2>
+          <p>
+            Prompt a few people at once, and seal it: nobody's answer shows, not even your own, until the
+            last person finishes or the deadline passes. Then it all opens at once.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="6">
+          <div class="wstep-shot"><img src="/landing/feature-recap.jpg" alt="A monthly recap of completions and stats" loading="lazy" /></div>
+          <span class="wstep-num">7</span>
+          <p class="eyebrow">Monthly recap</p>
+          <h2>A look back, once a month</h2>
+          <p>
+            Completions, your completion score, your favorite category, your longest streak, who you prompted
+            most. One shareable card summing up your month, built from what you actually did.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="7">
           <div class="wstep-shot"><img src="/landing/feature-boards.jpg" alt="A board with a challenge and submission gallery" loading="lazy" /></div>
-          <span class="wstep-num">4</span>
+          <span class="wstep-num">8</span>
           <p class="eyebrow">Boards</p>
           <h2>Small groups, real moments</h2>
           <p>
             Start a board for your people, a weekend crew, a book club, a family group, and challenge each
             other to real prompts, together.
+          </p>
+        </div>
+
+        <div class="wstep" data-index="8">
+          <div class="wstep-shot"><img src="/landing/feature-game.jpg" alt="A board's weekly leaderboard and team challenge" loading="lazy" /></div>
+          <span class="wstep-num">9</span>
+          <p class="eyebrow">Weekly games</p>
+          <h2>Turn a board into a friendly competition</h2>
+          <p>
+            A weekly leaderboard scored from real completions, plus team challenges you can start any time,
+            two or more teams racing to finish the most prompts before the period ends.
           </p>
         </div>
       </div>
@@ -584,16 +646,16 @@
 <section class="cta">
   <div class="wrap">
     <h2>Prompt real life.</h2>
-    <p>Coming soon to the App Store.</p>
-    <span class="badge-store" aria-label="Available on the App Store (coming soon)">
+    <p>Available now on the App Store.</p>
+    <a class="badge-store" href="APP_STORE_URL" target="_blank" rel="noopener" aria-label="Download Prompt on the App Store">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M16.365 1.43c0 1.14-.464 2.16-1.213 2.912-.837.85-2.15 1.51-3.24 1.43-.13-1.09.43-2.24 1.19-2.98.83-.83 2.25-1.44 3.26-1.36zM20.53 17.16c-.5 1.15-.74 1.66-1.38 2.68-.9 1.42-2.16 3.19-3.73 3.2-1.39.02-1.75-.9-3.63-.9-1.88 0-2.28.88-3.66.92-1.56.06-2.75-1.53-3.65-2.95C2.62 17.4 1.4 13.05 3.07 10.1c.83-1.47 2.32-2.4 3.94-2.42 1.39-.03 2.7.94 3.55.94.84 0 2.43-1.16 4.1-.99.7.03 2.66.28 3.92 2.1-3.55 1.94-2.94 6.42 1.95 7.43z" fill="currentColor"/>
       </svg>
       <span class="lines">
-        <span class="small">Available on the</span>
+        <span class="small">Download on the</span>
         <span class="big">App Store</span>
       </span>
-    </span>
+    </a>
   </div>
 </section>
 

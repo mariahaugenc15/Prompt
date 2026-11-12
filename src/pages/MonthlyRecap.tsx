@@ -34,7 +34,10 @@ export function MonthlyRecap() {
     getRecap(monthKey, account.token).then((data) => {
       if (isCurrent()) setRecap(data ?? null)
     })
-  }, [account, monthKey, startGuard])
+    // startGuard intentionally excluded — see GroupDetail.tsx's identical
+    // comment; including it here caused the exact same infinite-refetch loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, monthKey])
 
   useEffect(() => {
     if (!recap || !previewRef.current) return

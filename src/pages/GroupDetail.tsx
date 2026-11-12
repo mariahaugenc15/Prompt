@@ -50,7 +50,14 @@ export function GroupDetail() {
         if (mine) setMyPromptId(mine.promptId)
       }
     })
-  }, [account, id, startGuard])
+    // startGuard intentionally excluded: useEffectGuard() returns a new
+    // function identity every render, and this effect's own setState calls
+    // trigger exactly that — including it here reruns the effect on every
+    // render it causes, which reruns both fetches, which re-renders, forever.
+    // Verified live: this was actually looping, burning through the
+    // server's rate limit in well under a second.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, id])
 
   async function handleComplete(input: { mediaType?: string; mediaDataUrl?: string; caption?: string }) {
     if (!account || !detail || !myPromptId) return

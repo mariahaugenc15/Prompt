@@ -36,7 +36,10 @@ export function GroupPrompts() {
       if (s.ok) setSent(s.data)
       if (r.ok) setReceived(r.data)
     })
-  }, [account, startGuard])
+    // startGuard intentionally excluded — see GroupDetail.tsx's identical
+    // comment; including it here caused the exact same infinite-refetch loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account])
 
   if (!account) {
     return (

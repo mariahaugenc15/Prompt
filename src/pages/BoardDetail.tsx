@@ -4,7 +4,8 @@ import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import type { Category } from '../lib/types'
 import { CATEGORY_META } from '../lib/types'
-import { CATEGORY_ICON, LockIcon, PinIcon } from '../components/Icons'
+import { CATEGORY_ICON, LockIcon, PinIcon, ShuffleIcon } from '../components/Icons'
+import { getSuggestion, SUGGESTION_PACKS, SUGGESTION_PACK_LABEL, type SuggestionPack, type Suggestion } from '../lib/suggestionsApi'
 import { AudioProofPlayer } from '../components/AudioProofPlayer'
 import { ReactionBar } from '../components/ReactionBar'
 import { CompletionDetailModal } from '../components/CompletionDetailModal'
@@ -94,6 +95,27 @@ export function BoardDetail() {
   const [text, setText] = useState('')
   const [cadence, setCadence] = useState<BoardChallenge['cadence']>('one-off')
   const [posting, setPosting] = useState(false)
+
+  // Phase 10 — "Need an idea?" generator, same session-only exclusion
+  // behavior as Send a prompt's copy of this (src/pages/RealSend.tsx).
+  const [ideaPack, setIdeaPack] = useState<SuggestionPack>('chill')
+  const [idea, setIdea] = useState<Suggestion | undefined>(undefined)
+  const [ideaLoading, setIdeaLoading] = useState(false)
+  const [ideaSeenIds, setIdeaSeenIds] = useState<string[]>([])
+
+  async function shuffleIdea(pack: SuggestionPack) {
+    if (!account) return
+    setIdeaLoading(true)
+    try {
+      const next = await getSuggestion(category, pack, ideaSeenIds, account.token)
+      if (next) {
+        setIdea(next)
+        setIdeaSeenIds((prev) => [...prev, next.id])
+      }
+    } finally {
+      setIdeaLoading(false)
+    }
+  }
 
   const [adultOptedIn, setAdultOptedIn] = useState(false)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
@@ -292,7 +314,10 @@ export function BoardDetail() {
             {(Object.keys(CATEGORY_META) as Category[]).map((c) => (
               <button
                 key={c}
-                onClick={() => setCategory(c)}
+                onClick={() => {
+                  setCategory(c)
+                  setIdea(undefined)
+                }}
                 className={clsx(
                   'flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition',
                   category === c ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
@@ -303,6 +328,50 @@ export function BoardDetail() {
               </button>
             ))}
           </div>
+
+          <div className="mb-2 flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => shuffleIdea(ideaPack)}
+                disabled={ideaLoading}
+                className="flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-soft disabled:opacity-60"
+              >
+                <ShuffleIcon size={12} />
+                {idea ? 'Shuffle' : 'Need an idea?'}
+              </button>
+              {SUGGESTION_PACKS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    setIdeaPack(p)
+                    if (idea) shuffleIdea(p)
+                  }}
+                  className={clsx(
+                    'rounded-full border px-2 py-0.5 text-[10px]',
+                    ideaPack === p ? 'border-ink bg-ink text-paper' : 'border-line text-ink-faint',
+                  )}
+                >
+                  {SUGGESTION_PACK_LABEL[p]}
+                </button>
+              ))}
+            </div>
+            {idea && (
+              <button
+                type="button"
+                onClick={() => {
+                  setText(idea.text)
+                  setIdea(undefined)
+                }}
+                className="rounded-sm border border-dashed border-line bg-paper p-2 text-left text-xs italic text-ink-soft"
+              >
+                {idea.text}
+                <span className="mt-1 block text-[9px] not-italic uppercase tracking-wide text-ink-faint">Tap to use this</span>
+              </button>
+            )}
+          </div>
+
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

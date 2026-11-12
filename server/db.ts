@@ -707,3 +707,36 @@ db.exec(`
   JOIN prompts p ON p.id = pc.prompt_id
   JOIN stamp_definitions sd ON sd.category = p.category AND sd.season = '';
 `)
+
+// "Need an idea?" prompt generator (v2, Phase 10). Suggestions live in a
+// real table, not a hardcoded UI list, specifically so an admin can edit,
+// add or disable one from the admin panel without a release. The seed
+// file below is the starting content library (120 entries, at least 100
+// per the spec); re-running this on every boot is safe and non-destructive
+// because of INSERT OR IGNORE keyed on id, so an admin's later edits or
+// disables in the live table are never clobbered by a redeploy. There is
+// deliberately no adult/18+ variant anywhere in this table or its seed:
+// suggestions are always safe content, regardless of a board's own
+// adult-content flag.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS prompt_suggestions (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    pack TEXT NOT NULL,
+    text TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_prompt_suggestions_lookup ON prompt_suggestions(category, pack, enabled);
+`)
+const insertSuggestion = db.prepare(
+  `INSERT OR IGNORE INTO prompt_suggestions (id, category, pack, text, enabled, created_at) VALUES (@id, @category, @pack, @text, 1, @createdAt)`,
+)
+const seedSuggestions = JSON.parse(
+  fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'data', 'promptSuggestions.json'), 'utf8'),
+) as { id: string; category: string; pack: string; text: string }[]
+const insertManySuggestions = db.transaction((rows: typeof seedSuggestions) => {
+  const now = Date.now()
+  for (const row of rows) insertSuggestion.run({ ...row, createdAt: now })
+})
+insertManySuggestions(seedSuggestions)

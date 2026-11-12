@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { useStore } from '../lib/store'
 import { CATEGORY_META, type Category } from '../lib/types'
-import { CATEGORY_ICON, BackIcon, NOTE_STICKER_ICON } from '../components/Icons'
+import { CATEGORY_ICON, BackIcon, NOTE_STICKER_ICON, ShuffleIcon } from '../components/Icons'
 import { sendOneToOnePrompt, searchAccounts, type PublicProfile } from '../lib/realAccountsApi'
 import { SentFlyAway } from '../components/SentFlyAway'
 import {
@@ -18,6 +18,7 @@ import {
   type NoteSticker,
   type NoteHandwriting,
 } from '../lib/noteStyle'
+import { getSuggestion, SUGGESTION_PACKS, SUGGESTION_PACK_LABEL, type SuggestionPack, type Suggestion } from '../lib/suggestionsApi'
 
 export function RealSend() {
   const account = useStore((s) => s.account)
@@ -39,6 +40,29 @@ export function RealSend() {
   const [noteColor, setNoteColor] = useState<NoteColor>('butter')
   const [noteSticker, setNoteSticker] = useState<NoteSticker | undefined>(undefined)
   const [noteHandwriting, setNoteHandwriting] = useState<NoteHandwriting | undefined>(undefined)
+
+  // Phase 10 — "Need an idea?" generator. ideaSeenIds is session-only (a
+  // plain in-memory array, not persisted) so a fresh visit to this screen
+  // can see the same suggestion again; it only ever grows within one visit
+  // here, which is what "already seen in the current session" means.
+  const [ideaPack, setIdeaPack] = useState<SuggestionPack>('chill')
+  const [idea, setIdea] = useState<Suggestion | undefined>(undefined)
+  const [ideaLoading, setIdeaLoading] = useState(false)
+  const [ideaSeenIds, setIdeaSeenIds] = useState<string[]>([])
+
+  async function shuffleIdea(pack: SuggestionPack) {
+    if (!account) return
+    setIdeaLoading(true)
+    try {
+      const next = await getSuggestion(category, pack, ideaSeenIds, account.token)
+      if (next) {
+        setIdea(next)
+        setIdeaSeenIds((prev) => [...prev, next.id])
+      }
+    } finally {
+      setIdeaLoading(false)
+    }
+  }
 
   // Live suggestions as you type, same debounced search Feed.tsx uses —
   // picking one fills in the exact username so you never have to remember
@@ -163,7 +187,10 @@ export function RealSend() {
           {(Object.keys(CATEGORY_META) as Category[]).map((c) => (
             <button
               key={c}
-              onClick={() => setCategory(c)}
+              onClick={() => {
+                setCategory(c)
+                setIdea(undefined)
+              }}
               className={clsx(
                 'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition',
                 category === c ? 'border-ink bg-ink text-paper' : 'border-line text-ink-soft',
@@ -174,6 +201,49 @@ export function RealSend() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => shuffleIdea(ideaPack)}
+            disabled={ideaLoading}
+            className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs text-ink-soft disabled:opacity-60"
+          >
+            <ShuffleIcon size={13} />
+            {idea ? 'Shuffle' : 'Need an idea?'}
+          </button>
+          {SUGGESTION_PACKS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => {
+                setIdeaPack(p)
+                if (idea) shuffleIdea(p)
+              }}
+              className={clsx(
+                'rounded-full border px-2.5 py-1 text-[11px]',
+                ideaPack === p ? 'border-ink bg-ink text-paper' : 'border-line text-ink-faint',
+              )}
+            >
+              {SUGGESTION_PACK_LABEL[p]}
+            </button>
+          ))}
+        </div>
+        {idea && (
+          <button
+            type="button"
+            onClick={() => {
+              setText(idea.text)
+              setIdea(undefined)
+            }}
+            className="rounded-sm border border-dashed border-line bg-paper-dim p-2.5 text-left text-sm italic text-ink-soft"
+          >
+            {idea.text}
+            <span className="mt-1 block text-[10px] not-italic uppercase tracking-wide text-ink-faint">Tap to use this</span>
+          </button>
+        )}
       </div>
 
       <label className="flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">

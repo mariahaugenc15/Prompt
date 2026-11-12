@@ -108,6 +108,8 @@
   th { background: #eeece5; font-weight: 600; color: #444; }
   tr:last-child td { border-bottom: none; }
   td.muted { color: #888; }
+  .editable-text { display: inline-block; min-width: 120px; border-bottom: 1px dashed #bbb; }
+  .editable-text:focus { outline: none; border-bottom-color: #666; }
   .badge {
     display: inline-block;
     padding: 2px 8px;
@@ -197,6 +199,7 @@
       <button data-tab="reports">Reports</button>
       <button data-tab="feedback">Feedback</button>
       <button data-tab="comments">Comments</button>
+      <button data-tab="suggestions">Suggestions</button>
       <button data-tab="accounts">Accounts</button>
       <button data-tab="broadcast">Broadcast</button>
       <button data-tab="audit">Audit Log</button>
@@ -253,6 +256,32 @@
       </div>
       <div id="comments-content"></div>
       <div class="pager" id="comments-pager"></div>
+    </section>
+
+    <section id="panel-suggestions" class="panel">
+      <div class="toolbar" style="flex-direction:column; align-items:stretch; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <select id="suggestion-new-category">
+            <option value="snap">Snap it</option>
+            <option value="sound">Sound it</option>
+            <option value="show">Show it</option>
+            <option value="share">Share it</option>
+            <option value="unplug">Unplug it</option>
+          </select>
+          <select id="suggestion-new-pack">
+            <option value="chill">Chill</option>
+            <option value="brave">Brave</option>
+            <option value="silly">Silly</option>
+            <option value="outdoors">Outdoors</option>
+          </select>
+          <input type="text" id="suggestion-new-text" placeholder="New suggestion text…" style="flex:1; min-width:220px; padding:6px; border:1px solid #ccc; border-radius:6px;" />
+          <button id="suggestion-add-btn">Add</button>
+        </div>
+        <div id="suggestion-add-status" class="muted"></div>
+        <button class="secondary" id="suggestions-refresh" style="align-self:flex-start;">Refresh</button>
+      </div>
+      <div id="suggestions-content"></div>
+      <div class="pager" id="suggestions-pager"></div>
     </section>
 
     <section id="panel-accounts" class="panel">
@@ -418,6 +447,7 @@
     reports: document.getElementById('panel-reports'),
     feedback: document.getElementById('panel-feedback'),
     comments: document.getElementById('panel-comments'),
+    suggestions: document.getElementById('panel-suggestions'),
     accounts: document.getElementById('panel-accounts'),
     broadcast: document.getElementById('panel-broadcast'),
     audit: document.getElementById('panel-audit'),
@@ -439,6 +469,7 @@
     else if (activeTab === 'reports') loadReports();
     else if (activeTab === 'feedback') loadFeedback();
     else if (activeTab === 'comments') loadComments();
+    else if (activeTab === 'suggestions') loadSuggestions();
     else if (activeTab === 'accounts') loadAccounts();
     else if (activeTab === 'broadcast') loadBroadcastLog();
     else if (activeTab === 'audit') loadAuditLog();
@@ -682,6 +713,74 @@
         renderPager(document.getElementById('comments-pager'), commentsOffset, rows.length,
           function () { commentsOffset = Math.max(0, commentsOffset - PAGE_SIZE); loadComments(); },
           function () { commentsOffset += PAGE_SIZE; loadComments(); });
+      })
+      .catch(function (e) { content.innerHTML = emptyState(e.message); });
+  }
+
+  // --- Prompt suggestions ("Need an idea?" library) --------------------------
+
+  var suggestionsOffset = 0;
+  document.getElementById('suggestions-refresh').addEventListener('click', function () { loadSuggestions(); });
+
+  document.getElementById('suggestion-add-btn').addEventListener('click', function () {
+    var statusEl = document.getElementById('suggestion-add-status');
+    var text = document.getElementById('suggestion-new-text').value.trim();
+    if (!text) { statusEl.textContent = 'Enter suggestion text first.'; return; }
+    var category = document.getElementById('suggestion-new-category').value;
+    var pack = document.getElementById('suggestion-new-pack').value;
+    statusEl.textContent = 'Adding…';
+    api('/api/admin/suggestions', { method: 'POST', body: JSON.stringify({ category: category, pack: pack, text: text }) })
+      .then(function () {
+        document.getElementById('suggestion-new-text').value = '';
+        statusEl.textContent = 'Added.';
+        suggestionsOffset = 0;
+        loadSuggestions();
+      })
+      .catch(function (e) { statusEl.textContent = e.message; });
+  });
+
+  function loadSuggestions() {
+    var content = document.getElementById('suggestions-content');
+    content.innerHTML = emptyState('Loading…');
+    api('/api/admin/suggestions?limit=' + PAGE_SIZE + '&offset=' + suggestionsOffset)
+      .then(function (rows) {
+        if (rows.length === 0) return content.innerHTML = emptyState('No suggestions yet.');
+        var html = '<table><thead><tr><th>Text</th><th>Category</th><th>Pack</th><th>Status</th><th></th></tr></thead><tbody>';
+        rows.forEach(function (s) {
+          html += '<tr data-id="' + escapeHtml(s.id) + '">'
+            + '<td class="reason-text"><span class="editable-text" contenteditable="true" data-field="text">' + escapeHtml(s.text) + '</span></td>'
+            + '<td>' + escapeHtml(s.category) + '</td>'
+            + '<td>' + escapeHtml(s.pack) + '</td>'
+            + '<td>' + (s.enabled ? '<span class="badge">enabled</span>' : '<span class="badge removed">disabled</span>') + '</td>'
+            + '<td><div class="row-actions">'
+            + '<button class="secondary" data-action="save">Save</button>'
+            + '<button class="' + (s.enabled ? 'danger' : 'secondary') + '" data-action="toggle">' + (s.enabled ? 'Disable' : 'Enable') + '</button>'
+            + '</div></td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+        content.querySelectorAll('[data-action="save"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var row = btn.closest('tr');
+            var id = row.getAttribute('data-id');
+            var text = row.querySelector('[data-field="text"]').textContent.trim();
+            var category = row.children[1].textContent.trim();
+            var pack = row.children[2].textContent.trim();
+            api('/api/admin/suggestions/' + id, { method: 'PATCH', body: JSON.stringify({ category: category, pack: pack, text: text }) })
+              .then(loadSuggestions).catch(function (e) { alert(e.message); });
+          });
+        });
+        content.querySelectorAll('[data-action="toggle"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.closest('tr').getAttribute('data-id');
+            api('/api/admin/suggestions/' + id + '/toggle', { method: 'POST' })
+              .then(loadSuggestions).catch(function (e) { alert(e.message); });
+          });
+        });
+        renderPager(document.getElementById('suggestions-pager'), suggestionsOffset, rows.length,
+          function () { suggestionsOffset = Math.max(0, suggestionsOffset - PAGE_SIZE); loadSuggestions(); },
+          function () { suggestionsOffset += PAGE_SIZE; loadSuggestions(); });
       })
       .catch(function (e) { content.innerHTML = emptyState(e.message); });
   }

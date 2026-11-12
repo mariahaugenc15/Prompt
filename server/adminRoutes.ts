@@ -37,6 +37,13 @@ import {
   adminRevokeVerification,
   type VerificationStatus,
 } from './verificationRepo.js'
+import {
+  adminCreateSuggestion,
+  adminGetSuggestion,
+  adminListSuggestions,
+  adminSetSuggestionEnabled,
+  adminUpdateSuggestion,
+} from './suggestionsRepo.js'
 
 export const adminRouter = Router()
 
@@ -245,6 +252,55 @@ adminRouter.post('/api/admin/comments/:id/remove', (req, res) => {
   if (!adminGetComment(id)) return res.status(404).json({ errors: { form: 'No comment with that id.' } })
   removeComment(id, req.account!.id)
   res.json({ ok: true })
+})
+
+// --- Prompt suggestions ("Need an idea?" library, Phase 10) ----------------
+
+const SUGGESTION_CATEGORIES = ['snap', 'sound', 'show', 'share', 'unplug']
+const SUGGESTION_PACKS = ['chill', 'brave', 'silly', 'outdoors']
+
+function validateSuggestionBody(req: import('express').Request): { category: string; pack: string; text: string } | { error: string } {
+  const category = typeof req.body?.category === 'string' ? req.body.category : ''
+  const pack = typeof req.body?.pack === 'string' ? req.body.pack : ''
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : ''
+  if (!SUGGESTION_CATEGORIES.includes(category)) {
+    return { error: `Category must be one of: ${SUGGESTION_CATEGORIES.join(', ')}.` }
+  }
+  if (!SUGGESTION_PACKS.includes(pack)) {
+    return { error: `Pack must be one of: ${SUGGESTION_PACKS.join(', ')}.` }
+  }
+  if (!text) return { error: 'Suggestion text is required.' }
+  return { category, pack, text }
+}
+
+adminRouter.get('/api/admin/suggestions', (req, res) => {
+  const { limit, offset } = pagination(req)
+  res.json(adminListSuggestions(limit, offset))
+})
+
+adminRouter.post('/api/admin/suggestions', (req, res) => {
+  const parsed = validateSuggestionBody(req)
+  if ('error' in parsed) return res.status(422).json({ errors: { form: parsed.error } })
+  const row = adminCreateSuggestion(parsed.category, parsed.pack, parsed.text)
+  recordAuditLog({ adminAccountId: req.account!.id, action: 'create_suggestion', targetAccountId: row.id, details: `${row.category}/${row.pack}: ${row.text}` })
+  res.json(row)
+})
+
+adminRouter.patch('/api/admin/suggestions/:id', (req, res) => {
+  const id = String(req.params.id)
+  if (!adminGetSuggestion(id)) return res.status(404).json({ errors: { form: 'No suggestion with that id.' } })
+  const parsed = validateSuggestionBody(req)
+  if ('error' in parsed) return res.status(422).json({ errors: { form: parsed.error } })
+  adminUpdateSuggestion(id, parsed.category, parsed.pack, parsed.text)
+  res.json({ ok: true })
+})
+
+adminRouter.post('/api/admin/suggestions/:id/toggle', (req, res) => {
+  const id = String(req.params.id)
+  const existing = adminGetSuggestion(id)
+  if (!existing) return res.status(404).json({ errors: { form: 'No suggestion with that id.' } })
+  adminSetSuggestionEnabled(id, !existing.enabled)
+  res.json({ ok: true, enabled: !existing.enabled })
 })
 
 // --- Audit log ---------------------------------------------------------

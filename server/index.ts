@@ -19,6 +19,7 @@ import { verificationRouter } from './verificationRoutes.js'
 import { notificationsRouter } from './notificationsRoutes.js'
 import { widgetRouter } from './widgetRoutes.js'
 import { stampsRouter } from './stampsRoutes.js'
+import { suggestionsRouter } from './suggestionsRoutes.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mediaDir } from './mediaStore.js'
@@ -113,6 +114,7 @@ app.use(verificationRouter)
 app.use(notificationsRouter)
 app.use(widgetRouter)
 app.use(stampsRouter)
+app.use(suggestionsRouter)
 
 // Self-contained admin dashboard (no build step) — served as a static file
 // rather than part of the Vite frontend, since it's a separate audience

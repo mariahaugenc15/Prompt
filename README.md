@@ -4,6 +4,15 @@ Real prompts. Real life. A social app built around real-world challenges instead
 
 This is the v1 MVP scoped in the concept brief, built as a mobile-first React app to validate the core loop before native. The calendar/prompts/feed/boards app still runs on mock/local data (zustand + localStorage) — there's no backend for that yet, so friend interactions there are simulated from a single-user point of view. Sign-up and the account/prompt system (Section 8: individual-to-individual send/complete, organization broadcast) are real, server-backed, and enforced server-side — see "Accounts & real prompts" below.
 
+## Current status
+
+Read this section first in any new session before asking what's deployed or what's left — it's the one place that doesn't rot the way a chat history does.
+
+- **Backend**: live in production on Render, deployed from this repo's `render.yaml` blueprint, reachable at **`https://promptreallife.com`** (custom domain). `CORS_ORIGIN` and `ADMIN_USERNAMES` are already set in Render's dashboard (Environment tab there, not in this repo — nothing to configure here).
+- **iOS app**: `.env.production` in this repo (committed — see below) points the web build at the production backend above, so `npm run ios:sync` always produces a build that talks to the real server, not to itself. Verified working end-to-end as of this writing: builds clean in Xcode, runs in the Simulator, real sign-up/login/feed all work against the live backend.
+- **App Store Connect**: an app record already exists there for bundle ID `com.promptsocial.app` — don't re-create one. What's still outstanding toward an actual submission: Archive + upload a build, screenshots, a privacy policy URL, the App Privacy data-collection questionnaire, and the age rating questionnaire. None of that lives in this repo; it's all on the App Store Connect side.
+- **Known local-environment footgun**: if `ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` ever exists on a dev machine, it's a local Xcode-generated SPM lockfile, not tracked by git — if a plugin was ever added/removed from `package.json`, this stale file can make Xcode report "Missing package product" for a plugin that's no longer actually a dependency. Fix: delete that file and `ios/App/App.xcodeproj`'s `DerivedData`, then let Xcode re-resolve.
+
 ## Stack
 
 - Client: React 19 + TypeScript + Vite, Tailwind CSS v4, React Router, Framer Motion, Zustand (persisted to `localStorage`).

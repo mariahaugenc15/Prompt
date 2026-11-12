@@ -13,6 +13,7 @@ import { isBlockedEitherWay } from './blocksRepo.js'
 import { canViewCompletion } from './completionsRepo.js'
 import { awardStamp } from './stampsRepo.js'
 import { sanitizeNoteStyle } from './noteStyle.js'
+import { getGroupById, maybeRevealIfGroupComplete } from './groupPromptsRepo.js'
 
 export const promptRouter = Router()
 
@@ -385,6 +386,16 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, async (req, res) => 
   if (prompt.recipient_account_id !== me.id) return res.status(403).json({ errors: { form: 'This prompt was not sent to you.' } })
   if (prompt.status !== 'pending') return res.status(422).json({ errors: { form: 'This prompt has already been resolved.' } })
 
+  const groupId = prompt.group_id as string | null
+  if (groupId) {
+    const group = getGroupById(groupId)
+    // 12.5: a cancelled group's still-pending members can no longer
+    // complete it — cancellation never touches prompts.status (see
+    // db.ts's prompt_groups comment), so this explicit check is the only
+    // thing stopping it.
+    if (group?.cancelled_at) return res.status(422).json({ errors: { form: 'This prompt was cancelled.' } })
+  }
+
   completeOneToOneStmt.run({
     id: prompt.id,
     mediaType,
@@ -394,7 +405,20 @@ promptRouter.post('/api/prompts/:id/complete', requireAuth, async (req, res) => 
     completedAt: Date.now(),
   })
 
-  notifyForEvent(sender.id, 'prompt_completed', `${me.displayName} completed your prompt`, prompt.prompt_text as string)
+  // 12.3/12.4: a sealed, unrevealed group never tells its sender anything
+  // beyond the progress count they can already see on their sent list —
+  // not even "someone completed it" — so the standard per-completion
+  // notification is skipped entirely here. If this completion is the
+  // group's last one, maybeRevealIfGroupComplete reveals it immediately
+  // and sends the real "sealed prompt is open" notification instead,
+  // which is the only notification a sealed group ever produces before
+  // its deadline passes. An unsealed group prompt (or a plain 1:1,
+  // groupId null) behaves exactly as before.
+  const group = groupId ? getGroupById(groupId) : undefined
+  if (!group?.sealed) {
+    notifyForEvent(sender.id, 'prompt_completed', `${me.displayName} completed your prompt`, prompt.prompt_text as string)
+  }
+  if (groupId) maybeRevealIfGroupComplete(groupId)
   awardStamp(me.id, prompt.id as string, prompt.category as string)
 
   res.status(200).json({

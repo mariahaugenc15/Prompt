@@ -203,6 +203,42 @@ if (!promptColumns.has('note_color')) {
   db.exec(`ALTER TABLE prompts ADD COLUMN note_handwriting TEXT`)
 }
 
+// Group prompts + sealed reveals (v2, Phase 12). A group prompt is just N
+// ordinary rows in `prompts` (one per recipient, is_broadcast = 0, exactly
+// the existing 1:1 shape — same per-recipient completion tracking the spec
+// says to reuse) that all share one group_id. NULL group_id is "an
+// ordinary 1:1 prompt" and nothing about the existing 1:1 send/complete
+// path changes for it, satisfying "one-to-one prompts must work exactly
+// as before." Sealing/deadline/reveal state lives on the group row, never
+// per-recipient, since it's a property of the group as a whole.
+//
+// A group is never deleted from prompts.status's CHECK constraint to add
+// a 'cancelled' state (altering a CHECK on an existing production table
+// is its own migration risk) — cancellation lives entirely in
+// cancelled_at on prompt_groups, and every query that lists "pending"
+// prompts for a recipient also checks cancelled_at IS NULL, so a
+// cancelled recipient row simply stops being pending without needing a
+// new status value.
+if (!promptColumns.has('group_id')) {
+  db.exec(`ALTER TABLE prompts ADD COLUMN group_id TEXT`)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_prompts_group ON prompts(group_id)`)
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS prompt_groups (
+    id TEXT PRIMARY KEY,
+    sender_account_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    prompt_text TEXT NOT NULL,
+    sealed INTEGER NOT NULL DEFAULT 0,
+    deadline_at INTEGER,
+    revealed_at INTEGER,
+    cancelled_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_prompt_groups_sender ON prompt_groups(sender_account_id);
+  CREATE INDEX IF NOT EXISTS idx_prompt_groups_reveal_sweep ON prompt_groups(sealed, revealed_at, cancelled_at, deadline_at);
+`)
+
 // Boards: a named public/private group any real account can create, find,
 // and join — the server-backed record of a board's existence and
 // membership so a public one is genuinely discoverable by anyone on the
@@ -562,7 +598,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL,
-    event TEXT NOT NULL CHECK (event IN ('new_follower', 'new_prompt', 'prompt_completed')),
+    event TEXT NOT NULL,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     url TEXT NOT NULL DEFAULT '/',
@@ -571,6 +607,38 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_notifications_account ON notifications(account_id, created_at DESC);
 `)
+// event originally shipped with a CHECK constraint fixed to Phase 4's 3
+// event types. Every new notification type since (Phase 11's
+// monthly_recap, Phase 12's sealed_reveal, more to come in Phase 13) hit
+// a CHECK constraint failure on the very first live attempt to send one —
+// SQLite can't ALTER a CHECK constraint in place, so this rebuilds the
+// table without it, the same way the completion_reactions migration
+// above handles its own outgrown CHECK. notificationsRepo.ts's
+// NotificationEvent union is the real, extensible source of truth for
+// valid events from here on, matching how note styles and suggestion
+// packs already avoid a CHECK constraint for exactly this reason.
+const notificationsTableSql = (
+  db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notifications'`).get() as { sql: string } | undefined
+)?.sql
+if (notificationsTableSql?.includes('CHECK')) {
+  db.exec(`
+    ALTER TABLE notifications RENAME TO notifications_old;
+    CREATE TABLE notifications (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      event TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      url TEXT NOT NULL DEFAULT '/',
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+    INSERT INTO notifications (id, account_id, event, title, body, url, is_read, created_at)
+      SELECT id, account_id, event, title, body, url, is_read, created_at FROM notifications_old;
+    DROP TABLE notifications_old;
+    CREATE INDEX IF NOT EXISTS idx_notifications_account ON notifications(account_id, created_at DESC);
+  `)
+}
 
 // Admin audit log (v2, Phase 6) — one row per sensitive admin action
 // (permanent delete, email export, broadcast send), independent of any

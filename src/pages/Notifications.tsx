@@ -21,6 +21,7 @@ const TOGGLES: { key: keyof Omit<NotificationPrefs, 'master'>; label: string }[]
   { key: 'newPrompt', label: 'New prompt received' },
   { key: 'promptCompleted', label: 'Someone completed your prompt' },
   { key: 'monthlyRecap', label: 'Monthly recap' },
+  { key: 'sealedReveal', label: 'Sealed prompt opened' },
 ]
 
 export function Notifications() {

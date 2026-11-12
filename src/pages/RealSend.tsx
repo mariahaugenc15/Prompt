@@ -132,9 +132,14 @@ export function RealSend() {
         <BackIcon size={13} /> Back to profile
       </Link>
 
-      <div>
-        <h1 className="font-serif text-2xl">Send a prompt</h1>
-        <p className="text-xs text-ink-faint">Goes straight to their inbox, enforced the same way on the server.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl">Send a prompt</h1>
+          <p className="text-xs text-ink-faint">Goes straight to their inbox, enforced the same way on the server.</p>
+        </div>
+        <Link to="/real/send/group" className="shrink-0 whitespace-nowrap text-xs text-ink-faint underline underline-offset-2">
+          Send to a group
+        </Link>
       </div>
 
       <label className="relative flex flex-col gap-1.5 text-xs uppercase tracking-wider text-ink-faint">

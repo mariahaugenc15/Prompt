@@ -27,6 +27,9 @@ import { OrgPage } from './pages/OrgPage'
 import { RealSend } from './pages/RealSend'
 import { StampsBook } from './pages/StampsBook'
 import { MonthlyRecap } from './pages/MonthlyRecap'
+import { GroupSend } from './pages/GroupSend'
+import { GroupPrompts } from './pages/GroupPrompts'
+import { GroupDetail } from './pages/GroupDetail'
 import { StampSvgFilters } from './components/Stamp'
 
 function Shell({ children }: { children: ReactNode }) {
@@ -121,6 +124,30 @@ export default function App() {
         element={
           <RealShell>
             <RealSend />
+          </RealShell>
+        }
+      />
+      <Route
+        path="/real/send/group"
+        element={
+          <RealShell>
+            <GroupSend />
+          </RealShell>
+        }
+      />
+      <Route
+        path="/groups"
+        element={
+          <RealShell>
+            <GroupPrompts />
+          </RealShell>
+        }
+      />
+      <Route
+        path="/groups/:id"
+        element={
+          <RealShell>
+            <GroupDetail />
           </RealShell>
         }
       />

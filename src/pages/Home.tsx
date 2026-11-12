@@ -397,6 +397,12 @@ export function Home() {
       </div>
 
       <div className="px-4">
+        <Link to="/groups" className="text-xs text-ink-faint underline underline-offset-2">
+          Group prompts
+        </Link>
+      </div>
+
+      <div className="px-4">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs uppercase tracking-wider text-ink-faint">Your boards</p>
           <Link to="/boards/new" className="text-xs font-medium text-ink underline underline-offset-2">

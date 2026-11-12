@@ -4,6 +4,7 @@ import { calendarsForCompletion } from './calendarsRepo.js'
 import { blockedEitherWayIds } from './blocksRepo.js'
 import { getBoardById, isSubscribed } from './boardsRepo.js'
 import { hasOptedIntoAdultContent } from './accountsRepo.js'
+import { groupSealState } from './groupPromptsRepo.js'
 
 export interface CompletionView {
   id: string
@@ -34,6 +35,11 @@ export interface CompletionView {
   pinnedByMe: boolean
   calendarIds: string[]
   calendarNames: string[]
+  // Phase 12 — set only for a completion that came from a group prompt.
+  // late is only ever true once the group has revealed (a completion made
+  // after the seal broke, shown normally but marked).
+  groupId?: string
+  late?: boolean
 }
 
 interface OneToOneRow {
@@ -48,12 +54,25 @@ interface OneToOneRow {
   noteSticker: string | null
   noteHandwriting: string | null
   createdAt: number
+  recipientAccountId: string | null
+  groupId: string | null
   senderUsername: string
   senderFirstName: string | null
   senderOrgName: string | null
   completerUsername: string
   completerFirstName: string | null
   completerOrgName: string | null
+}
+
+// The single sealed-content gate every 1:1-shaped feed in this file
+// applies before a row is allowed to reach a viewer (12.3). A row with no
+// group_id (an ordinary 1:1 prompt, the overwhelming majority) is never
+// hidden by this — it only ever does something for a group-member row.
+function rowIsSealedHidden(groupId: string | null, recipientAccountId: string | null, viewerId: string | undefined): boolean {
+  if (!groupId) return false
+  const seal = groupSealState(groupId)
+  if (!seal || !seal.sealed || seal.revealedAt) return false
+  return viewerId !== recipientAccountId
 }
 
 interface BroadcastRow extends OneToOneRow {
@@ -67,6 +86,7 @@ const oneToOneByRecipient = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.completion_auto_caption AS autoCaption, p.completion_user_caption AS userCaption,
          p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl,
          p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting, p.completed_at AS createdAt,
+         p.recipient_account_id AS recipientAccountId, p.group_id AS groupId,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
   FROM prompts p
@@ -80,6 +100,7 @@ const oneToOneByFollowedRecipients = db.prepare(`
   SELECT p.id, p.category, p.prompt_text AS text, p.completion_auto_caption AS autoCaption, p.completion_user_caption AS userCaption,
          p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl,
          p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting, p.completed_at AS createdAt,
+         p.recipient_account_id AS recipientAccountId, p.group_id AS groupId,
          sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
          completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
   FROM prompts p
@@ -151,7 +172,18 @@ function normalizeOneToOne(row: OneToOneRow, viewerId?: string): CompletionView 
     ...reactionCounts(row.id, viewerId),
     calendarIds: tags.map((t) => t.id),
     calendarNames: tags.map((t) => t.name),
+    groupId: row.groupId ?? undefined,
+    late: row.groupId ? isLateCompletion(row.groupId, row.createdAt) : undefined,
   }
+}
+
+// A group-prompt completion is "late" once it was made after that group's
+// seal actually broke — never true for a non-group prompt, and never true
+// before a group has revealed at all (an on-time completion before reveal
+// isn't late just because reveal hasn't happened yet).
+function isLateCompletion(groupId: string, completedAt: number): boolean {
+  const seal = groupSealState(groupId)
+  return Boolean(seal?.revealedAt && completedAt > seal.revealedAt)
 }
 
 function normalizeBroadcast(row: BroadcastRow, viewerId?: string): CompletionView {
@@ -197,7 +229,13 @@ function paginate<T>(items: T[], limit: number, offset: number): T[] {
 // page size since it backs a calendar view that expects a full month at a
 // time, not a "load more" feed.
 export function myActivity(accountId: string, limit = 500, offset = 0): CompletionView[] {
-  const oneToOne = (oneToOneByRecipient.all(accountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, accountId))
+  // rowIsSealedHidden never actually hides anything here (every row this
+  // query returns already has accountId as its own recipient, so the
+  // "except the response's own author" exception always applies) — kept
+  // for defense in depth rather than reasoning out a special case.
+  const oneToOne = (oneToOneByRecipient.all(accountId) as OneToOneRow[])
+    .filter((r) => !rowIsSealedHidden(r.groupId, r.recipientAccountId, accountId))
+    .map((r) => normalizeOneToOne(r, accountId))
   const broadcasts = (broadcastByCompleter.all(accountId) as BroadcastRow[]).map((r) => normalizeBroadcast(r, accountId))
   return paginate([...oneToOne, ...broadcasts].sort((a, b) => b.createdAt - a.createdAt), limit, offset)
 }
@@ -207,7 +245,13 @@ export function myActivity(accountId: string, limit = 500, offset = 0): Completi
 // between the two of you (blocksRepo.ts), so a blocked account's
 // completions can't reach here via the follows join this already depends on.
 export function followingFeed(accountId: string, limit = 50, offset = 0): CompletionView[] {
-  const rows = (oneToOneByFollowedRecipients.all(accountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, accountId))
+  // The real exposure this guards: a sealed group prompt's other
+  // recipient might be someone you follow, so their completion would
+  // otherwise surface here — before reveal, exactly like any stranger,
+  // you are not that response's author.
+  const rows = (oneToOneByFollowedRecipients.all(accountId) as OneToOneRow[])
+    .filter((r) => !rowIsSealedHidden(r.groupId, r.recipientAccountId, accountId))
+    .map((r) => normalizeOneToOne(r, accountId))
   return paginate(rows, limit, offset)
 }
 
@@ -242,7 +286,12 @@ export function communityFeed(accountId: string, limit = 50, offset = 0): Comple
 export function publicActivity(targetAccountId: string, viewerId?: string, limit = 100, offset = 0): CompletionView[] {
   if (viewerId && blockedEitherWayIds(viewerId).has(targetAccountId)) return []
   const broadcasts = (broadcastByCompleter.all(targetAccountId) as BroadcastRow[]).map((r) => normalizeBroadcast(r, viewerId))
-  const oneToOne = (oneToOneByRecipient.all(targetAccountId) as OneToOneRow[]).map((r) => normalizeOneToOne(r, viewerId))
+  // The other real exposure: viewing a sealed group prompt's recipient's
+  // own public profile before reveal, as any other viewer (including the
+  // group's own sender, who is never this row's recipientAccountId).
+  const oneToOne = (oneToOneByRecipient.all(targetAccountId) as OneToOneRow[])
+    .filter((r) => !rowIsSealedHidden(r.groupId, r.recipientAccountId, viewerId))
+    .map((r) => normalizeOneToOne(r, viewerId))
   return paginate([...broadcasts, ...oneToOne].sort((a, b) => b.createdAt - a.createdAt), limit, offset)
 }
 
@@ -257,6 +306,7 @@ export function calendarFeed(calendarId: string, viewerId?: string, limit = 500,
     SELECT p.id, p.category, p.prompt_text AS text, p.completion_auto_caption AS autoCaption, p.completion_user_caption AS userCaption,
            p.completion_media_type AS mediaType, p.completion_media_data_url AS mediaDataUrl,
          p.note_color AS noteColor, p.note_sticker AS noteSticker, p.note_handwriting AS noteHandwriting, p.completed_at AS createdAt,
+         p.recipient_account_id AS recipientAccountId, p.group_id AS groupId,
            sender.username AS senderUsername, sender.first_name AS senderFirstName, sender.organization_name AS senderOrgName,
            completer.username AS completerUsername, completer.first_name AS completerFirstName, completer.organization_name AS completerOrgName
     FROM prompts p
@@ -267,7 +317,9 @@ export function calendarFeed(calendarId: string, viewerId?: string, limit = 500,
   `,
       )
       .all(calendarId) as OneToOneRow[]
-  ).map((r) => normalizeOneToOne(r, viewerId))
+  )
+    .filter((r) => !rowIsSealedHidden(r.groupId, r.recipientAccountId, viewerId))
+    .map((r) => normalizeOneToOne(r, viewerId))
 
   const broadcasts = (
     db
@@ -305,7 +357,7 @@ export function ownedCompletion(completionId: string, accountId: string): { kind
   return undefined
 }
 
-const oneToOneAccessStmt = db.prepare('SELECT sender_account_id, recipient_account_id FROM prompts WHERE id = ? AND is_broadcast = 0')
+const oneToOneAccessStmt = db.prepare('SELECT sender_account_id, recipient_account_id, group_id FROM prompts WHERE id = ? AND is_broadcast = 0')
 const broadcastAccessStmt = db.prepare(`
   SELECT p.sender_account_id AS senderAccountId, c.completer_account_id AS completerAccountId, p.board_id AS boardId
   FROM prompt_completions c JOIN prompts p ON p.id = c.prompt_id
@@ -321,8 +373,17 @@ const broadcastAccessStmt = db.prepare(`
 // (no board) has always been openly readable (see the unauthenticated
 // GET /api/organizations/:username/broadcasts), so it stays that way here.
 export function canViewCompletion(completionId: string, viewerId?: string): boolean {
-  const oneToOne = oneToOneAccessStmt.get(completionId) as { sender_account_id: string; recipient_account_id: string | null } | undefined
+  const oneToOne = oneToOneAccessStmt.get(completionId) as
+    | { sender_account_id: string; recipient_account_id: string | null; group_id: string | null }
+    | undefined
   if (oneToOne) {
+    // Phase 12: a sealed, unrevealed group prompt's response is visible to
+    // nobody but its own author — not the sender either, which is why
+    // this branch returns before the normal sender-or-recipient check
+    // below ever runs for a hidden row. This is also what disables
+    // comments and reactions on a sealed item (12.3): both hang off this
+    // same function with no visibility logic of their own.
+    if (rowIsSealedHidden(oneToOne.group_id, oneToOne.recipient_account_id, viewerId)) return false
     return viewerId === oneToOne.sender_account_id || viewerId === oneToOne.recipient_account_id
   }
 

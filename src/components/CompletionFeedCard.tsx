@@ -64,7 +64,10 @@ export function CompletionFeedCard({
               : `${completion.senderDisplayName ?? 'Someone'} → ${completion.completerDisplayName}`}
         </p>
 
-        <div className="mt-2 flex items-center gap-3 border-t border-line pt-2" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line pt-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           <ReactionBar
             likes={completion.likes}
             dislikes={completion.dislikes}
@@ -78,6 +81,11 @@ export function CompletionFeedCard({
           >
             <PinIcon size={14} /> {completion.pinnedByMe ? 'Pinned' : 'Pin'}
           </button>
+          {/* ml-auto only bites once this row has wrapped onto a line with
+              room to spare (narrow masonry columns — see Home.tsx's
+              columns-2 grid — rarely fit reactions + Pin + Report on one
+              line); flex-wrap above is what keeps Report inside the card's
+              bounds instead of overflowing off its right edge when it doesn't. */}
           <ReportButton targetType="completion" targetId={completion.id} token={token} className="ml-auto" />
         </div>
       </div>
